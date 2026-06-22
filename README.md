@@ -8,9 +8,9 @@ A compact FHIR R4 implementation guide for sharing granular patient-generated me
 - 1 project CodeSystem containing 7 concepts
 - 2 ValueSets (menstrual flow; a non-binding common-symptoms starter set)
 - complete FSH source
-- a small hand-authored worked Bundle plus a synthetic seven-cycle **longitudinal example Bundle**
-- app-adapter guidance for Ovumcy, drip, Oky, Menstrudel, and Mensinator
+- a single generated worked example: a synthetic seven-cycle **longitudinal example Bundle** (also the SMART Health Link payload and the viewer's demo)
 - clinician-display guidance
+- an agent skill (`skill/`) for adding IG support to a tracking app
 - SMART Health Link packaging guidance
 - a self-contained **clinician viewer** (published at `viewer/index.html`) that decrypts a SMART Health Link in the browser and renders the cycle summary
 - terminology and integrity-check scripts

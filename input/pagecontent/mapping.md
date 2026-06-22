@@ -33,7 +33,7 @@ When equivalence is uncertain, retain only the source coding and text. Do not ad
 
 ## Flow normalization
 
-The source adapters map the applications' common ordinal categories as follows:
+Map a source application's ordinal flow categories to the project codes as follows:
 
 | Source label | MVP code |
 |---|---|

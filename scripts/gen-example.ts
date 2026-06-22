@@ -56,6 +56,16 @@ add({
   text: { status: "generated", div: `<div xmlns="http://www.w3.org/1999/xhtml"><p>Source application: <b>Periodicity</b> (synthetic reference app).</p></div>` },
 });
 
+// --- app-native symptom CodeSystem (the escape hatch the custom symptom uses) ---
+add({
+  resourceType: "CodeSystem", id: "example-app-symptoms",
+  url: SYS.appExample, version: "1", name: "ExampleAppSymptoms", title: "Example App Symptoms",
+  description: "An illustrative app-native symptom dictionary for the worked example, demonstrating the escape hatch for terms with no exact standard code.",
+  status: "active", experimental: true, content: "complete", caseSensitive: true,
+  concept: [{ code: "pulling-sensation", display: "Pulling sensation", definition: "A user-defined symptom retained in its source vocabulary because no reviewed standard mapping was established." }],
+  text: { status: "generated", div: `<div xmlns="http://www.w3.org/1999/xhtml"><p>Example app-native symptom dictionary containing <code>pulling-sensation</code>.</p></div>` },
+});
+
 // --- IUD insertion event (the clinical context of this case) ---
 add({
   resourceType: "Procedure", id: "iud-insertion", status: "completed",
@@ -70,6 +80,19 @@ const panelIds: string[] = [];
 const slug = (d: string) => d.replace(/-/g, "");
 let factCount = 0;
 let appNativeDay: string | null = null;
+
+function addPanel(date: string, members: string[], note?: string | null) {
+  const panelId = `panel-${slug(date)}`;
+  panelIds.push(panelId);
+  add({
+    resourceType: "Observation", id: panelId, meta: { profile: panelProfile },
+    status: "final", category: [SURVEY], code: cc(SYS.cycle, "daily-tracking-panel", "Daily tracking panel"),
+    subject: ref("Patient", PT), effectiveDateTime: date, performer: [ref("Patient", PT)], device: ref("Device", DEV),
+    ...(members.length ? { hasMember: members.map((m) => ref("Observation", m)) } : {}),
+    ...(note ? { note: [{ text: note }] } : {}),
+    text: { status: "generated", div: `<div xmlns="http://www.w3.org/1999/xhtml"><p>Daily tracking panel for ${date} (${members.length} facts${note ? ", with note" : ""}).</p></div>` },
+  });
+}
 
 for (const d of daily) {
   const s = slug(d.date);
@@ -95,17 +118,31 @@ for (const d of daily) {
   }
 
   if (members.length === 0 && !d.note) continue; // not recorded -> no panel
-  const panelId = `panel-${s}`;
-  panelIds.push(panelId);
-  add({
-    resourceType: "Observation", id: panelId, meta: { profile: panelProfile },
-    status: "final", category: [SURVEY], code: cc(SYS.cycle, "daily-tracking-panel", "Daily tracking panel"),
-    subject: ref("Patient", PT), effectiveDateTime: d.date, performer: [ref("Patient", PT)], device: ref("Device", DEV),
-    hasMember: members.map((m) => ref("Observation", m)),
-    ...(d.note ? { note: [{ text: d.note }] } : {}),
-    text: { status: "generated", div: `<div xmlns="http://www.w3.org/1999/xhtml"><p>Daily tracking panel for ${d.date} (${members.length} facts).</p></div>` },
-  });
+  addPanel(d.date, members, d.note);
 }
+
+// --- explicit-negative day: the user verified they were NOT menstruating ---
+// (distinct from "not recorded" — a meaningful fact per the missing-data rules)
+{
+  const date = "2026-04-25", id = `status-absent-${slug(date)}`;
+  fact(id, date, cc(SYS.loinc, LOINC.menstrualStatus, "Menstrual status - Reported"), { valueCodeableConcept: cc(SYS.sct, SCT.notMenstruating) });
+  factCount++;
+  addPanel(date, [id], "Checked — definitely not bleeding today.");
+}
+
+// --- note-only day: a diary note with no structured fact ---
+addPanel("2026-04-27", [], "Felt off and crampy in the evening; didn't log anything specific.");
+
+// --- optional native-JSON archive (the "Complete export" safety net) ---
+const nativeDays = daily.filter((d) => d.isPeriod || d.note || d.bbt != null).slice(0, 6).map((d) => ({
+  date: d.date, periodStatus: d.isPeriod ? "present" : undefined, flow: d.flow ? FLOW_CODE_BY_LEVEL[d.flow].replace("flow-", "") : undefined,
+  painScore: d.pain || undefined, temperature: d.bbt != null ? { value: d.bbt, unit: "Cel", basal: true } : undefined, note: d.note || undefined,
+}));
+const native = { sourceApp: "Periodicity", appVersion: "synthetic", schemaVersion: 1, timezone: "America/Chicago", days: nativeDays };
+add({
+  resourceType: "Binary", id: "native-source", contentType: "application/json",
+  securityContext: ref("Patient", PT), data: Buffer.from(JSON.stringify(native)).toString("base64"),
+});
 
 // --- Provenance ---
 add({
@@ -113,7 +150,8 @@ add({
   target: [ref("Patient", PT), ref("Device", DEV), ...panelIds.map((id) => ref("Observation", id))],
   recorded: "2026-06-21T18:00:00-05:00",
   agent: [{ type: { coding: [{ system: "http://terminology.hl7.org/CodeSystem/provenance-participant-type", code: "assembler", display: "Assembler" }] }, who: ref("Device", DEV) }],
-  text: { status: "generated", div: `<div xmlns="http://www.w3.org/1999/xhtml"><p>Periodicity assembled ${panelIds.length} daily panels into the longitudinal export.</p></div>` },
+  entity: [{ role: "source", what: ref("Binary", "native-source") }],
+  text: { status: "generated", div: `<div xmlns="http://www.w3.org/1999/xhtml"><p>Periodicity assembled ${panelIds.length} daily panels into the longitudinal export from the attached native snapshot.</p></div>` },
 });
 
 // --- assemble the bundle ---

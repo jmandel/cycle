@@ -9,7 +9,7 @@ releaseLabel: ci-build
 title: Period Tracking MVP Implementation Guide
 publisher:
   name: fhir.me Cycle Project
-  url: https://fhir.me/cycle
+  url: https://github.com/jmandel/periodicity
 description: >-
   A deliberately small FHIR R4 implementation guide for sharing granular,
   patient-generated menstrual period tracking data from consumer applications.
@@ -19,8 +19,6 @@ parameters:
   apply-contact: true
   apply-jurisdiction: false
   show-inherited-invariants: false
-  generate-json: true
-  generate-xml: true
   no-narrative:
     - Binary/*
 menu:
@@ -31,7 +29,6 @@ menu:
     Mapping contract: mapping.html
     Terminology: terminology.html
   Implementation:
-    App adapters: adapters.html
     Clinical display: clinical-display.html
     SMART Health Links: smart-health-links.html
     Clinician viewer: viewer/index.html
@@ -41,3 +38,9 @@ menu:
     Conformance testing: testing.html
   References: references.html
   Artifacts: artifacts.html
+  IG details: ig-details.html
+resources:
+  Bundle/period-tracking-longitudinal-example:
+    name: Longitudinal Period Tracking Export
+    description: A synthetic ~seven-cycle copper-IUD worked example built from the common-core facts; this is the Bundle wrapped by the example SMART Health Link and rendered by the clinician viewer.
+    exampleBoolean: true

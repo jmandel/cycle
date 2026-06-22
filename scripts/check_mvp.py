@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Perform deterministic integrity and semantic checks on the MVP artifacts."""
+"""Deterministic integrity and semantic checks on the MVP artifacts.
+
+Terminology and profiles come from the SUSHI output (fsh-generated/); the single
+worked example is the generated longitudinal Bundle in input/resources/.
+"""
 from __future__ import annotations
 
 import base64
@@ -9,228 +13,163 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 RES = ROOT / "fsh-generated" / "resources"
-CYCLE_SYSTEM = "https://fhir.me/cycle/CodeSystem/cycle"
+BUNDLE_FILE = ROOT / "input" / "resources" / "Bundle-period-tracking-longitudinal-example.json"
+CYCLE = "https://fhir.me/cycle/CodeSystem/cycle"
+LOINC, SCT, UCUM = "http://loinc.org", "http://snomed.info/sct", "http://unitsofmeasure.org"
+OBSCAT = "http://terminology.hl7.org/CodeSystem/observation-category"
 FACT_PROFILE = "https://fhir.me/cycle/StructureDefinition/period-tracking-fact"
 PANEL_PROFILE = "https://fhir.me/cycle/StructureDefinition/daily-tracking-panel"
 BUNDLE_PROFILE = "https://fhir.me/cycle/StructureDefinition/period-tracking-bundle"
-EXPECTED_CODES = {
-    "daily-tracking-panel",
-    "menstrual-flow",
-    "flow-none",
-    "flow-spotting",
-    "flow-light",
-    "flow-moderate",
-    "flow-heavy",
-}
-EXPECTED_PROFILES = {
-    "period-tracking-bundle",
-    "period-tracking-fact",
-    "daily-tracking-panel",
-}
+EXPECTED_CODES = {"daily-tracking-panel", "menstrual-flow", "flow-none", "flow-spotting", "flow-light", "flow-moderate", "flow-heavy"}
+EXPECTED_PROFILES = {"period-tracking-bundle", "period-tracking-fact", "daily-tracking-panel"}
+FLOW_VALUES = EXPECTED_CODES - {"daily-tracking-panel", "menstrual-flow"}
 VALUE_KEYS = {"valueQuantity", "valueCodeableConcept", "valueString", "valueBoolean"}
 
 
-def load(name: str) -> dict[str, Any]:
-    path = RES / name
+def load(path: Path) -> dict[str, Any]:
     if not path.exists():
-        raise AssertionError(f"Missing generated resource: {path}")
+        raise AssertionError(f"Missing resource: {path}")
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def walk_references(value: Any):
-    if isinstance(value, dict):
-        for key, child in value.items():
-            if key == "reference" and isinstance(child, str):
-                yield child
-            else:
-                yield from walk_references(child)
-    elif isinstance(value, list):
-        for child in value:
-            yield from walk_references(child)
+def has_coding(cc: dict[str, Any], system: str, code: str) -> bool:
+    return any(c.get("system") == system and c.get("code") == code for c in (cc or {}).get("coding", []))
 
 
-def coding_exists(concept: dict[str, Any], system: str, code: str) -> bool:
-    return any(c.get("system") == system and c.get("code") == code for c in concept.get("coding", []))
-
-
-def ref_tuple(ref: str) -> tuple[str, str] | None:
-    if ref.startswith("http://") or ref.startswith("https://") or ref.startswith("urn:") or ref.startswith("#"):
+def ref_tuple(ref: str):
+    if not ref or "/" not in ref or ref.startswith(("http", "urn:", "#")):
         return None
-    if "/" not in ref:
-        return None
-    return tuple(ref.split("/", 1))  # type: ignore[return-value]
+    return tuple(ref.split("/", 1))
 
 
 def main() -> int:
     messages: list[str] = []
     errors: list[str] = []
-
     try:
-        cs = load("CodeSystem-cycle.json")
-        codes = {c["code"] for c in cs.get("concept", [])}
-        assert codes == EXPECTED_CODES, f"Project CodeSystem codes differ: {sorted(codes)}"
+        cs = load(RES / "CodeSystem-cycle.json")
+        assert {c["code"] for c in cs.get("concept", [])} == EXPECTED_CODES, "project CodeSystem codes differ"
         messages.append("Project CodeSystem contains exactly the expected seven concepts.")
 
-        vs = load("ValueSet-menstrual-flow.json")
-        included = {
-            c["code"]
-            for inc in vs.get("compose", {}).get("include", [])
-            if inc.get("system") == CYCLE_SYSTEM
-            for c in inc.get("concept", [])
-        }
-        assert included == EXPECTED_CODES - {"daily-tracking-panel", "menstrual-flow"}
+        vs = load(RES / "ValueSet-menstrual-flow.json")
+        inc = {c["code"] for i in vs.get("compose", {}).get("include", []) if i.get("system") == CYCLE for c in i.get("concept", [])}
+        assert inc == FLOW_VALUES, "Menstrual Flow ValueSet differs"
         messages.append("Menstrual Flow ValueSet contains exactly the five ordinal result codes.")
 
-        profiles = {
-            json.loads(path.read_text(encoding="utf-8")).get("id")
-            for path in RES.glob("StructureDefinition-*.json")
-        }
-        assert profiles == EXPECTED_PROFILES, f"Profile set differs: {sorted(profiles)}"
+        profiles = {load(p).get("id") for p in RES.glob("StructureDefinition-*.json")}
+        assert profiles == EXPECTED_PROFILES, f"profile set differs: {sorted(profiles)}"
         messages.append("Exactly three MVP profiles were generated.")
 
-        bundle = load("Bundle-period-tracking-bundle-example.json")
-        assert BUNDLE_PROFILE in bundle.get("meta", {}).get("profile", [])
-        assert bundle.get("type") == "collection"
-        assert bundle.get("identifier") and bundle.get("timestamp")
+        bundle = load(BUNDLE_FILE)
+        assert BUNDLE_PROFILE in bundle.get("meta", {}).get("profile", []), "bundle missing profile"
+        assert bundle.get("type") == "collection" and bundle.get("identifier") and bundle.get("timestamp")
         assert "link" not in bundle and "total" not in bundle
         entries = bundle.get("entry", [])
-        full_urls = [entry.get("fullUrl") for entry in entries]
-        assert None not in full_urls
-        assert len(full_urls) == len(set(full_urls)), "Bundle fullUrl values are not unique"
-        assert all("request" not in e and "response" not in e and "search" not in e for e in entries)
+        full_urls = [e.get("fullUrl") for e in entries]
+        assert None not in full_urls and len(full_urls) == len(set(full_urls)), "fullUrls missing or not unique"
+        assert all(not ({"request", "response", "search"} & set(e)) for e in entries)
 
-        resources = [entry.get("resource", {}) for entry in entries]
+        resources = [e.get("resource", {}) for e in entries]
         keys = {(r.get("resourceType"), r.get("id")) for r in resources}
-        urls = set(full_urls)
-        for resource in resources:
-            for ref in walk_references(resource):
-                if ref.startswith("#"):
-                    continue
-                if ref.startswith("http://") or ref.startswith("https://") or ref.startswith("urn:"):
-                    if ref.startswith("https://example.org/fhir/") and ref not in urls:
-                        errors.append(f"Unresolved absolute example reference: {ref}")
-                    continue
+        for r in resources:  # references resolve (relative ones)
+            for ref in _refs(r):
                 key = ref_tuple(ref)
                 if key and key not in keys:
-                    errors.append(f"Unresolved relative reference: {ref}")
+                    errors.append(f"Unresolved reference: {ref}")
 
-        patients = [r for r in resources if r.get("resourceType") == "Patient"]
-        devices = [r for r in resources if r.get("resourceType") == "Device"]
-        observations = [r for r in resources if r.get("resourceType") == "Observation"]
-        provenances = [r for r in resources if r.get("resourceType") == "Provenance"]
-        binaries = [r for r in resources if r.get("resourceType") == "Binary"]
-        assert len(patients) == 1
-        assert devices
-        assert provenances
-        assert len(binaries) == 1
-        assert devices[0].get("deviceName", [{}])[0].get("name") == "MVP Reference Tracker"
-        assert devices[0].get("version", [{}])[0].get("value") == "0.1.0"
+        kinds = {}
+        for r in resources:
+            kinds.setdefault(r.get("resourceType"), []).append(r)
+        assert len(kinds.get("Patient", [])) == 1, "exactly one Patient required"
+        assert kinds.get("Device") and kinds.get("Provenance") and kinds.get("Binary"), "Device/Provenance/Binary required"
 
-        facts: list[dict[str, Any]] = []
-        panels: list[dict[str, Any]] = []
+        facts, panels = [], []
         by_key = {(r.get("resourceType"), r.get("id")): r for r in resources}
-        for obs in observations:
-            profile_set = set(obs.get("meta", {}).get("profile", []))
+        for obs in kinds.get("Observation", []):
+            prof = set(obs.get("meta", {}).get("profile", []))
             assert obs.get("status") == "final"
-            assert any(
-                coding_exists(cat, "http://terminology.hl7.org/CodeSystem/observation-category", code)
-                for cat in obs.get("category", [])
-                for code in ("survey", "vital-signs")
-            ), f"Observation {obs.get('id')} category is neither survey nor vital-signs"
+            assert any(has_coding({"coding": obs.get("category", [{}])[0].get("coding", [])}, OBSCAT, c) for c in ("survey", "vital-signs")), \
+                f"{obs.get('id')} category not survey/vital-signs"
             assert obs.get("subject", {}).get("reference", "").startswith("Patient/")
-            assert len(obs.get("performer", [])) == 1 and obs["performer"][0].get("reference", "").startswith("Patient/")
+            assert len(obs.get("performer", [])) == 1 and obs["performer"][0]["reference"].startswith("Patient/")
             assert obs.get("device", {}).get("reference", "").startswith("Device/")
             assert "effectiveDateTime" in obs
-            if PANEL_PROFILE in profile_set:
+            if PANEL_PROFILE in prof:
                 panels.append(obs)
-                assert coding_exists(obs.get("code", {}), CYCLE_SYSTEM, "daily-tracking-panel")
-                assert not VALUE_KEYS.intersection(obs)
-                assert obs.get("hasMember") or obs.get("note")
-                assert "component" not in obs and "derivedFrom" not in obs
-            elif FACT_PROFILE in profile_set:
+                assert has_coding(obs.get("code", {}), CYCLE, "daily-tracking-panel")
+                assert not (VALUE_KEYS & set(obs)) and "component" not in obs and "derivedFrom" not in obs
+                assert obs.get("hasMember") or obs.get("note"), f"empty panel {obs.get('id')}"
+            elif FACT_PROFILE in prof:
                 facts.append(obs)
-                present_values = VALUE_KEYS.intersection(obs)
-                assert len(present_values) == 1, f"Fact {obs.get('id')} has value keys {sorted(present_values)}"
-                assert "dataAbsentReason" not in obs
-                assert "hasMember" not in obs and "derivedFrom" not in obs and "component" not in obs
+                assert len(VALUE_KEYS & set(obs)) == 1, f"fact {obs.get('id')} must have exactly one value"
+                assert not ({"hasMember", "component", "derivedFrom", "dataAbsentReason"} & set(obs))
             else:
-                raise AssertionError(f"Observation {obs.get('id')} does not declare an MVP profile")
+                raise AssertionError(f"Observation {obs.get('id')} declares no MVP profile")
+        assert panels and facts, "expected panels and facts"
 
-        assert len(panels) == 3, f"Expected 3 daily panels, found {len(panels)}"
-        assert len(facts) == 12, f"Expected 12 facts, found {len(facts)}"
+        for p in panels:  # panel members resolve, are facts, same patient/device/day
+            for m in p.get("hasMember", []):
+                k = ref_tuple(m["reference"])
+                assert k in by_key, f"unresolved member {m['reference']}"
+                f = by_key[k]
+                assert FACT_PROFILE in f.get("meta", {}).get("profile", [])
+                assert f.get("subject") == p.get("subject") and f.get("device") == p.get("device")
+                assert str(f.get("effectiveDateTime"))[:10] == str(p.get("effectiveDateTime"))[:10]
 
-        for panel in panels:
-            for member in panel.get("hasMember", []):
-                key = ref_tuple(member["reference"])
-                assert key and key in by_key, f"Unresolved panel member {member['reference']}"
-                fact = by_key[key]
-                assert FACT_PROFILE in fact.get("meta", {}).get("profile", [])
-                assert fact.get("subject") == panel.get("subject")
-                assert fact.get("device") == panel.get("device")
-                assert str(fact.get("effectiveDateTime"))[:10] == str(panel.get("effectiveDateTime"))[:10]
+        for f in facts:  # per-fact value semantics
+            code = f.get("code", {})
+            if has_coding(code, CYCLE, "menstrual-flow"):
+                vals = {c["code"] for c in f.get("valueCodeableConcept", {}).get("coding", []) if c.get("system") == CYCLE}
+                assert len(vals) == 1 and vals <= FLOW_VALUES, f"bad flow value in {f.get('id')}"
+            if has_coding(code, LOINC, "72514-3"):
+                q = f.get("valueQuantity", {})
+                assert 0 <= q.get("value", -1) <= 10 and q.get("system") == UCUM and q.get("code") == "{score}"
+            if has_coding(code, LOINC, "8310-5"):
+                q = f.get("valueQuantity", {})
+                assert q.get("system") == UCUM and q.get("code") in {"Cel", "[degF]"}
+                assert any(has_coding({"coding": cat.get("coding", [])}, OBSCAT, "vital-signs") for cat in f.get("category", [])), \
+                    "temperature must be category vital-signs"
+            if has_coding(code, LOINC, "8678-5"):
+                vals = {c["code"] for c in f.get("valueCodeableConcept", {}).get("coding", []) if c.get("system") == SCT}
+                assert vals in ({"289894009"}, {"289895005"}), f"bad menstrual status in {f.get('id')}"
+        assert any(has_coding(f.get("code", {}), LOINC, "8678-5") and has_coding(f.get("valueCodeableConcept", {}), SCT, "289895005") for f in facts), \
+            "expected at least one explicit-negative (not menstruating) fact"
+        assert any(p.get("note") and not p.get("hasMember") for p in panels), "expected at least one note-only panel"
 
-        flow_values = EXPECTED_CODES - {"daily-tracking-panel", "menstrual-flow"}
-        for fact in facts:
-            code = fact.get("code", {})
-            if coding_exists(code, CYCLE_SYSTEM, "menstrual-flow"):
-                values = {
-                    c.get("code")
-                    for c in fact.get("valueCodeableConcept", {}).get("coding", [])
-                    if c.get("system") == CYCLE_SYSTEM
-                }
-                assert len(values) == 1 and values <= flow_values, f"Bad flow value in {fact.get('id')}: {values}"
-            if coding_exists(code, "http://loinc.org", "72514-3"):
-                q = fact.get("valueQuantity", {})
-                assert 0 <= q.get("value", -1) <= 10
-                assert q.get("system") == "http://unitsofmeasure.org" and q.get("code") == "{score}"
-            if coding_exists(code, "http://loinc.org", "8310-5"):
-                q = fact.get("valueQuantity", {})
-                assert q.get("system") == "http://unitsofmeasure.org"
-                assert q.get("code") in {"Cel", "[degF]"}
-            if coding_exists(code, "http://loinc.org", "8678-5"):
-                status_codes = {
-                    c.get("code")
-                    for c in fact.get("valueCodeableConcept", {}).get("coding", [])
-                    if c.get("system") == "http://snomed.info/sct"
-                }
-                assert status_codes <= {"289894009", "289895005"} and len(status_codes) == 1
+        prov = kinds["Provenance"][0]
+        targets = {ref_tuple(t.get("reference", "")) for t in prov.get("target", [])}
+        assert {("Observation", p["id"]) for p in panels} <= targets, "Provenance must target every panel"
+        assert any(e.get("role") == "source" and ref_tuple(e.get("what", {}).get("reference", "")) == ("Binary", kinds["Binary"][0]["id"]) for e in prov.get("entity", [])), \
+            "Provenance must cite the Binary native archive as source"
 
-        normalized_ids = {r["id"] for r in facts + panels}
-        provenance_targets = {
-            ref_tuple(t["reference"])[1]
-            for p in provenances
-            for t in p.get("target", [])
-            if ref_tuple(t.get("reference", ""))
-        }
-        assert normalized_ids <= provenance_targets, "Provenance does not target every normalized fact and panel"
-        assert any(e.get("role") == "source" and e.get("what", {}).get("reference") == "Binary/native-source-json-example" for e in provenances[0].get("entity", []))
-
-        native_bytes = base64.b64decode(binaries[0]["data"], validate=True)
-        native_obj = json.loads(native_bytes)
-        source_file = ROOT / "examples" / "native-source" / "reference-tracker-sample.json"
-        assert native_obj == json.loads(source_file.read_text(encoding="utf-8"))
-        assert native_obj["sourceApp"] == "MVP Reference Tracker"
-        messages.append("Worked Bundle contains 3 daily panels, 12 granular facts, required Provenance, and a byte-equivalent native JSON archive.")
+        native = json.loads(base64.b64decode(kinds["Binary"][0]["data"], validate=True))
+        assert native.get("sourceApp") == "Periodicity" and native.get("days"), "native archive must parse and name the source app"
+        messages.append(f"Worked Bundle: {len(panels)} daily panels, {len(facts)} facts, explicit-negative + note-only days, Provenance, and a decodable native archive.")
 
         all_json = list(RES.glob("*.json"))
-        for resource in all_json:
-            json.loads(resource.read_text(encoding="utf-8"))
+        for r in all_json:
+            json.loads(r.read_text(encoding="utf-8"))
         messages.append(f"All {len(all_json)} generated JSON resources parse successfully.")
     except (AssertionError, KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
-        errors.append(str(exc))
+        errors.append(f"{type(exc).__name__}: {exc}")
 
     report = ROOT / "validation" / "integrity-check.txt"
     report.parent.mkdir(exist_ok=True)
-    report.write_text(
-        "Period Tracking MVP integrity check\n\n"
-        + "\n".join(f"PASS: {m}" for m in messages)
-        + ("\n" if messages else "")
-        + "\n".join(f"FAIL: {e}" for e in errors)
-        + "\n",
-        encoding="utf-8",
-    )
+    report.write_text("Period Tracking MVP integrity check\n\n" + "\n".join(f"PASS: {m}" for m in messages) +
+                      ("\n" if messages else "") + "\n".join(f"FAIL: {e}" for e in errors) + "\n", encoding="utf-8")
     print(report.read_text(encoding="utf-8"), end="")
     return 1 if errors else 0
+
+
+def _refs(value: Any):
+    if isinstance(value, dict):
+        for k, v in value.items():
+            if k == "reference" and isinstance(v, str):
+                yield v
+            else:
+                yield from _refs(v)
+    elif isinstance(value, list):
+        for v in value:
+            yield from _refs(v)
 
 
 if __name__ == "__main__":

@@ -2,15 +2,18 @@
 
 A receiver needs to turn a decrypted Bundle into something a clinician (or the patient) can read. The IG ships a complete, self-contained reference viewer you can **point at, reuse, or learn from** — you do not have to write one from scratch.
 
-Reference viewer (GitHub Pages, single self-contained file): `https://joshuamandel.com/periodicity/viewer.html`
+Reference viewer: `https://build.fhir.org/ig/jmandel/periodicity/viewer/index.html`
 Source: `viewer-src/` in the IG repo.
 
 ## The pipeline (what any viewer does)
 
-```
-shlink:/…  ──parse──▶  {url,key,flag}  ──fetch+decrypt (JWE)──▶  FHIR Bundle
-        ──transform──▶  view model (cycles, daily facts, events)
-        ──derive──▶     metrics (intervals, durations, medians)  ──render──▶  summary UI
+```mermaid
+flowchart LR
+  L["shlink:/…"] -->|parse| P["{ url, key, flag }"]
+  P -->|fetch + decrypt JWE| F["FHIR Bundle"]
+  F -->|transform| V["view model<br/>(cycles, daily facts, events)"]
+  V -->|derive| M["metrics<br/>(intervals, durations, medians)"]
+  M -->|render| U["summary UI"]
 ```
 
 The reference implementation, file by file (all dependency-light, browser + bun safe):
@@ -24,7 +27,7 @@ The reference implementation, file by file (all dependency-light, browser + bun 
 
 ## Reuse options
 
-1. **Just link to it.** Generate `https://joshuamandel.com/periodicity/viewer.html#shlink:/…` (or your own copy) and let the user open it. Zero integration.
+1. **Just link to it.** Generate `https://build.fhir.org/ig/jmandel/periodicity/viewer/index.html#shlink:/…` (or your own copy) and let the user open it. Zero integration.
 2. **Host your own copy.** The viewer is one self-contained `viewer.html` (no build step at runtime, no CDN). Drop it on any static host. A real `#shlink:/…` (or `?shlink=`) renders directly; a bare visit shows an explicit chooser (paste a link, scan a QR via the device camera, or load a co-located `shl.json` demo) rather than silently rendering demo data as if it were the visitor's own.
 3. **Embed the transform.** If your app already has UI, reuse just `transform.mjs` + `viewmodel.mjs` to get the view model and render with your own components.
 

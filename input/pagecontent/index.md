@@ -4,15 +4,13 @@ This draft defines a deliberately small FHIR R4 exchange model for **patient-gen
 
 ## The whole system at a glance
 
-```
-   period-tracking app                  user-controlled share              clinician / patient
-┌────────────────────────┐        ┌────────────────────────────┐       ┌─────────────────────┐
-│ stored cycle data       │ export │ FHIR R4 Bundle             │  SHL  │ client-side viewer  │
-│ (flow, symptoms, pain,  │ ─────▶ │ (this IG's profiles)       │ ────▶ │ decrypts in browser │
-│  temp, notes, …)        │        │ encrypted → shlink:/ + QR  │       │ renders the summary │
-└────────────────────────┘        └────────────────────────────┘       └─────────────────────┘
-        map only real,                 host sees ciphertext only;            computes cycles &
-        user-entered data              key rides in the link fragment        medians from facts
+```mermaid
+flowchart LR
+  A["<b>Period-tracking app</b><br/>stored cycle data<br/>(flow, symptoms, pain, temp, notes)"]
+  B["<b>FHIR R4 Bundle</b><br/>this IG's profiles<br/>(map only real, user-entered data)"]
+  C["<b>SMART Health Link</b><br/>encrypted → shlink:/ + QR<br/>host sees ciphertext only;<br/>key rides in the link fragment"]
+  D["<b>Client-side viewer</b><br/>decrypts in the browser,<br/>computes cycles &amp; medians,<br/>renders the summary"]
+  A -->|export| B -->|encrypt + share| C -->|open| D
 ```
 
 1. **Model** — an app maps the data it actually stores to three profiles (below). See [Data model](modeling.html) and the [Mapping contract](mapping.html).
@@ -22,8 +20,8 @@ This draft defines a deliberately small FHIR R4 exchange model for **patient-gen
 ### Try it now
 
 - **Open the [clinician viewer](viewer/index.html)** — it decrypts and renders a worked SMART Health Link out of the box.
-- Inspect the data behind it: the [longitudinal example Bundle](Bundle-period-tracking-longitudinal-example.html) (a synthetic seven-cycle copper-IUD case) and the smaller [worked example](Bundle-period-tracking-bundle-example.html).
-- The canonical viewer is also hosted on GitHub Pages (`https://joshuamandel.com/periodicity/viewer.html`), which is what shareable `shlink:/…` links point at.
+- Inspect the data behind it: the [longitudinal example Bundle](Bundle-period-tracking-longitudinal-example.html) (a synthetic seven-cycle copper-IUD case — the same data the viewer renders).
+- Shareable `shlink:/…` links point at this same published viewer (`…/viewer/index.html`), so a recipient just opens the link.
 
 ## The profiles
 
@@ -37,13 +35,13 @@ It defines one small [Menstrual Flow ValueSet](ValueSet-menstrual-flow.html), a 
 
 Any menstrual, fertility, or cycle-tracking app — regardless of its internal data model — can adopt this IG. The work is mostly mapping the data you already store and choosing how to host the encrypted share.
 
-**An AI agent adding support to an app should:** clone this repo, then read the **skill** plus the IG content and the example viewer to get oriented.
+**An AI agent adding support to an app should** clone the repo and read the **skill** in place — it's written to be used alongside the repo's example Bundle, sample viewer, and profiles.
 
-- **The skill** (a complete working method for agents): [browse it](skill/SKILL.md) or [download `skill.zip`](skill.zip). It covers app inventory and field classification, the fact-by-fact FHIR mapping, the missing-data rules, how to make a SMART Health Link, how to reuse or build a viewer, and how to verify end to end.
-- **Reference implementation in this repo:** `viewer-src/` (the transform + viewer), `scripts/` (the `bun` generators that build the example Bundle, the SHL, and the viewer), and `input/resources/` (the published example Bundle).
+- **The skill** (a complete working method for agents) lives at **`skill/SKILL.md`** in the source repository: **[github.com/jmandel/periodicity](https://github.com/jmandel/periodicity)**. Read it in situ (`git clone` then open `skill/SKILL.md`) so its references to `viewer-src/`, `scripts/`, and `input/resources/` resolve. It covers app inventory and field classification, the fact-by-fact FHIR mapping, the missing-data rules, how to make a SMART Health Link, how to reuse or build a viewer, and how to verify end to end.
+- **Reference implementation in the repo:** `viewer-src/` (the transform + viewer), `scripts/` (the `bun` generators that build the example Bundle, the SHL, and the viewer), and `input/resources/` (the published example Bundle).
 - **Hosting the share — pick by your architecture:** a static encrypted file on your own web host/CDN (no backend); your own [SMART Health Link backend](smart-health-links.html) (passcodes, expiry, revocation, audit); or the hosted demo service **`https://ktc.joshuamandel.com`** for quick prototypes. The skill's `references/smart-health-links.md` has the decision guide and the API.
 
-Start: **clone the repo, read `skill/SKILL.md`, open the example [viewer](viewer/index.html), and inspect the [mapping](mapping.html).**
+Start: **`git clone https://github.com/jmandel/periodicity`, read `skill/SKILL.md`, open the example [viewer](viewer/index.html), and inspect the [mapping](mapping.html).**
 
 ## Core rule
 

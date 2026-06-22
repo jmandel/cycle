@@ -49,7 +49,9 @@ export async function encryptCompact(plaintext, keyBytes, opts = {}) {
   const protectedB64 = b64uFromStr(JSON.stringify(header));
   let payload = enc.encode(plaintext);
   if (deflate) payload = await deflateRaw(payload);
-  const iv = globalThis.crypto.getRandomValues(new Uint8Array(12));
+  // A caller MAY pin the IV for byte-reproducible builds of a fixed demo file.
+  // For real, changing content always use a fresh random IV (the default).
+  const iv = opts.iv ? new Uint8Array(opts.iv) : globalThis.crypto.getRandomValues(new Uint8Array(12));
   const ctAndTag = new Uint8Array(await subtle.encrypt(
     { name: "AES-GCM", iv, additionalData: enc.encode(protectedB64), tagLength: 128 }, key, payload,
   ));

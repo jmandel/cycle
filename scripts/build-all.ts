@@ -22,6 +22,4 @@ async function step(name: string, file: string) {
 await step("generate example bundle", "gen-example.ts");
 await step("package SMART Health Link", "gen-shl.ts");
 await step("bundle viewer SPA (in-IG)", "build-viewer.ts");
-await step("build GitHub Pages viewer", "build-pages.ts");
-await step("publish agent skill", "build-skill.ts");
 console.log("\n✔ pre-publisher artifacts built. Now run ./_genonce.sh to publish.");

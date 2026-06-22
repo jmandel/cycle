@@ -1,9 +1,9 @@
 == Suppressed Messages ==
 
-# This file lists validator messages (by exact text or regex) that the IG
-# Publisher should downgrade/suppress. One entry per line. The file's mere
-# presence also resolves the "Supressed messages file not found" build error,
-# because the fhir.base.template points its path-suppressed-warnings parameter
-# here (input/ignoreWarnings.txt) by default.
+# Reviewed and accepted (see the spec's terminology/mapping guidance):
 #
-# Keep this list empty unless a message is reviewed and deliberately accepted.
+# {score} is the conventional UCUM representation for a dimensionless 0-10
+# patient-reported score (matching this guide's mapping contract and the FHIR
+# spec's own survey/score examples). The validator's note is a best-practice
+# caution, not a defect. Accepted by the IG author.
+UCUM Codes that contain human readable annotations like {score} can be misleading (e.g. they are ignored when comparing units). Best Practice is not to depend on annotations in the UCUM code, so this usage should be checked

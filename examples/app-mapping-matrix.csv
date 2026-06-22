@@ -1,6 +1,0 @@
-app,native_grain,menstrual_status,flow,symptoms,pain,temperature,notes,derived_state_mvp
-Ovumcy,DailyLog row,IsPeriod when explicit,Flow enum,SymptomIDs resolved through SymptomType,Mood/pain-like symptoms only unless numeric field exists,BBT,DailyLog.Notes,retain in native Binary
-Drip,CycleDay Realm object,bleeding object implies observed bleeding; no explicit negative in current core model,bleeding.value 0-3,pain presence flags,structured pain has no severity score,temperature.value and optional time,note plus category notes,exclude cached isCycleStart and predictions
-Oky,date-keyed Redux state,verifiedDates.periodDay tri-state,card.flow values,body arrays,no numeric pain in core cards,not in core daily cards,notes[date],exclude prediction state
-Menstrudel,period_logs row plus linked symptoms,derive present from explicitly recorded non-none flow where source UI semantics support it,FlowRate enum,log_symptoms,PainLevel ordinal,not in surveyed core,not in period log,exclude materialized periods
-Mensinator,sparse date and tag links,periods row means present,flow symptom tags,symptom_date links,no structured severity,not present,no native diary note in surveyed core,exclude period_id and predictions

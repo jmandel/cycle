@@ -67,6 +67,33 @@
       }
     },
     {
+      "fullUrl": "https://example.org/fhir/CodeSystem/example-app-symptoms",
+      "resource": {
+        "resourceType": "CodeSystem",
+        "id": "example-app-symptoms",
+        "url": "https://example.org/fhir/CodeSystem/example-app-symptoms",
+        "version": "1",
+        "name": "ExampleAppSymptoms",
+        "title": "Example App Symptoms",
+        "description": "An illustrative app-native symptom dictionary for the worked example, demonstrating the escape hatch for terms with no exact standard code.",
+        "status": "active",
+        "experimental": true,
+        "content": "complete",
+        "caseSensitive": true,
+        "concept": [
+          {
+            "code": "pulling-sensation",
+            "display": "Pulling sensation",
+            "definition": "A user-defined symptom retained in its source vocabulary because no reviewed standard mapping was established."
+          }
+        ],
+        "text": {
+          "status": "generated",
+          "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\"><p>Example app-native symptom dictionary containing <code>pulling-sensation</code>.</p></div>"
+        }
+      }
+    },
+    {
       "fullUrl": "https://example.org/fhir/Procedure/iud-insertion",
       "resource": {
         "resourceType": "Procedure",
@@ -16942,7 +16969,7 @@
         ],
         "text": {
           "status": "generated",
-          "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\"><p>Daily tracking panel for 2026-04-14 (2 facts).</p></div>"
+          "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\"><p>Daily tracking panel for 2026-04-14 (2 facts, with note).</p></div>"
         }
       }
     },
@@ -17052,7 +17079,7 @@
         ],
         "text": {
           "status": "generated",
-          "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\"><p>Daily tracking panel for 2026-04-16 (1 facts).</p></div>"
+          "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\"><p>Daily tracking panel for 2026-04-16 (1 facts, with note).</p></div>"
         }
       }
     },
@@ -19787,7 +19814,7 @@
         ],
         "text": {
           "status": "generated",
-          "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\"><p>Daily tracking panel for 2026-05-20 (1 facts).</p></div>"
+          "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\"><p>Daily tracking panel for 2026-05-20 (1 facts, with note).</p></div>"
         }
       }
     },
@@ -19953,7 +19980,7 @@
         ],
         "text": {
           "status": "generated",
-          "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\"><p>Daily tracking panel for 2026-05-22 (2 facts).</p></div>"
+          "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\"><p>Daily tracking panel for 2026-05-22 (2 facts, with note).</p></div>"
         }
       }
     },
@@ -22792,6 +22819,184 @@
       }
     },
     {
+      "fullUrl": "https://example.org/fhir/Observation/status-absent-20260425",
+      "resource": {
+        "resourceType": "Observation",
+        "id": "status-absent-20260425",
+        "meta": {
+          "profile": [
+            "https://fhir.me/cycle/StructureDefinition/period-tracking-fact"
+          ]
+        },
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+                "code": "survey",
+                "display": "Survey"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "8678-5",
+              "display": "Menstrual status - Reported"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "Patient/pt-longitudinal"
+        },
+        "effectiveDateTime": "2026-04-25",
+        "performer": [
+          {
+            "reference": "Patient/pt-longitudinal"
+          }
+        ],
+        "valueCodeableConcept": {
+          "coding": [
+            {
+              "system": "http://snomed.info/sct",
+              "code": "289895005"
+            }
+          ]
+        },
+        "device": {
+          "reference": "Device/periodicity-app"
+        }
+      }
+    },
+    {
+      "fullUrl": "https://example.org/fhir/Observation/panel-20260425",
+      "resource": {
+        "resourceType": "Observation",
+        "id": "panel-20260425",
+        "meta": {
+          "profile": [
+            "https://fhir.me/cycle/StructureDefinition/daily-tracking-panel"
+          ]
+        },
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+                "code": "survey",
+                "display": "Survey"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "https://fhir.me/cycle/CodeSystem/cycle",
+              "code": "daily-tracking-panel",
+              "display": "Daily tracking panel"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "Patient/pt-longitudinal"
+        },
+        "effectiveDateTime": "2026-04-25",
+        "performer": [
+          {
+            "reference": "Patient/pt-longitudinal"
+          }
+        ],
+        "device": {
+          "reference": "Device/periodicity-app"
+        },
+        "hasMember": [
+          {
+            "reference": "Observation/status-absent-20260425"
+          }
+        ],
+        "note": [
+          {
+            "text": "Checked — definitely not bleeding today."
+          }
+        ],
+        "text": {
+          "status": "generated",
+          "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\"><p>Daily tracking panel for 2026-04-25 (1 facts, with note).</p></div>"
+        }
+      }
+    },
+    {
+      "fullUrl": "https://example.org/fhir/Observation/panel-20260427",
+      "resource": {
+        "resourceType": "Observation",
+        "id": "panel-20260427",
+        "meta": {
+          "profile": [
+            "https://fhir.me/cycle/StructureDefinition/daily-tracking-panel"
+          ]
+        },
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+                "code": "survey",
+                "display": "Survey"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "https://fhir.me/cycle/CodeSystem/cycle",
+              "code": "daily-tracking-panel",
+              "display": "Daily tracking panel"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "Patient/pt-longitudinal"
+        },
+        "effectiveDateTime": "2026-04-27",
+        "performer": [
+          {
+            "reference": "Patient/pt-longitudinal"
+          }
+        ],
+        "device": {
+          "reference": "Device/periodicity-app"
+        },
+        "note": [
+          {
+            "text": "Felt off and crampy in the evening; didn't log anything specific."
+          }
+        ],
+        "text": {
+          "status": "generated",
+          "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\"><p>Daily tracking panel for 2026-04-27 (0 facts, with note).</p></div>"
+        }
+      }
+    },
+    {
+      "fullUrl": "https://example.org/fhir/Binary/native-source",
+      "resource": {
+        "resourceType": "Binary",
+        "id": "native-source",
+        "contentType": "application/json",
+        "securityContext": {
+          "reference": "Patient/pt-longitudinal"
+        },
+        "data": "eyJzb3VyY2VBcHAiOiJQZXJpb2RpY2l0eSIsImFwcFZlcnNpb24iOiJzeW50aGV0aWMiLCJzY2hlbWFWZXJzaW9uIjoxLCJ0aW1lem9uZSI6IkFtZXJpY2EvQ2hpY2FnbyIsImRheXMiOlt7ImRhdGUiOiIyMDI1LTEyLTA4IiwicGVyaW9kU3RhdHVzIjoicHJlc2VudCIsImZsb3ciOiJtb2RlcmF0ZSIsInBhaW5TY29yZSI6NH0seyJkYXRlIjoiMjAyNS0xMi0wOSIsInBlcmlvZFN0YXR1cyI6InByZXNlbnQiLCJmbG93IjoibW9kZXJhdGUiLCJwYWluU2NvcmUiOjMsInRlbXBlcmF0dXJlIjp7InZhbHVlIjozNi40MiwidW5pdCI6IkNlbCIsImJhc2FsIjp0cnVlfX0seyJkYXRlIjoiMjAyNS0xMi0xMCIsInBlcmlvZFN0YXR1cyI6InByZXNlbnQiLCJmbG93IjoibGlnaHQiLCJwYWluU2NvcmUiOjIsInRlbXBlcmF0dXJlIjp7InZhbHVlIjozNi4zNywidW5pdCI6IkNlbCIsImJhc2FsIjp0cnVlfX0seyJkYXRlIjoiMjAyNS0xMi0xMSIsInBlcmlvZFN0YXR1cyI6InByZXNlbnQiLCJmbG93IjoibGlnaHQiLCJ0ZW1wZXJhdHVyZSI6eyJ2YWx1ZSI6MzYuMzYsInVuaXQiOiJDZWwiLCJiYXNhbCI6dHJ1ZX19LHsiZGF0ZSI6IjIwMjUtMTItMTIiLCJwZXJpb2RTdGF0dXMiOiJwcmVzZW50IiwiZmxvdyI6InNwb3R0aW5nIiwidGVtcGVyYXR1cmUiOnsidmFsdWUiOjM2LjQyLCJ1bml0IjoiQ2VsIiwiYmFzYWwiOnRydWV9fSx7ImRhdGUiOiIyMDI1LTEyLTEzIiwidGVtcGVyYXR1cmUiOnsidmFsdWUiOjM2LjM3LCJ1bml0IjoiQ2VsIiwiYmFzYWwiOnRydWV9fV19"
+      }
+    },
+    {
       "fullUrl": "https://example.org/fhir/Provenance/export-prov",
       "resource": {
         "resourceType": "Provenance",
@@ -23135,6 +23340,12 @@
           },
           {
             "reference": "Observation/panel-20260610"
+          },
+          {
+            "reference": "Observation/panel-20260425"
+          },
+          {
+            "reference": "Observation/panel-20260427"
           }
         ],
         "recorded": "2026-06-21T18:00:00-05:00",
@@ -23154,9 +23365,17 @@
             }
           }
         ],
+        "entity": [
+          {
+            "role": "source",
+            "what": {
+              "reference": "Binary/native-source"
+            }
+          }
+        ],
         "text": {
           "status": "generated",
-          "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\"><p>Periodicity assembled 111 daily panels into the longitudinal export.</p></div>"
+          "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\"><p>Periodicity assembled 113 daily panels into the longitudinal export from the attached native snapshot.</p></div>"
         }
       }
     }

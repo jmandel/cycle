@@ -27,6 +27,6 @@ ValueSet: PtmvpFactCategoryVS
 Id: ptmvp-fact-category
 Title: "Period Tracking Fact Categories"
 Description: "Allowed Observation.category values for a Period Tracking Fact. Patient-reported facts use 'survey'; a fact carrying a FHIR vital-sign code (for example basal body temperature, LOINC 8310-5) instead uses 'vital-signs' so it conforms to the mandatory FHIR vital-signs profile."
-* ^experimental = true
+* ^experimental = false
 * $ObsCat#survey "Survey"
 * $ObsCat#vital-signs "Vital Signs"
