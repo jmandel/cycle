@@ -4,5 +4,5 @@ PASS: Project CodeSystem contains exactly the expected seven concepts.
 PASS: Menstrual Flow ValueSet contains exactly the five ordinal result codes.
 PASS: Exactly three MVP profiles were generated.
 PASS: Worked Bundle contains 3 daily panels, 12 granular facts, required Provenance, and a byte-equivalent native JSON archive.
-PASS: All 32 generated JSON resources parse successfully.
+PASS: All 34 generated JSON resources parse successfully.
 

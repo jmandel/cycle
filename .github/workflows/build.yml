@@ -17,6 +17,8 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
+      - name: Install Jekyll (the IG Publisher shells out to it for page rendering)
+        run: sudo gem install jekyll
       - name: Compile FSH
         run: ./_sushi.sh
       - name: Download IG Publisher

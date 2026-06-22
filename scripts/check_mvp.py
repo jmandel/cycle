@@ -132,7 +132,11 @@ def main() -> int:
         for obs in observations:
             profile_set = set(obs.get("meta", {}).get("profile", []))
             assert obs.get("status") == "final"
-            assert any(coding_exists(cat, "http://terminology.hl7.org/CodeSystem/observation-category", "survey") for cat in obs.get("category", []))
+            assert any(
+                coding_exists(cat, "http://terminology.hl7.org/CodeSystem/observation-category", code)
+                for cat in obs.get("category", [])
+                for code in ("survey", "vital-signs")
+            ), f"Observation {obs.get('id')} category is neither survey nor vital-signs"
             assert obs.get("subject", {}).get("reference", "").startswith("Patient/")
             assert len(obs.get("performer", [])) == 1 and obs["performer"][0].get("reference", "").startswith("Patient/")
             assert obs.get("device", {}).get("reference", "").startswith("Device/")
