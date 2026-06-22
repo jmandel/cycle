@@ -1,0 +1,29 @@
+@startuml
+skinparam shadowing false
+skinparam defaultFontName Helvetica
+skinparam defaultFontSize 12
+skinparam ArrowColor #2B4A7A
+skinparam ArrowFontColor #46566A
+skinparam rectangle {
+  BackgroundColor #F7F9FB
+  BorderColor #2B4A7A
+  FontColor #15202E
+  roundCorner 12
+}
+rectangle "**PeriodTrackingBundle**\nBundle.type = collection" as Bundle #EAF0F7
+rectangle "Patient\nexactly one" as Pat
+rectangle "Device\none or more source apps" as Dev
+rectangle "DailyTrackingPanelObservation\none per exported source day\n(+ optional diary note)" as Panel
+rectangle "PeriodTrackingFactObservation\none per independent fact" as Fact
+rectangle "Provenance\nrequired export provenance" as Prov
+rectangle "CodeSystem\noptional app-native dictionary" as CS
+rectangle "Binary\noptional native JSON archive" as Bin
+Bundle --> Pat
+Bundle --> Dev
+Bundle --> Panel
+Bundle --> Fact
+Bundle --> Prov
+Bundle --> CS
+Bundle --> Bin
+Panel ..> Fact : hasMember
+@enduml

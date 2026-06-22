@@ -10,7 +10,7 @@ import { parseShlink, resolveShl } from "./shl.mjs";
    renders directly. A bare visit shows an explicit chooser — it never silently
    renders the demo as if it were the visitor's own data. */
 
-function Banner({ status, label, n }) {
+function Banner({ status, label, n, onJson }) {
   return (
     <div className="vb"><style>{CSS}</style>
       <div className="vb-in">
@@ -20,6 +20,7 @@ function Banner({ status, label, n }) {
           <span className="vb-sub">{label || "SMART Health Link"}</span>
         </div>
         <div className="vb-r">
+          {status === "ok" ? <button className="vb-btn" onClick={onJson} title="Open the decrypted FHIR Bundle as formatted JSON in a new tab">View FHIR JSON</button> : null}
           {status === "ok" ? <span className="vb-pill">decrypted · {n} resources</span> : null}
           <span className="vb-note">Patient-generated data · not clinically attested</span>
         </div>
@@ -117,8 +118,13 @@ function App() {
       setState({ status: "loading" });
       const { bundle } = await resolveShl(payload, document.baseURI);
       const vm = transformBundle(bundle, { rangeEnd: "2026-06-21" });
-      setState({ status: "ok", data: prepare(vm), label: payload.label || null, n: (bundle.entry || []).length });
+      setState({ status: "ok", data: prepare(vm), bundle, label: payload.label || null, n: (bundle.entry || []).length });
     } catch (e) { setState({ status: "error", error: String(e?.message || e) }); }
+  }
+  function openJson(bundle) {
+    const url = URL.createObjectURL(new Blob([JSON.stringify(bundle, null, 2)], { type: "application/fhir+json" }));
+    window.open(url, "_blank", "noopener");
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
   }
   function openText(text) {
     const p = parseShlink(text);
@@ -147,7 +153,7 @@ function App() {
   }
   return (
     <div>
-      <Banner status={state.status} label={state.label} n={state.n} />
+      <Banner status={state.status} label={state.label} n={state.n} onJson={() => openJson(state.bundle)} />
       {state.status === "loading" && <Center>Decrypting SMART Health Link…</Center>}
       {state.status === "error" && <Center><b>Could not render this link.</b><br />{state.error}<br /><br />
         <button className="ld-btn" onClick={() => setState({ status: "choose" })}>Back</button></Center>}
@@ -170,6 +176,8 @@ const CSS = `
 .vb-sub{font-size:12px;color:#9fb0c4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .vb-r{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .vb-pill{font:600 11px 'IBM Plex Mono',monospace;background:rgba(79,180,119,.18);color:#9be3b8;border:1px solid rgba(79,180,119,.4);padding:2px 8px;border-radius:20px}
+.vb-btn{font:500 12px 'Inter',system-ui,sans-serif;color:#cfe0f5;background:rgba(255,255,255,.06);border:1px solid rgba(207,224,245,.35);padding:4px 11px;border-radius:7px;cursor:pointer}
+.vb-btn:hover{background:rgba(255,255,255,.14);color:#fff}
 .vb-note{font-size:11px;color:#7c8898}
 .ld{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:#EEF1F4;font-family:'Inter',system-ui,sans-serif;color:#15202E}
 .ld-card{background:#fff;border:1px solid #E1E6EC;border-radius:14px;max-width:560px;width:100%;padding:28px 30px;box-shadow:0 12px 40px rgba(15,25,40,.08)}

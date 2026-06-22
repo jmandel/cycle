@@ -4,14 +4,7 @@ This draft defines a deliberately small FHIR R4 exchange model for **patient-gen
 
 ## The whole system at a glance
 
-```mermaid
-flowchart LR
-  A["<b>Period-tracking app</b><br/>stored cycle data<br/>(flow, symptoms, pain, temp, notes)"]
-  B["<b>FHIR R4 Bundle</b><br/>this IG's profiles<br/>(map only real, user-entered data)"]
-  C["<b>SMART Health Link</b><br/>encrypted → shlink:/ + QR<br/>host sees ciphertext only;<br/>key rides in the link fragment"]
-  D["<b>Client-side viewer</b><br/>decrypts in the browser,<br/>computes cycles &amp; medians,<br/>renders the summary"]
-  A -->|export| B -->|encrypt + share| C -->|open| D
-```
+{% include system.svg %}
 
 1. **Model** — an app maps the data it actually stores to three profiles (below). See [Data model](modeling.html) and the [Mapping contract](mapping.html).
 2. **Share** — the Bundle is encrypted into a [SMART Health Link](smart-health-links.html) (compact JWE; the file host never sees the key or plaintext).

@@ -2,19 +2,7 @@
 
 ## Resource graph
 
-```text
-PeriodTrackingBundle (Bundle.type = collection)
- ├── Patient                                  exactly one
- ├── Device                                   one or more source apps/devices
- ├── DailyTrackingPanelObservation            one per exported source day
- │    ├── hasMember → PeriodTrackingFactObservation
- │    ├── hasMember → PeriodTrackingFactObservation
- │    └── note → optional diary narrative
- ├── PeriodTrackingFactObservation            one per independent fact
- ├── CodeSystem                                optional app-native dictionary
- ├── Provenance                                required export provenance
- └── Binary                                    optional exact native JSON archive
-```
+{% include model.svg %}
 
 FHIR defines a Bundle as a container for a collection of resources. The MVP uses `Bundle.type = collection` because it is a transportable set of independently meaningful resources rather than an attested clinical document.
 

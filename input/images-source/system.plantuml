@@ -1,0 +1,21 @@
+@startuml
+skinparam shadowing false
+skinparam defaultFontName Helvetica
+skinparam defaultFontSize 13
+skinparam ArrowColor #2B4A7A
+skinparam ArrowFontColor #46566A
+skinparam rectangle {
+  BackgroundColor #F7F9FB
+  BorderColor #2B4A7A
+  FontColor #15202E
+  roundCorner 14
+}
+left to right direction
+rectangle "**Period-tracking app**\nstored cycle data\n(flow, symptoms, pain,\ntemp, notes)" as A
+rectangle "**FHIR R4 Bundle**\nthis IG's profiles\n(map only real,\nuser-entered data)" as B
+rectangle "**SMART Health Link**\nencrypted JWE + shlink:/ + QR\n(host sees ciphertext only;\nkey rides in the link)" as C
+rectangle "**Client-side viewer**\ndecrypts in the browser,\ncomputes cycles & medians,\nrenders the summary" as D
+A --> B : export
+B --> C : encrypt + share
+C --> D : open
+@enduml
