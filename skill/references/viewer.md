@@ -25,7 +25,7 @@ The reference implementation, file by file (all dependency-light, browser + bun 
 ## Reuse options
 
 1. **Just link to it.** Generate `https://joshuamandel.com/periodicity/viewer.html#shlink:/…` (or your own copy) and let the user open it. Zero integration.
-2. **Host your own copy.** The viewer is one self-contained `viewer.html` (no build step at runtime, no CDN). Drop it on any static host; it reads a co-located `shl.json` for a default, or any `#shlink:/…`.
+2. **Host your own copy.** The viewer is one self-contained `viewer.html` (no build step at runtime, no CDN). Drop it on any static host. A real `#shlink:/…` (or `?shlink=`) renders directly; a bare visit shows an explicit chooser (paste a link, scan a QR via the device camera, or load a co-located `shl.json` demo) rather than silently rendering demo data as if it were the visitor's own.
 3. **Embed the transform.** If your app already has UI, reuse just `transform.mjs` + `viewmodel.mjs` to get the view model and render with your own components.
 
 ## Key derivation rules the transform encodes (match these if you write your own)

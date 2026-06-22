@@ -24,6 +24,7 @@ const result = await esbuild.build({
   write: false, outfile: "app.js",
 });
 const appJs = result.outputFiles[0].text;
+const demoShlink = (await Bun.file(`${viewerDir}/shlink.txt`).text()).trim();
 
 const viewerHtml = `<!doctype html>
 <html lang="en">
@@ -49,7 +50,8 @@ const landing = `<!doctype html>
 <h1>Period Tracking MVP — clinician viewer</h1>
 <p>This page hosts a privacy-preserving viewer for <b>Period Tracking MVP</b> SMART Health Links. It decrypts the linked FHIR Bundle <b>in your browser</b> and renders a menstrual-cycle summary; the link's encrypted file and key never leave the client unencrypted.</p>
 <ul>
-<li><a href="viewer.html">Open the worked demo</a> (a synthetic seven-cycle export)</li>
+<li><a href="${demoShlink}">Open the worked demo</a> (a synthetic seven-cycle export — renders immediately)</li>
+<li><a href="viewer.html">Open the viewer with no link</a> — it shows a chooser (paste a link, scan a QR, or load the demo)</li>
 <li>To view any conformant link, append it to the viewer URL: <code>viewer.html#shlink:/...</code></li>
 </ul>
 <p>Specification and how-to: <a href="https://build.fhir.org/ig/jmandel/periodicity/">Period Tracking MVP Implementation Guide</a>.</p>
