@@ -1,0 +1,43 @@
+id: me.fhir.period-tracking-mvp
+canonical: https://fhir.me/cycle
+name: PeriodTrackingMVP
+status: draft
+version: 0.1.0
+fhirVersion: 4.0.1
+copyrightYear: 2026+
+releaseLabel: ci-build
+title: Period Tracking MVP Implementation Guide
+publisher:
+  name: fhir.me Cycle Project
+  url: https://fhir.me/cycle
+description: >-
+  A deliberately small FHIR R4 implementation guide for sharing granular,
+  patient-generated menstrual period tracking data from consumer applications.
+license: CC0-1.0
+parameters:
+  apply-version: true
+  apply-contact: true
+  apply-jurisdiction: false
+  show-inherited-invariants: false
+  generate-json: true
+  generate-xml: true
+  no-narrative:
+    - Binary/*
+menu:
+  Home: index.html
+  Specification:
+    Scope and principles: scope.html
+    Data model: modeling.html
+    Mapping contract: mapping.html
+    Terminology: terminology.html
+  Implementation:
+    App adapters: adapters.html
+    Clinical display: clinical-display.html
+    SMART Health Links: smart-health-links.html
+    Clinician viewer: viewer/index.html
+    Security and privacy: security.html
+  Examples and testing:
+    Worked example: examples.html
+    Conformance testing: testing.html
+  References: references.html
+  Artifacts: artifacts.html

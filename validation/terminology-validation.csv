@@ -1,0 +1,14 @@
+system,code,expected_display,actual_display,found,active,display_match
+http://loinc.org,38208-5,Pain severity - Reported,Pain severity - Reported,True,True,True
+http://loinc.org,72514-3,Pain severity - 0-10 verbal numeric rating [Score] - Reported,Pain severity - 0-10 verbal numeric rating [Score] - Reported,True,True,True
+http://loinc.org,75325-1,Symptom,Symptom,True,True,True
+http://loinc.org,80296-7,Patient Mood,Patient Mood,True,True,True
+http://loinc.org,8310-5,Body temperature,Body temperature,True,True,True
+http://loinc.org,8678-5,Menstrual status - Reported,Menstrual status - Reported,True,True,True
+http://snomed.info/sct,25064002,Headache (finding),Headache (finding),True,True,True
+http://snomed.info/sct,281660007,Basal body temperature measurement for detection of ovulation (procedure),Basal body temperature measurement for detection of ovulation (procedure),True,True,True
+http://snomed.info/sct,289894009,Menstrual bleeding present (finding),Menstrual bleeding present (finding),True,True,True
+http://snomed.info/sct,289895005,Not currently menstruating (finding),Not currently menstruating (finding),True,True,True
+http://snomed.info/sct,431416001,Menstrual cramp (finding),Menstrual cramp (finding),True,True,True
+http://snomed.info/sct,6736007,Moderate (severity modifier) (qualifier value),Moderate (severity modifier) (qualifier value),True,True,True
+http://snomed.info/sct,73595000,Stress (finding),Stress (finding),True,True,True

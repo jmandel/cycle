@@ -1,0 +1,9 @@
+== Suppressed Messages ==
+
+# This file lists validator messages (by exact text or regex) that the IG
+# Publisher should downgrade/suppress. One entry per line. The file's mere
+# presence also resolves the "Supressed messages file not found" build error,
+# because the fhir.base.template points its path-suppressed-warnings parameter
+# here (input/ignoreWarnings.txt) by default.
+#
+# Keep this list empty unless a message is reviewed and deliberately accepted.

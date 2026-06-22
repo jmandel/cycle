@@ -1,0 +1,42 @@
+info  Running SUSHI v3.20.0 (implements FHIR Shorthand specification v3.0.0)
+info  Arguments:
+info    /mnt/data/period-tracking-mvp-ig
+info  No output path specified. Output to .
+info  Using configuration file: /mnt/data/period-tracking-mvp-ig/sushi-config.yaml
+info  Importing FSH text...
+info  Preprocessed 5 documents with 7 aliases.
+info  Imported 5 definitions and 26 instances.
+info  Loaded virtual package sushi-r5forR4#1.0.0 with 7 resources
+warn  Failed to load automatically-provided hl7.fhir.uv.tools.r4#latest
+warn  Failed to load automatically-provided hl7.terminology.r4#latest
+info  Loaded hl7.fhir.r4.core#4.0.1 with 11351 resources
+warn  Failed to load automatically-provided hl7.fhir.uv.extensions.r4#latest
+info  Loaded virtual package sushi-local#LOCAL with 0 resources
+info  Converting FSH to FHIR resources...
+info  Converted 3 FHIR StructureDefinitions.
+info  Converted 1 FHIR CodeSystems.
+info  Converted 1 FHIR ValueSets.
+info  Converted 26 FHIR instances.
+info  Exporting FHIR resources as JSON...
+info  Exported 31 FHIR resources as JSON.
+info  Assembling Implementation Guide sources...
+info  Generated ImplementationGuide-me.fhir.period-tracking-mvp.json
+info  Assembled Implementation Guide sources; ready for IG Publisher.
+info  The _build script hosted at https://github.com/HL7/ig-publisher-scripts is useful for downloading and running the IG Publisher.
+
+========================= SUSHI RESULTS ===========================
+|  -------------------------------------------------------------  |
+| |    Profiles   |  Extensions  |   Logicals   |   Resources   | |
+| |-------------------------------------------------------------| |
+| |       3       |      0       |      0       |       0       | |
+|  -------------------------------------------------------------  |
+|  -------------------------------------------------------------  |
+| |      ValueSets     |    CodeSystems    |     Instances      | |
+| |-------------------------------------------------------------| |
+| |         1          |         1         |         26         | |
+|  -------------------------------------------------------------  |
+|                                                                 |
+===================================================================
+| Don't get stuck in the doldrums.       0 Errors      3 Warnings |
+===================================================================
+
