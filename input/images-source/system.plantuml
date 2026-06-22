@@ -10,7 +10,7 @@ skinparam rectangle {
   FontColor #15202E
   roundCorner 14
 }
-left to right direction
+top to bottom direction
 rectangle "**Period-tracking app**\nstored cycle data\n(flow, symptoms, pain,\ntemp, notes)" as A
 rectangle "**FHIR R4 Bundle**\nthis IG's profiles\n(map only real,\nuser-entered data)" as B
 rectangle "**SMART Health Link**\nencrypted JWE + shlink:/ + QR\n(host sees ciphertext only;\nkey rides in the link)" as C

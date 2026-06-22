@@ -10,20 +10,19 @@ skinparam rectangle {
   FontColor #15202E
   roundCorner 12
 }
-rectangle "**PeriodTrackingBundle**\nBundle.type = collection" as Bundle #EAF0F7
-rectangle "Patient\nexactly one" as Pat
-rectangle "Device\none or more source apps" as Dev
-rectangle "DailyTrackingPanelObservation\none per exported source day\n(+ optional diary note)" as Panel
-rectangle "PeriodTrackingFactObservation\none per independent fact" as Fact
-rectangle "Provenance\nrequired export provenance" as Prov
-rectangle "CodeSystem\noptional app-native dictionary" as CS
-rectangle "Binary\noptional native JSON archive" as Bin
-Bundle --> Pat
-Bundle --> Dev
-Bundle --> Panel
-Bundle --> Fact
-Bundle --> Prov
-Bundle --> CS
-Bundle --> Bin
-Panel ..> Fact : hasMember
+rectangle "**PeriodTrackingBundle** — Bundle.type = collection" as Bundle #EAF0F7 {
+  rectangle "Patient — exactly one" as Pat
+  rectangle "Device — one or more source apps" as Dev
+  rectangle "DailyTrackingPanelObservation\none per exported source day (+ optional diary note)" as Panel
+  rectangle "PeriodTrackingFactObservation\none per independent fact" as Fact
+  rectangle "Provenance — required export provenance" as Prov
+  rectangle "CodeSystem — optional app-native dictionary" as CS
+  rectangle "Binary — optional native JSON archive" as Bin
+  Pat -[hidden]down- Dev
+  Dev -[hidden]down- Panel
+  Panel ..> Fact : hasMember
+  Fact -[hidden]down- Prov
+  Prov -[hidden]down- CS
+  CS -[hidden]down- Bin
+}
 @enduml
