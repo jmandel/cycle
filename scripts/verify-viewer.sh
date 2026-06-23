@@ -4,6 +4,7 @@
 #   1. chooser         /viewer/index.html
 #   2. canonical link  /viewer/index.html#shlink:/...  (a full SHL URI)
 #   3. direct resolve   resolve the raw shlink:/ with recipient="Example User"
+#   4. demo click       click Load synthetic demo, then Open link
 # Asserts the chooser and prefilled SHLink form render, then checks the
 # recipient-aware retrieval/decrypt path.
 cd "$(dirname "$0")/.."
@@ -61,6 +62,8 @@ echo "2) canonical shlink:/ link:"
 check_prefilled shlink "$(cat input/images/viewer/_shlink-local-ig.txt)" "$SHOT/shlink.png" || rc=1
 echo "3) recipient-aware resolve:"
 check_resolve || rc=1
+echo "4) demo button and Open link:"
+VIEWER_URL="http://localhost:$PORT/viewer/index.html" bun scripts/verify-viewer-clicks.mjs || rc=1
 
 kill $SRV 2>/dev/null
 echo

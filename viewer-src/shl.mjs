@@ -9,7 +9,7 @@
  * Relative `url`s are resolved against `baseUrl` so a single committed link can
  * work both locally (localhost:5525/viewer/) and when published.
  */
-import { bytesFromB64u, decryptCompact } from "./jwe.mjs";
+import { b64uFromBytes, bytesFromB64u, decryptCompact } from "./jwe.mjs";
 
 const td = new TextDecoder();
 const te = new TextEncoder();
