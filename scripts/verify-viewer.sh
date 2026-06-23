@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # verify-viewer.sh — serve the built IG output on :5525 and drive headless
 # Chromium (new headless / CDP) against the published viewer two ways:
-#   1. chooser         /viewer/index.html
-#   2. canonical link  /viewer/index.html#shlink:/...  (a full SHL URI)
+#   1. chooser         /viewer/
+#   2. canonical link  /viewer/#shlink:/...  (a full SHL URI)
 #   3. direct resolve   resolve the raw shlink:/ with recipient="Example User"
 #   4. demo click       click Load synthetic demo, then Open link
 # Asserts the chooser and prefilled SHLink form render, then checks the
@@ -48,7 +48,7 @@ check_resolve() {
 import { parseShlink, resolveShl } from "./viewer-src/shl.mjs";
 
 const payload = parseShlink(process.env.VERIFY_SHLINK);
-const { bundle } = await resolveShl(payload, `http://localhost:${process.env.PORT}/viewer/index.html`, "Example User");
+const { bundle } = await resolveShl(payload, `http://localhost:${process.env.PORT}/viewer/`, "Example User");
 if (bundle?.resourceType !== "Bundle") throw new Error("resolved payload was not a FHIR Bundle");
 if (!Array.isArray(bundle.entry) || bundle.entry.length < 100) throw new Error("resolved Bundle was unexpectedly small");
 console.log(`  [resolve] OK — decrypted ${bundle.entry.length} resources as Example User`);
@@ -57,13 +57,13 @@ console.log(`  [resolve] OK — decrypted ${bundle.entry.length} resources as Ex
 
 rc=0
 echo "1) chooser:"
-check_chooser chooser "http://localhost:$PORT/viewer/index.html" "$SHOT/chooser.png" || rc=1
+check_chooser chooser "http://localhost:$PORT/viewer/" "$SHOT/chooser.png" || rc=1
 echo "2) canonical shlink:/ link:"
 check_prefilled shlink "$(cat input/images/viewer/_shlink-local-ig.txt)" "$SHOT/shlink.png" || rc=1
 echo "3) recipient-aware resolve:"
 check_resolve || rc=1
 echo "4) demo button and Open link:"
-VIEWER_URL="http://localhost:$PORT/viewer/index.html" bun scripts/verify-viewer-clicks.mjs || rc=1
+VIEWER_URL="http://localhost:$PORT/viewer/" bun scripts/verify-viewer-clicks.mjs || rc=1
 
 kill $SRV 2>/dev/null
 echo

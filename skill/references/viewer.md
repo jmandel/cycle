@@ -2,7 +2,7 @@
 
 A receiver needs to turn a decrypted Bundle into something a clinician (or the patient) can read. The IG ships a complete, self-contained reference viewer you can **point at, reuse, or learn from** — you do not have to write one from scratch.
 
-Reference viewer: `https://build.fhir.org/ig/jmandel/periodicity/viewer/index.html`
+Reference viewer: `https://build.fhir.org/ig/jmandel/periodicity/viewer/`
 Source: `viewer-src/` in the IG repo.
 
 ## The pipeline (what any viewer does)
@@ -27,7 +27,7 @@ The reference implementation, file by file (all dependency-light, browser + bun 
 
 ## Reuse options
 
-1. **Just link to it.** Generate `https://build.fhir.org/ig/jmandel/periodicity/viewer/index.html#shlink:/…` (or your own copy) and let the user open it. Zero integration.
+1. **Just link to it.** Generate `https://build.fhir.org/ig/jmandel/periodicity/viewer/#shlink:/…` (or your own copy) and let the user open it. Zero integration.
 2. **Host your own copy.** The viewer is one self-contained `viewer.html` (no build step at runtime, no CDN). Drop it on any static host. A real `#shlink:/…` (or `?shlink=`) prepopulates the chooser and keeps the SHLink visible in the URL; the recipient enters or accepts the visible name field and clicks Open before the viewer sends the SHLink `recipient` value, decrypts, and renders. A bare visit shows the same explicit chooser (paste a link, scan a QR via the device camera, or load a co-located `shlink.txt` demo link into the paste field) rather than silently rendering demo data as if it were the visitor's own.
 3. **Embed the transform.** If your app already has UI, reuse just `transform.mjs` + `viewmodel.mjs` to get the view model and render with your own components.
 
@@ -44,4 +44,4 @@ Decrypt and render **client-side only**. Never POST the decrypted FHIR back to a
 
 ## Verifying a viewer headlessly
 
-The IG repo's `scripts/verify-viewer.sh` serves the built output, drives headless Chromium against both the chooser at `/viewer/index.html` and `/viewer/index.html#shlink:/…`, asserts the fragment URL prepopulates without auto-rendering, and then resolves the SHLink with a recipient name. Adapt it for your own host. (When the app JS is inlined into a single HTML file, don't assert on the *absence* of an error string — the source text is in the DOM — assert on the *presence* of rendered sections instead.)
+The IG repo's `scripts/verify-viewer.sh` serves the built output, drives headless Chromium against both the chooser at `/viewer/` and `/viewer/#shlink:/…`, asserts the fragment URL prepopulates without auto-rendering, and then resolves the SHLink with a recipient name. Adapt it for your own host. (When the app JS is inlined into a single HTML file, don't assert on the *absence* of an error string — the source text is in the DOM — assert on the *presence* of rendered sections instead.)

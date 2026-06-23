@@ -12,7 +12,7 @@ A compact FHIR R4 implementation guide for sharing granular patient-generated me
 - clinician-display guidance
 - an agent skill (`skill/`) for adding IG support to a tracking app
 - SMART Health Link packaging guidance
-- a self-contained **clinician viewer** (published at `viewer/index.html`) that decrypts a SMART Health Link in the browser and renders the cycle summary
+- a self-contained **clinician viewer** (published at `viewer/`) that decrypts a SMART Health Link in the browser and renders the cycle summary
 - terminology and integrity-check scripts
 - IG Publisher build scripts and GitHub Actions workflow
 

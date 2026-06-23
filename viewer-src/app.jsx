@@ -40,7 +40,7 @@ function Landing({ text, onTextChange, recipient, onRecipientChange, onOpen, onD
           Nothing is uploaded; the link's key never leaves this device.
         </p>
         <p className="ld-p ld-mut">
-          To view real data, open a link of the form <code>…/viewer.html#shlink:/…</code> — or use one of the options below.
+          To view real data, open a link of the form <code>…/viewer/#shlink:/…</code> — or use one of the options below.
         </p>
         {msg ? <div className="ld-msg">{msg}</div> : null}
 

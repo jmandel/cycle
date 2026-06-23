@@ -8,13 +8,13 @@ This draft defines a deliberately small FHIR R4 exchange model for **patient-gen
 
 1. **Model** — an app maps the data it actually stores to three profiles (below). See [Data model](modeling.html) and the [Mapping contract](mapping.html).
 2. **Share** — the Bundle is encrypted into a [SMART Health Link](smart-health-links.html) (compact JWE; the file host never sees the key or plaintext).
-3. **View** — a [clinician viewer](viewer/index.html) decrypts the link in the browser and renders a cycle summary, **computing all analytics from the granular facts** (no precomputed summaries travel in the Bundle).
+3. **View** — a [clinician viewer](viewer/) decrypts the link in the browser and renders a cycle summary, **computing all analytics from the granular facts** (no precomputed summaries travel in the Bundle).
 
 ### Try it now
 
 - **Open the {% include demo-shlink-link.xhtml %}** — it is a full viewer-prefixed SMART Health Link, so you can copy, paste, or inspect the `shlink:/…` payload directly.
 - Inspect the data behind it: the [longitudinal example Bundle](Bundle-period-tracking-longitudinal-example.html) (a synthetic seven-cycle copper-IUD case — the same data the viewer renders).
-- Shareable `shlink:/…` links point at this same published viewer (`…/viewer/index.html`), so a recipient opens the link, sees the SHLink preloaded, and clicks Open after identifying themselves.
+- Shareable `shlink:/…` links point at this same published viewer (`…/viewer/`), so a recipient opens the link, sees the SHLink preloaded, and clicks Open after identifying themselves.
 
 ## The profiles
 

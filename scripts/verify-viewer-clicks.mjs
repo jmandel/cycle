@@ -5,7 +5,7 @@
 
 const chrome = Bun.env.CHROMIUM || "chromium";
 const port = Number(Bun.env.CDP_PORT || "9225");
-const viewerUrl = Bun.env.VIEWER_URL || "http://localhost:5525/viewer/index.html";
+const viewerUrl = Bun.env.VIEWER_URL || "http://localhost:5525/viewer/";
 
 const proc = Bun.spawn([
   chrome,
