@@ -12,9 +12,9 @@ This draft defines a deliberately small FHIR R4 exchange model for **patient-gen
 
 ### Try it now
 
-- **Open the [clinician viewer](viewer/index.html)** — it decrypts and renders a worked SMART Health Link out of the box.
+- **Open the {% include demo-shlink-link.xhtml %}** — it is a full viewer-prefixed SMART Health Link, so you can copy, paste, or inspect the `shlink:/…` payload directly.
 - Inspect the data behind it: the [longitudinal example Bundle](Bundle-period-tracking-longitudinal-example.html) (a synthetic seven-cycle copper-IUD case — the same data the viewer renders).
-- Shareable `shlink:/…` links point at this same published viewer (`…/viewer/index.html`), so a recipient just opens the link.
+- Shareable `shlink:/…` links point at this same published viewer (`…/viewer/index.html`), so a recipient opens the link, sees the SHLink preloaded, and clicks Open after identifying themselves.
 
 ## The profiles
 
@@ -34,7 +34,7 @@ Any menstrual, fertility, or cycle-tracking app — regardless of its internal d
 - **Reference implementation in the repo:** `viewer-src/` (the transform + viewer), `scripts/` (the `bun` generators that build the example Bundle, the SHL, and the viewer), and `input/resources/` (the published example Bundle).
 - **Hosting the share — pick by your architecture:** a static encrypted file on your own web host/CDN (no backend); your own [SMART Health Link backend](smart-health-links.html) (passcodes, expiry, revocation, audit); or the hosted demo service **`https://ktc.joshuamandel.com`** for quick prototypes. The skill's `references/smart-health-links.md` has the decision guide and the API.
 
-Start: **`git clone https://github.com/jmandel/periodicity`, read `skill/SKILL.md`, open the example [viewer](viewer/index.html), and inspect the [mapping](mapping.html).**
+Start: **`git clone https://github.com/jmandel/periodicity`, read `skill/SKILL.md`, open the {% include demo-shlink-link.xhtml %}, and inspect the [mapping](mapping.html).**
 
 ## Core rule
 

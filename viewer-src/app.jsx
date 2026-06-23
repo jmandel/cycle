@@ -4,11 +4,11 @@ import jsQR from "jsqr";
 import MenstrualSummary from "./summary.jsx";
 import { transformBundle } from "./transform.mjs";
 import { prepare } from "./viewmodel.mjs";
-import { parseShlink, resolveShl } from "./shl.mjs";
+import { DEFAULT_RECIPIENT, extractShlinkURI, parseShlink, resolveShl, shlinkFromPayload } from "./shl.mjs";
 
 /* The viewer. A real SMART Health Link in the URL (#shlink:/… or ?shlink=)
-   renders directly. A bare visit shows an explicit chooser — it never silently
-   renders the demo as if it were the visitor's own data. */
+   prepopulates the form. The recipient still chooses when to fetch/decrypt,
+   and identifies themselves before the SHLink retrieval call is made. */
 
 function Banner({ status, label, n, onJson }) {
   return (
@@ -29,8 +29,7 @@ function Banner({ status, label, n, onJson }) {
   );
 }
 
-function Landing({ onOpen, onDemo, onScan, msg }) {
-  const [text, setText] = useState("");
+function Landing({ text, onTextChange, recipient, onRecipientChange, onOpen, onDemo, onScan, msg }) {
   return (
     <div className="ld"><style>{CSS}</style>
       <div className="ld-card">
@@ -46,10 +45,18 @@ function Landing({ onOpen, onDemo, onScan, msg }) {
         {msg ? <div className="ld-msg">{msg}</div> : null}
 
         <div className="ld-actions">
-          <div className="ld-row">
-            <input className="ld-in" placeholder="Paste a SMART Health Link (shlink:/… or a viewer URL)"
-              value={text} onChange={(e) => setText(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter" && text.trim()) onOpen(text.trim()); }} />
+          <label className="ld-field">
+            <span className="ld-label">Your name</span>
+            <input className="ld-in" placeholder={DEFAULT_RECIPIENT}
+              value={recipient} onChange={(e) => onRecipientChange(e.target.value)} />
+          </label>
+          <div className="ld-row ld-row--link">
+            <label className="ld-field ld-field--link">
+              <span className="ld-label">Link to load</span>
+              <input className="ld-in" placeholder="Paste a SMART Health Link (shlink:/… or a viewer URL)"
+                value={text} onChange={(e) => onTextChange(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && text.trim()) onOpen(text.trim()); }} />
+            </label>
             <button className="ld-btn ld-btn--p" disabled={!text.trim()} onClick={() => onOpen(text.trim())}>Open link</button>
           </div>
           <div className="ld-or"><span>or</span></div>
@@ -88,7 +95,7 @@ function QrScanner({ onResult, onClose }) {
             ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
             const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
             const code = jsQR(img.data, img.width, img.height, { inversionAttempts: "dontInvert" });
-            if (code?.data) { const p = parseShlink(code.data); if (p) { cleanup(); onResult(p); return; } }
+            if (code?.data && extractShlinkURI(code.data)) { cleanup(); onResult(code.data); return; }
           }
           raf = requestAnimationFrame(tick);
         };
@@ -111,12 +118,40 @@ function QrScanner({ onResult, onClose }) {
 
 function App() {
   const [state, setState] = useState({ status: "init" });
+  const [draftLink, setDraftLink] = useState("");
+  const [recipient, setRecipient] = useState(DEFAULT_RECIPIENT);
   const [scanning, setScanning] = useState(false);
 
-  async function resolvePayload(payload) {
+  function currentViewerURL() {
+    const url = new URL(window.location.href);
+    url.search = "";
+    url.hash = "";
+    return url.toString();
+  }
+  function setURLFragment(shlinkURI) {
+    if (!shlinkURI || window.location.hash === `#${shlinkURI}`) return;
+    const url = new URL(window.location.href);
+    url.search = "";
+    url.hash = shlinkURI;
+    window.history.replaceState({}, "", url.toString());
+  }
+  function viewerPrefixedLink(shlinkURI) {
+    return `${currentViewerURL()}#${shlinkURI}`;
+  }
+  function recipientName() {
+    return recipient.trim() || DEFAULT_RECIPIENT;
+  }
+  function normalizeDemoLink(link) {
+    const payload = parseShlink(link);
+    if (!payload) throw new Error("demo shlink.txt did not contain shlink:/");
+    payload.url = new URL("./example.jwe", document.baseURI).toString();
+    return viewerPrefixedLink(shlinkFromPayload(payload));
+  }
+  async function resolvePayload(payload, shlinkURI) {
     try {
       setState({ status: "loading" });
-      const { bundle } = await resolveShl(payload, document.baseURI);
+      if (shlinkURI) setURLFragment(shlinkURI);
+      const { bundle } = await resolveShl(payload, document.baseURI, recipientName());
       const vm = transformBundle(bundle, { rangeEnd: "2026-06-21" });
       setState({ status: "ok", data: prepare(vm), bundle, label: payload.label || null, n: (bundle.entry || []).length });
     } catch (e) { setState({ status: "error", error: String(e?.message || e) }); }
@@ -127,28 +162,34 @@ function App() {
     setTimeout(() => URL.revokeObjectURL(url), 60000);
   }
   function openText(text) {
-    const p = parseShlink(text);
-    if (!p) { setState({ status: "choose", msg: "That doesn't look like a SMART Health Link (it should contain shlink:/…)." }); return; }
-    resolvePayload(p);
+    const shlinkURI = extractShlinkURI(text);
+    if (!shlinkURI) { setState({ status: "choose", msg: "That doesn't look like a SMART Health Link (it should contain shlink:/…)." }); return; }
+    resolvePayload(parseShlink(shlinkURI), shlinkURI);
   }
   async function loadDemo() {
     try {
-      setState({ status: "loading" });
-      const r = await fetch(new URL("./shl.json", document.baseURI).toString());
-      if (!r.ok) throw new Error("demo link (shl.json) is not available next to this page");
-      await resolvePayload(await r.json());
+      const r = await fetch(new URL("./shlink.txt", document.baseURI).toString());
+      if (!r.ok) throw new Error("demo link (shlink.txt) is not available next to this page");
+      setDraftLink(normalizeDemoLink(await r.text()));
+      setState({ status: "choose" });
     } catch (e) { setState({ status: "error", error: String(e?.message || e) }); }
   }
 
   useEffect(() => {
-    const p = parseShlink(location.hash) || parseShlink(new URLSearchParams(location.search).get("shlink"));
-    if (p) resolvePayload(p); else setState({ status: "choose" });
+    const queryLink = new URLSearchParams(location.search).get("shlink");
+    const shlinkURI = extractShlinkURI(location.hash) || extractShlinkURI(queryLink);
+    if (shlinkURI) {
+      setURLFragment(shlinkURI);
+      setDraftLink(viewerPrefixedLink(shlinkURI));
+    }
+    setState({ status: "choose" });
   }, []);
 
   if (state.status === "choose" || state.status === "init") {
     return (<>
-      <Landing onOpen={openText} onDemo={loadDemo} onScan={() => setScanning(true)} msg={state.msg} />
-      {scanning && <QrScanner onResult={(p) => { setScanning(false); resolvePayload(p); }} onClose={() => setScanning(false)} />}
+      <Landing text={draftLink} onTextChange={setDraftLink} recipient={recipient} onRecipientChange={setRecipient}
+        onOpen={openText} onDemo={loadDemo} onScan={() => setScanning(true)} msg={state.msg} />
+      {scanning && <QrScanner onResult={(link) => { setScanning(false); setDraftLink(link); setState({ status: "choose" }); }} onClose={() => setScanning(false)} />}
     </>);
   }
   return (
@@ -187,7 +228,10 @@ const CSS = `
 .ld-p code{background:#EEF1F4;padding:.1em .35em;border-radius:4px;font:12px 'IBM Plex Mono',monospace}
 .ld-msg{background:#fdf0d6;border:1px solid #ecd29a;color:#7a5a12;border-radius:8px;padding:9px 12px;font-size:13px;margin:6px 0 14px}
 .ld-actions{margin-top:18px}
+.ld-field{display:flex;flex-direction:column;gap:6px;margin:0 0 10px;min-width:0}
+.ld-label{font:600 12px 'Inter';color:#46566A}
 .ld-row{display:flex;gap:8px}
+.ld-row--link{align-items:flex-end}
 .ld-row--split{gap:10px}
 .ld-in{flex:1;min-width:0;border:1px solid #CED6DF;border-radius:8px;padding:9px 12px;font:13px 'Inter';color:#15202E}
 .ld-in:focus{outline:2px solid #2B4A7A;outline-offset:0;border-color:#2B4A7A}
@@ -195,6 +239,7 @@ const CSS = `
 .ld-btn:hover{border-color:#7C8898}
 .ld-btn--p{flex:none;background:#2B4A7A;color:#fff;border-color:#2B4A7A}
 .ld-btn--p:disabled{opacity:.5;cursor:default}
+.ld-field--link{flex:1;margin-bottom:0}
 .ld-or{display:flex;align-items:center;text-align:center;color:#9aa7b5;font-size:12px;margin:14px 0}
 .ld-or::before,.ld-or::after{content:"";flex:1;border-top:1px solid #E1E6EC}
 .ld-or span{padding:0 12px}

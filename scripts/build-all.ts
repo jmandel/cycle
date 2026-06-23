@@ -7,7 +7,8 @@
  *
  * Steps:
  *   1. gen-example  -> input/resources/Bundle-...longitudinal-example.json (IG example)
- *   2. gen-shl      -> input/images/viewer/{example.jwe, shl.json, shlink.txt, ...}
+ *   2. gen-shl      -> input/images/viewer/{example.jwe, shlink.txt, ...}
+ *                    -> input/includes/demo-shlink-{link.xhtml,block.md}
  *   3. build-viewer -> input/images/viewer/{app.js, index.html}
  * Then run the IG Publisher (./_genonce.sh) to validate + publish.
  */

@@ -2,7 +2,7 @@
  * shl.mjs — SMART Health Link decode + retrieve + decrypt (recipient side).
  *
  * Supports the two SHL retrieval modes:
- *   - direct file (flag contains "U"): GET the url, body is the compact JWE
+ *   - direct file (flag contains "U"): GET the url with ?recipient=...
  *   - manifest: POST the url with {recipient}, read files[].embedded|location
  * then decrypts the JWE (dir / A256GCM) with the link's key.
  *
@@ -12,31 +12,51 @@
 import { bytesFromB64u, decryptCompact } from "./jwe.mjs";
 
 const td = new TextDecoder();
+const te = new TextEncoder();
+export const DEFAULT_RECIPIENT = "Example User";
 
-/** Extract the base64url payload from a shlink:/ URI (optionally behind a viewer URL with #). */
-export function parseShlink(input) {
+/** Extract the shlink:/ URI from bare links or viewer-prefixed URLs. */
+export function extractShlinkURI(input) {
   if (!input) return null;
   let s = String(input).trim();
   const hash = s.indexOf("shlink:/");
   if (hash >= 0) s = s.slice(hash);
   if (!s.startsWith("shlink:/")) return null;
+  return s;
+}
+
+/** Serialize a decoded SHLink payload back to a shlink:/ URI. */
+export function shlinkFromPayload(payload) {
+  return "shlink:/" + b64uFromBytes(te.encode(JSON.stringify(payload)));
+}
+
+/** Decode a shlink:/ URI (optionally behind a viewer URL with #). */
+export function parseShlink(input) {
+  const s = extractShlinkURI(input);
+  if (!s) return null;
   const b64 = s.slice("shlink:/".length);
   const json = td.decode(bytesFromB64u(b64));
   return JSON.parse(json); // { url, key, flag?, label?, exp?, v? }
 }
 
-async function fetchJwe(payload, baseUrl) {
-  const url = new URL(payload.url, baseUrl).toString();
+function normalizedRecipient(recipient) {
+  return String(recipient || "").trim() || DEFAULT_RECIPIENT;
+}
+
+async function fetchJwe(payload, baseUrl, recipient = DEFAULT_RECIPIENT) {
+  const url = new URL(payload.url, baseUrl);
+  const recipientName = normalizedRecipient(recipient);
   const direct = (payload.flag || "").includes("U");
   if (direct) {
-    const r = await fetch(url);
+    url.searchParams.set("recipient", recipientName);
+    const r = await fetch(url.toString());
     if (!r.ok) throw new Error(`SHL file fetch failed: ${r.status}`);
     return (await r.text()).trim();
   }
   // manifest mode
-  const r = await fetch(url, {
+  const r = await fetch(url.toString(), {
     method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ recipient: "Period Tracking MVP viewer" }),
+    body: JSON.stringify({ recipient: recipientName }),
   });
   if (!r.ok) throw new Error(`SHL manifest fetch failed: ${r.status}`);
   const manifest = await r.json();
@@ -49,8 +69,8 @@ async function fetchJwe(payload, baseUrl) {
 }
 
 /** Resolve a SHL payload to its decrypted FHIR Bundle (parsed JSON). */
-export async function resolveShl(payload, baseUrl) {
-  const jwe = await fetchJwe(payload, baseUrl);
+export async function resolveShl(payload, baseUrl, recipient = DEFAULT_RECIPIENT) {
+  const jwe = await fetchJwe(payload, baseUrl, recipient);
   const key = bytesFromB64u(payload.key);
   const plaintext = await decryptCompact(jwe, key);
   return { bundle: JSON.parse(plaintext), label: payload.label || null };

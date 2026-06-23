@@ -28,10 +28,11 @@ bun run build        # = bun scripts/build-all.ts
 This (re)generates and commits:
 
 - `input/resources/Bundle-period-tracking-longitudinal-example.json` — the synthetic seven-cycle example (autoloaded as an IG example);
-- `input/images/viewer/example.jwe` + `shl.json` + `shlink.txt` — the worked SMART Health Link (compact JWE, `dir`/A256GCM, `zip:DEF`);
+- `input/images/viewer/example.jwe` + `shlink.txt` — the worked SMART Health Link (compact JWE, `dir`/A256GCM, `zip:DEF`);
+- `input/includes/demo-shlink-{link.xhtml,block.md}` — generated snippets that let IG Markdown pages link to the full viewer-prefixed SHLink without copying it by hand;
 - `input/images/viewer/{app.js,index.html}` — the bundled viewer SPA.
 
-Sources live in `viewer-src/` (the transform, render layer, JWE/SHL helpers) and `scripts/`. Run `bun run build` whenever those change, then rebuild the IG. To exercise the published viewer headlessly: `bash scripts/verify-viewer.sh`.
+Sources live in `viewer-src/` (the transform, render layer, JWE/SHL helpers) and `scripts/`. Run `bun run build` whenever those change, then rebuild the IG. Set `VIEWER_BASE=https://your-host/path/viewer` before `bun run build` to generate `shlink.txt` for a fork or alternate publication location. To exercise the published viewer headlessly: `bash scripts/verify-viewer.sh`.
 
 ## Build
 
