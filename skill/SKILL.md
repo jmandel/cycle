@@ -29,7 +29,7 @@ This restraint is the whole point: the data is sensitive (reproductive, sexual, 
 
 5. **Honor the missing-data rules** (in the IG `scope.md` and `references/fhir-mapping.md`). "User explicitly said none/no" (an explicit negative) is a *different fact* from "not recorded that day" (emit nothing). Never fabricate negatives from absence.
 
-6. **Share as a SMART Health Link** (`references/smart-health-links.md`). Pick a hosting pattern that fits the app's architecture (static file, your own backend, or the hosted demo service), encrypt the bundle, and produce a `shlink:/…` (usually behind a viewer prefix, often as a QR). The host only ever sees ciphertext; the key rides in the link fragment.
+6. **Share as a SMART Health Link** (`references/smart-health-links.md`). Pick a ciphertext host that fits the app's architecture: a static object, the app's own backend, or the Kill the Clipboard companion server when the app has no natural SHLink host. Encrypt the bundle and produce a `shlink:/…` (usually behind a viewer prefix, often as a QR). The host only ever sees ciphertext; the key rides in the link fragment.
 
 7. **Render it** (`references/viewer.md`). Either point at an existing viewer (the IG ships one) or embed a small client-side viewer that decrypts in the browser and computes the summary from the granular facts — never send decrypted FHIR back to a server.
 
@@ -56,7 +56,7 @@ Flow intensity (`menstrual-flow`) and "is this a period" (`menstrual-status`) ar
 
 ## Choosing how to share
 
-Follow the IG packaging guidance in `input/pagecontent/smart-health-links.md` (published as `smart-health-links.html`). It defines the Period Tracking MVP share shape, lifetime expectations, and use-limit guidance. Use `references/smart-health-links.md` only for implementation notes and local scripts.
+Follow the IG packaging guidance in `input/pagecontent/smart-health-links.md` (published as `smart-health-links.html`). It defines the Period Tracking MVP share shape, lifetime expectations, and use-limit guidance. Use `references/smart-health-links.md` only for implementation notes, local scripts, and host choices such as static files, app backends, or the KTC companion server.
 
 ## References
 

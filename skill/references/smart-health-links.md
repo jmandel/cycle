@@ -44,10 +44,17 @@ Serve the JWE from a backend endpoint that behaves like a direct-file SHLink dat
 *Trade-offs:* you run a process + storage.
 *Use when:* clinic check-in flows, tighter operational control, or production where no third party should be in the path.
 
-### (c) Hosted demo service
-A hosted direct-file SHLink service can get prototypes working before you decide how to self-host.
-*Trade-offs:* prototype-grade, shared host, no SLA, operator-controlled retention. **Not production health infrastructure.**
-*Use when:* quick demos and MVPs, or to get the flow working before deciding to self-host.
+### (c) Kill the Clipboard companion server
+Use the Kill the Clipboard (KTC) SHLink server when the app can build and encrypt a Period Tracking MVP Bundle but does not have a natural backend to host the encrypted SHLink target file.
+
+- Hosted prototype: https://ktc.joshuamandel.com
+- Code and deployment pattern: https://github.com/jmandel/kill-the-clipboard-skill
+- Server API notes: https://github.com/jmandel/kill-the-clipboard-skill/blob/main/server/README.md
+
+KTC is useful because it already implements the direct-file SHLink data-plane shape this guide needs: `GET /shl/{id}?recipient=...` returns the compact JWE as `application/jose`. Its control plane can create managed links, upload or replace ciphertext, set expiry and max-use limits, pause/revoke/re-arm links, and expose access logs. The server stores ciphertext and opaque control metadata; it does not need plaintext FHIR or the SHLink decryption key.
+
+*Trade-offs:* another service is in the operational path. The public hosted instance is prototype-grade and has no production SLA; use it for demos or MVP integration work. For production health data, either self-host KTC with your own retention/monitoring controls or implement the same direct-file API pattern in the app's own backend.
+*Use when:* the app is client-only, static-hosted, mobile-only, or otherwise lacks an existing server that can enforce expiry, revocation, use limits, or access logging for encrypted SHLink files.
 
 The privacy boundary holds in all three: the host stores only ciphertext; the key stays client-side.
 
