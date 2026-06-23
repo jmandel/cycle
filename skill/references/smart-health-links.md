@@ -30,7 +30,7 @@ For a direct-file SHLink, the receiver does `GET <url>?recipient=<org>` and the 
 
 The shareable form is a **viewer URL + fragment**: `https://viewer.example/#shlink:/eyJ…`. The `#` fragment is never sent to the server (so the key never leaks into logs). A bare `shlink:/…` works only with SHL-aware scanners; the prefixed form opens from any phone camera. Encode that URL as a **QR (error-correction level M)**, optionally with the SMART logo. Parsers accept either bare or prefixed (extract the `shlink:/` substring).
 
-The IG's own viewer prefix: `https://build.fhir.org/ig/jmandel/periodicity/viewer/#shlink:/…`.
+The project's own viewer prefix: `https://periodicity.fhir.me/#shlink:/…`.
 
 ## Hosting implementation notes
 

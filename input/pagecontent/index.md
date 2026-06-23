@@ -8,7 +8,7 @@ This draft defines a deliberately small FHIR R4 exchange model for **patient-gen
 
 1. **Model** — an app maps the data it actually stores to three profiles (below). See [Data model](modeling.html) and the [Mapping contract](mapping.html).
 2. **Share** — the Bundle is encrypted into a [SMART Health Link](smart-health-links.html) (compact JWE; the file host never sees the key or plaintext).
-3. **View** — a [clinician viewer](viewer/) decrypts the link in the browser and renders a cycle summary, **computing all analytics from the granular facts** (no precomputed summaries travel in the Bundle).
+3. **View** — a [clinician viewer](https://periodicity.fhir.me/) decrypts the link in the browser and renders a cycle summary, **computing all analytics from the granular facts** (no precomputed summaries travel in the Bundle).
 
 ### Try it now
 

@@ -14,12 +14,13 @@
 import { mkdir } from "node:fs/promises";
 import { encryptCompact, b64uFromBytes, bytesFromB64u } from "../viewer-src/jwe.mjs";
 
-// The canonical viewer is the one the IG itself publishes (the auto IG builder
-// serves our JS viewer). Both the viewer and the encrypted file live under the
-// IG's /viewer/ path, so the demo is same-origin. A full shareable link is
-// <viewer>/#shlink:/<payload>. Override VIEWER_BASE when publishing
-// from a fork or non-build.fhir.org host.
-const DEFAULT_VIEWER_BASE = "https://build.fhir.org/ig/jmandel/periodicity/viewer";
+// The canonical viewer is our standalone GitHub Pages deployment at
+// periodicity.fhir.me (the IG-published copy at build.fhir.org can't be relied
+// on — its output strips/blocks unchecked active JS). The Pages site serves
+// both the viewer and example.jwe from its root, so the demo stays same-origin.
+// A full shareable link is <viewer>/#shlink:/<payload>. Override VIEWER_BASE
+// when publishing from a fork or a different host.
+const DEFAULT_VIEWER_BASE = "https://periodicity.fhir.me";
 const VIEWER_BASE = normalizeBase(Bun.env.VIEWER_BASE || DEFAULT_VIEWER_BASE);
 const LABEL = "Periodicity — synthetic longitudinal period-tracking export";
 const dir = `${import.meta.dir}/../input/images/viewer`;
@@ -51,7 +52,7 @@ function normalizeBase(value: string) {
 
 await mkdir(includesDir, { recursive: true });
 
-// canonical shareable link (IG-published viewer + IG-hosted encrypted file)
+// canonical shareable link (Pages-hosted viewer + same-origin encrypted file)
 const shareUrl = share(`${VIEWER_BASE}/`, `${VIEWER_BASE}/example.jwe`);
 await Bun.write(`${dir}/shlink.txt`, shareUrl + "\n");
 // local test links (underscore -> not published by the IG Publisher)
