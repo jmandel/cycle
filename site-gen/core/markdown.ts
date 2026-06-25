@@ -52,6 +52,13 @@ md.use((md) => {
     }
   });
 });
+// Wrap every rendered table in a horizontally scrollable container so wide
+// tables scroll within their column on narrow viewports instead of being
+// clipped by the page-level `overflow-x: clip` guard. SQL-generated tables get
+// the same wrapper in core/liquid.ts.
+md.renderer.rules.table_open = () => '<div class="table-scroll"><table>';
+md.renderer.rules.table_close = () => '</table></div>';
+
 md.use(anchor, {
   slugify,
   level: [2, 3, 4],

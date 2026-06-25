@@ -31,7 +31,7 @@ Each **fact** Observation has:
 - optional `device`; and
 - exactly one `value[x]`.
 
-Supported result forms are `Quantity`, `CodeableConcept`, `string`, and `boolean`. Never invent a time merely to create a full timestamp. The Bundle is intended to describe one person's period-tracking data even when no Patient reference is populated. The MVP uses independently meaningful facts; group by the date portion of `effectiveDateTime` in the viewer/client when you need daily rows.
+Supported result forms are `Quantity`, `CodeableConcept`, `string`, and `boolean`. Never invent a time merely to create a full timestamp. The Bundle is intended to describe one person's period-tracking data even when no Patient reference is populated. This guide uses independently meaningful facts; group by the date portion of `effectiveDateTime` in the viewer/client when you need daily rows.
 
 Code system URLs:
 
@@ -47,7 +47,7 @@ Code system URLs:
 
 ### Layer 0: required core
 
-Every MVP export emits the Layer 0 bleeding facts it can represent.
+Every export emits the Layer 0 bleeding facts it can represent.
 
 #### Bleeding
 
@@ -144,7 +144,7 @@ Do not emit predicted periods, fertile windows, or roll-up statistics (cycle len
 
 ## Complete export (optional)
 
-A *Normalized* export includes Layer 0 and any supported Layer 1 facts. A *Complete* export additionally preserves every selected source datum not represented in the normalized facts — the recommended Layer 2 mechanism is one `Binary` holding an exact, versioned native-JSON snapshot. It is an audit / migration / future-remapping safety net, never a substitute for the normalized facts.
+An export may optionally preserve every selected source datum not represented in the normalized facts. The recommended Layer 2 mechanism is one `Binary` holding an exact, versioned native-JSON snapshot. It is an audit / migration / future-remapping safety net, never a substitute for the normalized facts.
 
 ## Build & validate
 

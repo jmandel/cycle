@@ -2,7 +2,7 @@
 
 Use this page when an AI agent is adding cycle.fhir.me support to an app. It is the implementation checklist: inspect the app's real data, map only true stored facts, package them as an encrypted SMART Health Link, and verify the viewer/privacy path end to end.
 
-The authoritative model is the published **Period Tracking MVP Implementation Guide**:
+The authoritative model is the published **Period Tracking Implementation Guide**:
 
 > **IG home:** https://cycle.fhir.me/
 
@@ -69,7 +69,7 @@ Bleeding (`menstrual-bleeding`) is the universal emitted Layer 0 core. Flow inte
 Skim all of these (and the IG home) before locking the plan; re-read each in depth when you reach its phase. The **Read before** tags index which reference anchors which phase.
 
 - [FHIR mapping reference](fhir-mapping.html) - the concrete fact-by-fact mapping, terminology, flow/missing-data rules, and a worked bundle to copy from. **Read before building the export.**
-- [SMART Health Links packaging](smart-health-links.html) - the normative Period Tracking MVP SHLink packaging guidance (lifetime, use-limit, share shape). **Read before building sharing.**
+- [SMART Health Links packaging](smart-health-links.html) - the normative Period Tracking SHLink packaging guidance (lifetime, use-limit, share shape). **Read before building sharing.**
 - [SMART Health Links implementation notes](smart-health-links-implementation.html) - the sharing UX checklist (present + manage), the host-decision table, payload/encryption details, and local scripts. **Use after the packaging page.**
 - [Viewer integration](viewer-integration.html) - how the reference client-side viewer works (decrypt, transform, render) and how to reuse or embed it. **Read before building a viewer.**
 - [Journal and planning templates](journal-templates.html) - the plan checklist, journal, and mapping-issue templates to keep in the target repo.

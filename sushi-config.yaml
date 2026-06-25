@@ -6,7 +6,7 @@ version: 0.1.0
 fhirVersion: 4.0.1
 copyrightYear: 2026+
 releaseLabel: ci-build
-title: Period Tracking MVP Implementation Guide
+title: Period Tracking Implementation Guide
 publisher:
   name: fhir.me Cycle Project
   url: https://github.com/jmandel/cycle

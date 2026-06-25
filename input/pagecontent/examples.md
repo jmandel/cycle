@@ -6,7 +6,7 @@ The guide ships a single worked example, generated from one synthetic dataset so
 
 The [**Longitudinal Period Tracking Export**](Bundle-period-tracking-longitudinal-example.html) is a synthetic ~seven-cycle copper-IUD case built from the Layer 0 bleeding core plus Layer 1 structured facts: flow, pain, symptoms, mood-like symptom values, and basal body temperature. It is generated during the site build, validated by the IG Publisher, and used as the cleartext payload for the sample SMART Health Link.
 
-It exercises every construct in the MVP in one place:
+It exercises every construct in this guide in one place:
 
 - the **granular-first** pattern — boolean bleeding and flow intensity as *separate* facts, so binary-only apps and flow-capable apps share the same core;
 - **pain** as a 0–10 score, **symptoms** as `cycle#symptom` facts with exact SNOMED or app-native values, and **basal body temperature** as a vital sign;

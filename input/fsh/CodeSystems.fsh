@@ -1,7 +1,7 @@
 CodeSystem: PeriodTrackingMvpCodeSystem
 Id: cycle
-Title: "Period Tracking MVP Codes"
-Description: "The eight provisional concepts required by the MVP. These cover the Layer 0 bleeding core fact, the Layer 1 source-style ordinal menstrual-flow scale, and the generic Layer 1 symptom fact code."
+Title: "Period Tracking Codes"
+Description: "The eight provisional concepts required by this guide. These cover the Layer 0 bleeding core fact, the Layer 1 source-style ordinal menstrual-flow scale, and the generic Layer 1 symptom fact code."
 * ^caseSensitive = true
 * ^content = #complete
 * ^experimental = true

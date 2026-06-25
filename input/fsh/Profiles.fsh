@@ -1,12 +1,12 @@
 Invariant: ptmvp-bundle-bleeding-core
-Description: "A Period Tracking MVP Bundle SHALL contain at least one menstrual bleeding core fact."
+Description: "A Period Tracking Bundle SHALL contain at least one menstrual bleeding core fact."
 Expression: "entry.resource.ofType(Observation).where(code.coding.where(system = 'https://cycle.fhir.me/CodeSystem/cycle' and code = 'menstrual-bleeding').exists() and value.exists()).exists()"
 Severity: #error
 
 Profile: PeriodTrackingBundle
 Parent: Bundle
 Id: period-tracking-bundle
-Title: "Period Tracking MVP Bundle"
+Title: "Period Tracking Bundle"
 Description: "A self-contained FHIR R4 collection Bundle for transporting granular patient-generated period-tracking facts scoped to one person. It contains at least one Layer 0 menstrual bleeding fact. Patient and Device resources are optional."
 * obeys ptmvp-bundle-bleeding-core
 * identifier MS
@@ -14,7 +14,7 @@ Description: "A self-contained FHIR R4 collection Bundle for transporting granul
 * identifier ^definition = "A stable identifier for this exported collection when the producing app has one. It is not required for anonymous or one-off shares."
 * type = #collection
 * type ^short = "Bundle type is collection"
-* type ^definition = "Period Tracking MVP exports are self-contained collection Bundles, not transaction, batch, or document Bundles."
+* type ^definition = "Period Tracking exports are self-contained collection Bundles, not transaction, batch, or document Bundles."
 * timestamp MS
 * timestamp ^short = "When the export Bundle was assembled"
 * timestamp ^definition = "The time the producing system assembled this export Bundle."
@@ -39,7 +39,7 @@ Description: "Abstract base profile for one independently meaningful fact entere
 * ^abstract = true
 * status = #final
 * status ^short = "Only final facts are exported"
-* status ^definition = "Period Tracking MVP exports include finalized facts. Producers omit draft, preliminary, entered-in-error, and amended records from the shared Bundle."
+* status ^definition = "Period Tracking exports include finalized facts. Producers omit draft, preliminary, entered-in-error, and amended records from the shared Bundle."
 * category from PtmvpFactCategoryVS (required)
 * code 1..1 MS
 * code ^short = "Period-tracking fact type"

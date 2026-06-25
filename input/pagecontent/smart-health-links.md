@@ -1,6 +1,6 @@
 # SMART Health Link packaging
 
-The complete Period Tracking MVP Bundle is one FHIR JSON file suitable for SMART Health Link distribution.
+The complete Period Tracking Bundle is one FHIR JSON file suitable for SMART Health Link distribution.
 
 ## Content type
 
@@ -25,16 +25,16 @@ The file host does not need the decryption key and should not receive plaintext 
 
 ## Direct-file SHLinks
 
-Period Tracking MVP shares use SMART Health Links direct-file mode.
+Period Tracking shares use SMART Health Links direct-file mode.
 
 A conforming share SHALL:
 
 - include `U` in the SHLink `flag`;
 - set `url` to a direct-file endpoint for one compact JWE;
-- encrypt exactly one `application/fhir+json` Period Tracking MVP Bundle; and
+- encrypt exactly one `application/fhir+json` Period Tracking Bundle; and
 - let receivers retrieve the JWE by issuing a direct-file `GET` with `recipient` supplied as a query parameter.
 
-This guide does not define a manifest-based Period Tracking MVP share. If an implementation chooses another SMART Health Links pattern, it is outside this guide's constrained exchange profile.
+This guide does not define a manifest-based Period Tracking share. If an implementation chooses another SMART Health Links pattern, it is outside this guide's constrained exchange profile.
 
 The SMART Health Links specification requires compact JWE using direct key management and A256GCM, with the payload content type identified in the protected header. The payload SHOULD be compressed with raw DEFLATE before encryption, signalled by `"zip":"DEF"` in the JWE protected header; recipients SHALL accept both compressed and uncompressed payloads. The worked example below compresses a ~700 KB Bundle to a ~23 KB encrypted file this way.
 
@@ -65,7 +65,7 @@ Producing applications MAY therefore:
 
 When a viewer prefix is used, the `shlink:/...` value SHALL appear in the URL fragment after `#`. It SHALL NOT be placed in query parameters or another server-visible part of the URL, because the SHLink carries the decryption key.
 
-A dedicated provider scanner or receiving application SHOULD treat the viewer prefix, if present, as advisory launch metadata only. It can scan any QR containing a conformant Period Tracking MVP SHLink, extract the embedded `shlink:/...` value, retrieve and decrypt the JWE, validate the Bundle, and display it with the provider's preferred visualization, logic, and settings. This works the same for bare `shlink:/...` values and for viewer-prefixed links.
+A dedicated provider scanner or receiving application SHOULD treat the viewer prefix, if present, as advisory launch metadata only. It can scan any QR containing a conformant Period Tracking SHLink, extract the embedded `shlink:/...` value, retrieve and decrypt the JWE, validate the Bundle, and display it with the provider's preferred visualization, logic, and settings. This works the same for bare `shlink:/...` values and for viewer-prefixed links.
 
 ## Reference viewer and worked SMART Health Link
 

@@ -2,9 +2,9 @@
 
 A receiving application can remain lightweight. It does not need to display raw FHIR by default or understand the native Binary.
 
-## Required MVP view
+## Required view
 
-A conforming MVP viewer SHOULD provide:
+A conforming viewer SHOULD provide:
 
 1. **Context header** — patient-selected identity, source app, date range, and “patient-generated/self-reported” label.
 2. **Cycle-aligned rows** — observed bleeding days and flow intensity across recent cycles.

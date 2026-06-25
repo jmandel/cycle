@@ -216,8 +216,11 @@ img { max-width: 100%; }
   border-radius: var(--radius-md);
   background: var(--paper-card);
 }
-.table-scroll > .cycle-table {
-  width: 100%;
+.table-scroll > .cycle-table,
+.table-scroll > table {
+  width: max-content;
+  min-width: 100%;
+  max-width: none;
   margin: 0;
   border: 0;
   border-radius: 0;
@@ -555,6 +558,10 @@ body { overflow-x: clip; }
 .cycle-prose, .cycle-doc { overflow-wrap: break-word; }
 h1, h2, h3, h4, .page-title, .cycle-prose h1, .cycle-prose h2, .cycle-prose h3 { overflow-wrap: break-word; hyphens: auto; }
 .cycle-prose pre, .cycle-prose table { max-width: 100%; }
+/* Tables inside a scroll wrapper size to their content so the wrapper (not the
+   page) owns horizontal scrolling; without this the max-width cap above would
+   squish columns and the page-level clip would hide overflow. */
+.table-scroll > .cycle-table, .table-scroll > table { max-width: none; }
 
 /* No-sidebar (narrative) layout: content + TOC, centered */
 .cycle-shell.no-side { grid-template-columns: minmax(0, 1fr) var(--width-toc); max-width: 1060px; }
