@@ -229,7 +229,7 @@ The bleeding, flow, and symptom concepts are intentionally project-defined while
 
 This guide prefers exact terminology over coding density. It uses:
 
-- project concepts for the cross-app core facts, flow scale, and generic symptom fact code;
+- project concepts for the core facts, flow scale, and generic symptom fact code;
 - LOINC for the question or observation name when the source meaning fits;
 - SNOMED CT for clinical findings and answer concepts when the meaning is exact;
 - stable app/project concepts or `CodeableConcept.text` when a standard term is only approximate; and
