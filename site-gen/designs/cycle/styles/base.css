@@ -221,26 +221,19 @@ img { max-width: 100%; }
 .muted { color: var(--ink-500); font-size: var(--text-sm); }
 
 /* ============================================================
-   Artifacts expander rows + toolbar
+   Artifacts rows
    ============================================================ */
-.cycle-toolbar { display: flex; justify-content: flex-end; margin: 0 0 10px; }
-.btn-toggle-all { background: var(--paper-card); border: var(--border-strong); border-radius: var(--radius-sm); padding: 6px 12px; font: inherit; font-size: var(--text-sm); font-weight: 600; color: var(--ink-700); cursor: pointer; }
-.btn-toggle-all:hover { background: var(--paper-sunken); }
 .art-card { border: var(--border-hair); border-radius: var(--radius-md); overflow: hidden; background: var(--paper-card); }
-details.art-row { border-top: var(--border-hair); }
-details.art-row:first-child { border-top: none; }
-details.art-row > summary { list-style: none; cursor: pointer; display: grid; grid-template-columns: 1.3fr 120px 1fr auto; gap: 14px; align-items: center; padding: 12px 16px; }
-details.art-row > summary::-webkit-details-marker { display: none; }
-details.art-row > summary:hover { background: var(--paper-sunken); }
+.art-row { border-top: var(--border-hair); }
+.art-row:first-child { border-top: none; }
+.art-summary { display: grid; grid-template-columns: 1.3fr 120px 1fr; gap: 14px; align-items: center; padding: 12px 16px; }
 .art-name { font-family: var(--font-display); font-weight: 600; font-size: var(--text-base); color: var(--ink-900); }
 .art-short { font-size: var(--text-sm); color: var(--ink-500); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.art-chev { color: var(--ink-300); transition: transform var(--dur-fast) var(--ease-snap); }
-details.art-row[open] .art-chev { transform: rotate(90deg); }
 .art-detail { padding: 0 16px 14px 16px; color: var(--ink-700); font-size: var(--text-sm); line-height: var(--leading-normal); }
 .art-detail .art-link { font-family: var(--font-mono); font-size: var(--text-xs); }
 @media (max-width: 680px) {
-  details.art-row > summary { grid-template-columns: 1fr auto; }
-  .art-short, details.art-row > summary > .art-kind { display: none; }
+  .art-summary { grid-template-columns: 1fr; gap: 8px; }
+  .art-summary > .art-kind, .art-short { display: none; }
 }
 
 /* ============================================================

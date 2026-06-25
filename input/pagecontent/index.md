@@ -17,10 +17,11 @@ This draft defines a deliberately small FHIR R4 exchange model for **patient-gen
 
 ### Try it now
 
-- **Open the reference viewer:** [view.html](view.html) — the published site build includes the generated sample link next to the viewer.
-- **Compare viewer variants:** [view2.html](view2.html) is a binary-first clinician view that derives the cycle picture from Layer 0 before showing optional overlays; [view3.html](view3.html) is a bleeding-first alternate that foregrounds Layer 0 extrapolations before optional overlays.
-- Inspect the data behind it: the [longitudinal example Bundle](Bundle-period-tracking-longitudinal-example.html) (a synthetic seven-cycle copper-IUD case — the same data the viewer renders).
-- The sample is published through the [reference viewer](view.html) as a viewer-prefixed SHLink because that is the most robust default for ordinary browser launch. A provider's dedicated receiving app can scan that same QR, ignore the viewer prefix, and process the embedded `shlink:/...` with its own display logic.
+The same standardized SMART Health Link payload can be opened by any compatible viewer or provider scanner. These three sample viewers all use the same generated link:
+
+{% include sample-viewer-links.md %}
+
+Inspect the data behind them: the [longitudinal example Bundle](Bundle-period-tracking-longitudinal-example.html) (a synthetic seven-cycle copper-IUD case — the same data each viewer renders).
 
 ## The profiles
 

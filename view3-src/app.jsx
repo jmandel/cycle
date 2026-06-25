@@ -104,10 +104,10 @@ function App() {
       <style>{CSS}</style>
       <section className="launch">
         <div className="brand">Period Tracking MVP</div>
-        <h1>Layer 0 clinician viewer</h1>
+        <h1>Bleeding-first clinical summary</h1>
         <p>
-          This alternate viewer starts from the universal core: calendar day plus menstrual bleeding yes/no.
-          Optional facts are shown only after the bleeding-derived clinical picture is clear.
+          Starts from the universal core: calendar day plus menstrual bleeding yes/no.
+          Optional facts are shown after the bleeding-derived clinical picture is clear.
         </p>
         <div className="launch-grid">
           <label>
@@ -166,8 +166,8 @@ function LayerZeroViewer({ state, onBack }) {
       <section className="panel">
         <div className="section-head">
           <div>
-            <h2>What Layer 0 can tell a clinician</h2>
-            <p>These statements use only dated menstrual-bleeding booleans and missingness.</p>
+            <h2>Bleeding pattern summary</h2>
+            <p>Derived from dated menstrual-bleeding booleans and missingness.</p>
           </div>
         </div>
         <ul className="inferences">

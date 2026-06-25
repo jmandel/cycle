@@ -2,21 +2,21 @@
 
 ## Adoption layers
 
-This guide is designed for incremental adoption. A producer or receiver does not need to implement every period-tracking feature to be useful.
+This guide is designed for incremental adoption. Start with the bleeding calendar. Add richer facts only when the source app actually stores them.
 
 | Layer | Name | Compatibility meaning |
 |---|---|---|
-| **Layer 0** | **Core bleeding facts** | Required for MVP compatibility. A Bundle contains at least one `cycle#menstrual-bleeding` fact, and a producer emits every selected or reliably represented bleeding state as `valueBoolean=true` or `valueBoolean=false`. |
-| **Layer 1** | **Structured optional facts** | Optional, additive facts such as flow, symptoms, numeric pain severity, and basal body temperature. Implementers add only the facts their source data really supports. Receivers can ignore facts they do not understand without losing the Layer 0 core. |
-| **Layer 2** | **Native archive** | Optional complete-export fidelity. A Bundle may include a FHIR `Binary` containing the exact selected native JSON for audit, migration, and future remapping. This does not replace Layer 0 or Layer 1 facts. |
+| **Layer 0** | **Bleeding calendar** | Required. Each recorded date or timestamp says whether menstrual bleeding was present: `cycle#menstrual-bleeding` with `valueBoolean=true` or `false`. |
+| **Layer 1** | **Optional structured facts** | Optional details such as flow, symptoms, numeric pain severity, and basal body temperature. Add them only when the source app really has the data. |
+| **Layer 2** | **Native archive** | Optional exact source-data snapshot, carried as a FHIR `Binary`. This helps audit, migration, and future remapping. It does not replace Layer 0 or Layer 1. |
 
-A **Normalized MVP Export** supports Layer 0 and may include any Layer 1 facts. A **Complete MVP Export** is a Normalized MVP Export plus Layer 2.
+A **Normalized MVP Export** includes Layer 0 and may include Layer 1. A **Complete MVP Export** is a Normalized MVP Export plus Layer 2.
 
 ## Scope and conformance principles
 
 ### Scope
 
-This guide standardizes the smallest useful unit of exchange for menstrual period tracking: independently meaningful patient-generated facts scoped to one person and dated with `effectiveDateTime`.
+This guide standardizes small, patient-generated facts about one person's period tracking data. Each fact is dated with `effectiveDateTime`.
 
 It supports two conformance claims.
 
@@ -24,32 +24,38 @@ It supports two conformance claims.
 
 A **Normalized MVP Export** SHALL:
 
-- conform to the Period Tracking MVP Bundle profile;
-- include at least one Layer 0 `cycle#menstrual-bleeding` Menstrual Bleeding Fact Observation;
-- represent every selected or reliably source-represented bleeding state as a Layer 0 menstrual bleeding fact;
-- represent every other selected, recognized Layer 1 fact as a concrete Period Tracking Fact Observation when this guide defines one, or as a base-compatible app-native fact when it does not;
-- apply the missing-data rules below; and
-- scope all included observations to the same person, whether or not a Patient resource is included.
+- use the Period Tracking MVP Bundle profile;
+- include at least one Layer 0 bleeding fact;
+- emit a Layer 0 bleeding fact for every date or timestamp where the source records bleeding or explicitly records no bleeding;
+- add Layer 1 facts for selected flow, symptom, pain, and temperature data when the source has them;
+- use the specific fact profile from this guide when one fits, otherwise use the base Period Tracking Fact profile with an app-native code; and
+- follow the missing-data rules below.
+
+All included Observations are about the same person. A Patient resource may be included, but it is not required.
 
 ### Complete MVP Export
 
-A **Complete MVP Export** SHALL meet the Normalized MVP Export requirements and SHALL preserve every selected source datum that is not represented in the normalized layers. The recommended Layer 2 mechanism is one `Binary` containing an exact, versioned native JSON snapshot.
+A **Complete MVP Export** SHALL meet the Normalized MVP Export requirements and SHALL preserve every selected source datum that is not represented in Layer 0 or Layer 1. The recommended Layer 2 mechanism is one `Binary` containing an exact, versioned native JSON snapshot.
 
 The native archive is not a substitute for the normalized facts. It is an audit, migration, and future-remapping safety net.
 
 ### Universal core
 
-The universal cross-app core is Layer 0: one independently meaningful fact per recorded source date or timestamp, using `cycle#menstrual-bleeding` with `valueBoolean`. `true` means the source reports bleeding at that date or time. `false` means the source explicitly records no bleeding, or otherwise reliably represents a user-verified no-bleeding state. Absence of this fact means not recorded or not assessed.
+The universal cross-app core is the Layer 0 bleeding calendar: one fact per recorded source date or timestamp, using `cycle#menstrual-bleeding` with `valueBoolean`.
+
+- `true` means the source reports bleeding at that date or time.
+- `false` means the source explicitly records no bleeding, or otherwise reliably represents a user-verified no-bleeding state.
+- No fact means not recorded or not assessed.
 
 ### Granular-first requirement
 
-An independently meaningful fact SHALL be a standalone Observation. Bleeding, flow intensity, cramps, pain severity, mood-like symptoms, and temperature are separate facts even when the source app stores them in one row or object.
+Each meaningful fact SHALL be a standalone Observation. Bleeding, flow intensity, cramps, pain severity, mood-like symptoms, and temperature are separate facts even when the source app stores them in one row or object.
 
 Receivers can group normalized facts by the date portion of `effectiveDateTime` when they need a daily display row.
 
 ### Missingness
 
-Implementers SHALL preserve these distinctions where the source supports them:
+Do not turn missing data into "no." Implementers SHALL preserve these distinctions where the source supports them:
 
 | Source state | MVP behavior |
 |---|---|

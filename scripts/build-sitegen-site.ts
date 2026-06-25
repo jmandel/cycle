@@ -10,7 +10,7 @@
  *
  * Pages deploys site-gen/out (the root static site, not the Publisher /en/ shell).
  */
-import { readdir, cp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, cp, rm, writeFile, readFile } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 import { viewerBuildEnv, viewerOutput, viewerVariants } from './viewer-variants.ts';
 import { checkInternalLinks } from '../site-gen/core/link-check.ts';
@@ -19,6 +19,7 @@ import { project } from '../site-gen/project/cycle.ts';
 const root = `${import.meta.dir}/..`;
 const OUT = `${root}/site-gen/out`;
 const SITE_DB = `${root}/temp/site-gen/site.db`;
+const SAMPLE_SHL_DIR = `${root}/temp/site-gen/sample-shl`;
 const exampleOut = `${root}/input/resources/Bundle-period-tracking-longitudinal-example.json`;
 const publisherJar = `${root}/input-cache/publisher.jar`;
 const viewerBase = Bun.env.VIEWER_BASE || `https://${project.cname}/view`;
@@ -36,6 +37,15 @@ async function requireTool(name: string, cmd: string[], hint: string) {
 async function mirrorDemoAssets(srcDir: string, destDirs: string[]) {
   for (const d of destDirs) for (const f of demoFiles) await cp(join(srcDir, f), join(d, f), { force: true });
 }
+async function writeSampleViewerInclude(shlinkFile: string) {
+  const link = (await readFile(shlinkFile, 'utf8')).trim();
+  const idx = link.indexOf('shlink:/');
+  if (idx < 0) throw new Error(`${shlinkFile} does not contain a shlink:/ payload`);
+  const fragment = `#${link.slice(idx)}`;
+  const md = `[Reference viewer](view.html${fragment}) · [Binary-first viewer](view2.html${fragment}) · [Bleeding-first viewer](view3.html${fragment})\n`;
+  await mkdir(join(root, 'input/includes'), { recursive: true });
+  await writeFile(join(root, 'input/includes/sample-viewer-links.md'), md);
+}
 async function walk(dir: string, base = dir): Promise<string[]> {
   const out: string[] = [];
   for (const e of await readdir(dir, { withFileTypes: true })) {
@@ -50,6 +60,11 @@ async function walk(dir: string, base = dir): Promise<string[]> {
 await requireTool('Graphviz dot', ['dot', '-V'], 'Install graphviz so PlantUML diagrams render.');
 await requireTool('zip', ['zip', '-v'], 'Install zip so the agent skill package can be built.');
 await step('generate build example Bundle', ['bun', 'scripts/gen-example.ts'], { EXAMPLE_OUT: exampleOut });
+await rm(SAMPLE_SHL_DIR, { recursive: true, force: true });
+await step('package sample SMART Health Link', ['bun', 'scripts/gen-shl.ts'], {
+  BUNDLE_FILE: exampleOut, SHL_OUTDIR: SAMPLE_SHL_DIR, VIEWER_BASE: viewerBase,
+});
+await writeSampleViewerInclude(`${SAMPLE_SHL_DIR}/shlink.txt`);
 await step('compile FSH', ['./_sushi.sh']);
 await step('integrity checks', ['bun', 'scripts/check-mvp.ts'], { BUNDLE_FILE: exampleOut });
 
@@ -57,7 +72,6 @@ await step('integrity checks', ['bun', 'scripts/check-mvp.ts'], { BUNDLE_FILE: e
 if (!(await Bun.file(publisherJar).exists())) await step('download IG Publisher', ['./_updatePublisher.sh']);
 await step('run IG Publisher', ['./_genonce.sh']);
 
-// 6–7. site-gen: ingest the real package.db, then render the site
 await step('ingest package.db', ['bun', 'site-gen/ingest.ts'], { PKG_DB: `${root}/output/package.db`, SITE_DB });
 await step('render site-gen site', ['bun', 'site-gen/build.tsx'], { SITE_DB, OUT_DIR: OUT });
 
@@ -69,9 +83,7 @@ for (const variant of viewerVariants) {
   await step(`bundle ${variant.label}`, ['bun', 'scripts/build-viewer.ts'], viewerBuildEnv(variant, OUT));
 }
 const [primary, ...others] = viewerVariants.map((variant) => ({ variant, output: viewerOutput(variant, OUT) }));
-await step('package sample SMART Health Link', ['bun', 'scripts/gen-shl.ts'], {
-  BUNDLE_FILE: exampleOut, SHL_OUTDIR: primary.output.assets, VIEWER_BASE: viewerBase,
-});
+await mirrorDemoAssets(SAMPLE_SHL_DIR, [primary.output.assets]);
 await mirrorDemoAssets(primary.output.assets, others.map((v) => v.output.assets));
 await step('package agent assets (skill.zip)', ['bun', 'scripts/build-agent-assets.ts'], { AGENT_OUTDIR: OUT });
 const cname = Bun.env.PAGES_CNAME || project.cname;

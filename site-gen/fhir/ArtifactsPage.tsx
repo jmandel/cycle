@@ -16,6 +16,15 @@ const shortOf = (d?: string) => {
 };
 
 export function ArtifactsPage({ resources, page }: { resources: ResourceRow[]; page: (r: ResourceRow) => string }) {
+  const detail = (r: ResourceRow) => (
+    <div className="art-detail">
+      {r.Description || <em>No description.</em>}
+      <div style={{ marginTop: 8 }}>
+        <a className="art-link" href={page(r)}>Open artifact: {r.Type}-{r.Id} →</a>
+      </div>
+    </div>
+  );
+
   return (
     <>
       <section id="overview">
@@ -24,9 +33,6 @@ export function ArtifactsPage({ resources, page }: { resources: ResourceRow[]; p
         <p style={{ font: 'var(--type-lead)', color: 'var(--ink-700)', maxWidth: '62ch', margin: '0 0 8px' }}>
           Everything this IG defines, rendered the same way every time and built directly from the IG Publisher's <code>package.db</code>.
         </p>
-        <div className="cycle-toolbar">
-          <button type="button" className="btn-toggle-all" data-toggle-all="details.art-row" data-label-collapsed="Expand all" data-label-expanded="Collapse all">Expand all</button>
-        </div>
       </section>
 
       {GROUPS.map((g) => {
@@ -41,20 +47,14 @@ export function ArtifactsPage({ resources, page }: { resources: ResourceRow[]; p
             </div>
             <div className="art-card">
               {rows.map((r) => (
-                <details className="art-row" key={r.Id}>
-                  <summary>
+                <div className="art-row" key={r.Id}>
+                  <div className="art-summary">
                     <span className="art-name">{r.Title || r.Name || r.Id}</span>
                     <span className="art-kind"><Tag>{r.sdType || r.Type}</Tag></span>
                     <span className="art-short">{shortOf(r.Description)}</span>
-                    <span className="art-chev" aria-hidden="true">›</span>
-                  </summary>
-                  <div className="art-detail">
-                    {r.Description || <em>No description.</em>}
-                    <div style={{ marginTop: 8 }}>
-                      <a className="art-link" href={page(r)}>Open artifact: {r.Type}-{r.Id} →</a>
-                    </div>
                   </div>
-                </details>
+                  {detail(r)}
+                </div>
               ))}
             </div>
           </section>
