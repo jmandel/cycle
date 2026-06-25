@@ -309,7 +309,26 @@ img { max-width: 100%; }
 }
 .art-section { margin-top: 40px; }
 .art-section > h2.sec { font-family: var(--font-display); font-weight: 700; font-size: var(--text-xl); letter-spacing: var(--tracking-snug); margin: 6px 0 14px; }
+.section-lead { margin: -4px 0 14px; color: var(--ink-600); font-size: var(--text-sm); line-height: var(--leading-normal); max-width: var(--measure-prose); }
 .flag-legend { font-size: var(--text-xs); color: var(--ink-500); margin: 10px 2px 0; }
+.glance-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.glance-card {
+  border: var(--border-hair); border-radius: var(--radius-md); background: var(--paper-card);
+  padding: 12px 14px;
+}
+.glance-card h3 {
+  margin: 0 0 8px; font-family: var(--font-mono); font-size: var(--text-2xs);
+  letter-spacing: var(--tracking-eyebrow); text-transform: uppercase; color: var(--ink-500);
+}
+.glance-card dl { display: grid; grid-template-columns: minmax(74px, .55fr) minmax(0, 1fr); gap: 6px 10px; margin: 0; }
+.glance-card dt {
+  min-width: 0; font-family: var(--font-mono); font-size: var(--text-2xs);
+  color: var(--ink-500); overflow-wrap: anywhere;
+}
+.glance-card dd {
+  min-width: 0; margin: 0; font-family: var(--font-mono); font-size: var(--text-xs);
+  color: var(--ink-800); line-height: var(--leading-snug); overflow-wrap: anywhere;
+}
 .constraint-list { display: grid; gap: 10px; }
 .constraint-card {
   border: var(--border-hair); border-radius: var(--radius-md); background: var(--paper-card);
@@ -320,7 +339,7 @@ img { max-width: 100%; }
 .constraint-card p { margin: 0 0 9px; color: var(--ink-800); font-size: var(--text-sm); line-height: var(--leading-normal); }
 .profile-example-list { display: grid; border: var(--border-hair); border-radius: var(--radius-md); overflow: hidden; background: var(--paper-card); }
 .profile-example {
-  display: grid; grid-template-columns: minmax(0, 1.4fr) auto minmax(120px, .6fr);
+  display: grid; grid-template-columns: minmax(0, 1.4fr) auto minmax(120px, .6fr) auto;
   gap: 14px; align-items: center; padding: 12px 14px; border-top: var(--border-hair);
   color: inherit; text-decoration: none;
 }
@@ -329,10 +348,17 @@ img { max-width: 100%; }
 .profile-example strong { display: block; color: var(--ink-900); font-size: var(--text-sm); }
 .profile-example span { min-width: 0; color: var(--ink-600); font-size: var(--text-xs); line-height: var(--leading-normal); }
 .profile-example > span:nth-child(2) { font-family: var(--font-mono); color: var(--menstrual-deep); white-space: nowrap; }
+.profile-example-action {
+  justify-self: end; padding: 4px 8px; border: var(--border-hair); border-radius: var(--radius-xs);
+  background: var(--paper-sunken); color: var(--ink-800) !important; font-weight: 700;
+}
 @media (max-width: 560px) {
+  .glance-grid { grid-template-columns: 1fr; }
+  .glance-card dl { grid-template-columns: minmax(0, .48fr) minmax(0, 1fr); }
   .copy-value { grid-template-columns: minmax(0, 1fr) auto; }
   .profile-example { grid-template-columns: 1fr; gap: 5px; }
   .profile-example > span:nth-child(2) { white-space: normal; }
+  .profile-example-action { justify-self: start; margin-top: 3px; }
 }
 
 /* ============================================================
@@ -353,11 +379,13 @@ details.el > summary {
 details.el > summary::-webkit-details-marker { display: none; }
 .el-summary-main { min-width: 0; }
 .el-detail-action {
-  align-self: start; padding-top: 2px;
-  font-family: var(--font-mono); font-size: var(--text-2xs); color: var(--ink-400);
+  align-self: start; min-height: 24px; padding: 3px 8px;
+  border: var(--border-hair); border-radius: var(--radius-xs); background: var(--paper-sunken);
+  font-family: var(--font-mono); font-size: var(--text-2xs); color: var(--ink-500);
 }
-.el-detail-action::before { content: "details"; }
-details.el[open] .el-detail-action::before { content: "less"; }
+.el-detail-action::before { content: "Details"; }
+details.el[open] .el-detail-action::before { content: "Less"; }
+details.el > summary:hover .el-detail-action { background: var(--paper); color: var(--ink-900); }
 details.el[open] > summary { padding-bottom: 10px; border-bottom: 1px dashed var(--line); }
 .el-deep { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
 .el-deep .el-def { font-size: var(--text-sm); color: var(--ink-700); line-height: var(--leading-normal); max-width: var(--measure-prose); }

@@ -21,6 +21,115 @@ export interface ProfileExampleUse {
   resourceTypes: string[];
 }
 
+function localName(path = ''): string {
+  const parts = path.split('.');
+  return parts[parts.length - 1] || path;
+}
+
+function codeSystemLabel(system = ''): string {
+  if (system === 'https://cycle.fhir.me/CodeSystem/cycle') return 'cycle';
+  if (system === 'http://loinc.org') return 'LOINC';
+  if (system === 'http://snomed.info/sct') return 'SNOMED CT';
+  if (system === 'http://terminology.hl7.org/CodeSystem/observation-category') return 'observation-category';
+  return system.split('/').pop() || system;
+}
+
+function conceptLabel(v: any): string {
+  const coding = v?.coding?.[0];
+  if (!coding) return v?.text || JSON.stringify(v);
+  return `${codeSystemLabel(coding.system)}#${coding.code}`;
+}
+
+function fixedSummary(e: any): string | null {
+  for (const key of Object.keys(e || {})) {
+    if (!key.startsWith('fixed') && !key.startsWith('pattern')) continue;
+    const value = e[key];
+    if (value == null) continue;
+    const kind = key.startsWith('fixed') ? 'fixed' : 'pattern';
+    const rendered = typeof value === 'object'
+      ? conceptLabel(value)
+      : String(value);
+    return `${kind}: ${rendered}`;
+  }
+  return null;
+}
+
+function typeLabel(t: any): string {
+  const targets = t.targetProfile || (t.code === 'Reference' || t.code === 'canonical' ? [] : t.profile);
+  if (targets?.length) {
+    const names = targets.map((tp: string) => tp.split('/').pop() || tp).join(' | ');
+    return `${t.code}(${names})`;
+  }
+  return t.code;
+}
+
+function bindingLabel(e: any): string | null {
+  if (!e.binding?.valueSet) return null;
+  if (!e.binding.valueSet.startsWith('https://cycle.fhir.me/')) return null;
+  const name = e.binding.valueSet.split('/').pop() || e.binding.valueSet;
+  return `${e.binding.strength || 'binding'}: ${name}`;
+}
+
+function firstItems(items: { label: string; value: React.ReactNode }[], limit = 6) {
+  const visible = items.slice(0, limit);
+  if (items.length > limit) visible.push({ label: 'More', value: `${items.length - limit} additional constraints in Formal definition` });
+  return visible;
+}
+
+function ProfileGlance({ data, rootType }: { data: any; rootType: string }) {
+  const views = elementViews(data.snapshot?.element, data.differential?.element, rootType);
+  const keyElements = views.key.filter((e: any) => e.path && e.path !== rootType);
+  const topLevel = (e: any) => e.path.split('.').length === 2;
+  const notable = keyElements.filter(topLevel);
+
+  const required = firstItems(notable
+    .filter((e: any) => (e.min ?? 0) > 0)
+    .map((e: any) => ({ label: localName(e.path), value: `${e.min}..${e.max ?? '*'}` })));
+
+  const fixed = firstItems(notable
+    .map((e: any) => ({ e, value: fixedSummary(e) }))
+    .filter((x: any) => x.value)
+    .map((x: any) => ({ label: localName(x.e.path), value: x.value })));
+
+  const types = firstItems(notable
+    .filter((e: any) => e.type?.length && (e.path.includes('[x]') || ['subject', 'device'].includes(localName(e.path))))
+    .map((e: any) => ({ label: localName(e.path), value: e.type.map(typeLabel).join(' | ') })));
+
+  const bindings = firstItems(notable
+    .map((e: any) => ({ e, value: bindingLabel(e) }))
+    .filter((x: any) => x.value)
+    .map((x: any) => ({ label: localName(x.e.path), value: x.value })));
+
+  const groups = [
+    { title: 'Required', items: required },
+    { title: 'Fixed values', items: fixed },
+    { title: 'Allowed types', items: types },
+    { title: 'Bindings', items: bindings },
+  ].filter((g) => g.items.length);
+
+  if (!groups.length) return null;
+  return (
+    <section className="art-section profile-glance" id="glance">
+      <SectionHeading id="glance">At a glance</SectionHeading>
+      <div className="glance-grid">
+        {groups.map((group) => (
+          <div className="glance-card" key={group.title}>
+            <h3>{group.title}</h3>
+            <dl>
+              {group.items.map((item) => (
+                <React.Fragment key={`${item.label}-${String(item.value)}`}>
+                  <dt>{item.label}</dt>
+                  <dd>{item.value}</dd>
+                </React.Fragment>
+              ))}
+            </dl>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function ProfileRequirements({ requirements }: { requirements: ProfileRequirement[] }) {
   if (!requirements.length) return null;
   return (
@@ -56,6 +165,7 @@ function ProfileExamples({ examples }: { examples: ProfileExampleUse[] }) {
             </span>
             <span>{e.count.toLocaleString()} {e.count === 1 ? 'resource' : 'resources'}</span>
             <span>{e.resourceTypes.join(', ')}</span>
+            <span className="profile-example-action">Open example</span>
           </a>
         ))}
       </div>
@@ -88,12 +198,14 @@ export function ProfilePage({
           ['Base', <Tag tone="luteal" href={resolve(rootType!, r.base)}>{baseName}</Tag>],
         ]}
       />
+      <ProfileGlance data={data} rootType={rootType} />
       <ProfileRequirements requirements={requirements} />
       <ProfileExamples examples={examples} />
 
       <section className="art-section" id="elements">
         <div className="eyebrow" style={{ color: 'var(--ovulatory-deep)' }}>Formal content</div>
         <SectionHeading id="elements">Formal definition</SectionHeading>
+        <p className="section-lead">Start with Key elements for the constrained contract; Differential shows authored changes, and Snapshot shows the fully resolved FHIR structure.</p>
         {(() => {
           const v = elementViews(data.snapshot?.element, data.differential?.element, rootType);
           return (

@@ -283,6 +283,7 @@ for (const r of artifactResources('StructureDefinition')) {
     crumbs: [{ label: 'Artifacts', href: 'artifacts.html' }, { label: 'Profiles', href: 'artifacts.html#profiles' }, { label: r.Title || r.Id }],
     toc: [
       { id: 'overview', label: 'Overview' },
+      { id: 'glance', label: 'At a glance' },
       ...(requirements.length ? [{ id: 'requirements', label: 'Profile requirements' }] : []),
       ...(examples.length ? [{ id: 'examples', label: 'Examples' }] : []),
       { id: 'elements', label: 'Formal definition' },
