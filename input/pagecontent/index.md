@@ -4,9 +4,8 @@ This draft defines a deliberately small FHIR R4 exchange model for **patient-gen
 
 ## The whole system at a glance
 
-{% capture system_diagram %}{% include system.svg %}{% endcapture %}
 <div class="ptmvp-diagram">
-{{ system_diagram | remove_first: '<?xml version="1.0" encoding="us-ascii" standalone="no"?>' }}
+<img src="system-overview.png" alt="Three-step overview: source app maps period-tracking data to Layer 0 bleeding facts and optional richer facts, packages the Bundle as an encrypted SMART Health Link, and a receiving viewer decrypts locally to compute clinical views." width="1536" height="1024" style="max-width: 100%; height: auto;">
 </div>
 
 1. **Model** — an app maps the data it actually stores to the Bundle profile and concrete fact profiles below. See the [Specification](specification.html) and the [FHIR mapping reference](fhir-mapping.html).
