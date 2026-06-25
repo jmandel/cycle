@@ -6,7 +6,7 @@ import { transformBundle } from "./transform.mjs";
 import { prepare } from "./viewmodel.mjs";
 import { DEFAULT_RECIPIENT, extractShlinkURI, parseShlink, resolveShl, shlinkFromPayload } from "./shl.mjs";
 
-/* The viewer. A real SMART Health Link in the URL (#shlink:/… or ?shlink=)
+/* The viewer. A real SMART Health Link in the URL fragment (#shlink:/…)
    prepopulates the form. The recipient still chooses when to fetch/decrypt,
    and identifies themselves before the SHLink retrieval call is made. */
 
@@ -40,7 +40,7 @@ function Landing({ text, onTextChange, recipient, onRecipientChange, onOpen, onD
           Nothing is uploaded; the link's key never leaves this device.
         </p>
         <p className="ld-p ld-mut">
-          To view real data, open a link of the form <code>…/viewer/#shlink:/…</code> — or use one of the options below.
+          To view real data, open a link of the form <code>…/view#shlink:/…</code> — or use one of the options below.
         </p>
         {msg ? <div className="ld-msg">{msg}</div> : null}
 
@@ -69,7 +69,7 @@ function Landing({ text, onTextChange, recipient, onRecipientChange, onOpen, onD
 
         <p className="ld-foot">
           This reference viewer accepts compatible period-tracking SMART Health Links. The synthetic demo button loads sample data only. Learn more in the{" "}
-          <a href="https://build.fhir.org/ig/jmandel/periodicity/">Period Tracking MVP IG</a>.
+          <a href="https://cycle.fhir.me/">Period Tracking MVP IG</a>.
         </p>
       </div>
     </div>
@@ -123,11 +123,9 @@ function App() {
   const [recipient, setRecipient] = useState(DEFAULT_RECIPIENT);
   const [scanning, setScanning] = useState(false);
 
-  function currentViewerURL() {
-    const url = new URL(window.location.href);
-    url.search = "";
-    url.hash = "";
-    return url.toString();
+  function assetUrl(name) {
+    const script = [...document.scripts].reverse().find((s) => /\/app\.js($|\?)/.test(s.src || ""));
+    return new URL(name, script?.src ? new URL("./", script.src).toString() : document.baseURI).toString();
   }
   function setURLFragment(shlinkURI) {
     if (!shlinkURI || window.location.hash === `#${shlinkURI}`) return;
@@ -142,7 +140,7 @@ function App() {
   function normalizeDemoLink(link) {
     const payload = parseShlink(link);
     if (!payload) throw new Error("demo shlink.txt did not contain shlink:/");
-    payload.url = new URL("./example.jwe", document.baseURI).toString();
+    payload.url = assetUrl("example.jwe");
     return shlinkFromPayload(payload);
   }
   async function resolvePayload(payload, shlinkURI) {
@@ -166,7 +164,7 @@ function App() {
   }
   async function loadDemo() {
     try {
-      const r = await fetch(new URL("./shlink.txt", document.baseURI).toString());
+      const r = await fetch(assetUrl("shlink.txt"));
       if (!r.ok) throw new Error("demo link (shlink.txt) is not available next to this page");
       setDraftLink(normalizeDemoLink(await r.text()));
       setState({ status: "choose" });
@@ -174,8 +172,7 @@ function App() {
   }
 
   useEffect(() => {
-    const queryLink = new URLSearchParams(location.search).get("shlink");
-    const shlinkURI = extractShlinkURI(location.hash) || extractShlinkURI(queryLink);
+    const shlinkURI = extractShlinkURI(location.hash);
     if (shlinkURI) {
       setURLFragment(shlinkURI);
       setDraftLink(shlinkURI);

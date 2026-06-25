@@ -1,117 +1,93 @@
-Invariant: ptmvp-bundle-patient
-Description: "A Period Tracking MVP Bundle SHALL contain exactly one Patient resource."
-Expression: "entry.resource.ofType(Patient).count() = 1"
-Severity: #error
-
-Invariant: ptmvp-bundle-device
-Description: "A Period Tracking MVP Bundle SHALL contain at least one Device identifying a source application."
-Expression: "entry.resource.ofType(Device).exists()"
-Severity: #error
-
-Invariant: ptmvp-bundle-observation
-Description: "A Period Tracking MVP Bundle SHALL contain at least one Observation."
-Expression: "entry.resource.ofType(Observation).exists()"
-Severity: #error
-
-
-Invariant: ptmvp-bundle-panel
-Description: "A Period Tracking MVP Bundle SHALL contain at least one Daily Tracking Panel Observation."
-Expression: "entry.resource.ofType(Observation).where(code.coding.where(system = 'https://cycle.fhir.me/CodeSystem/cycle' and code = 'daily-tracking-panel').exists()).exists()"
-Severity: #error
-
-Invariant: ptmvp-bundle-fact
-Description: "A Period Tracking MVP Bundle SHALL contain at least one granular fact Observation in addition to its daily panels."
-Expression: "entry.resource.ofType(Observation).where(code.coding.where(system = 'https://cycle.fhir.me/CodeSystem/cycle' and code = 'daily-tracking-panel').empty()).exists()"
-Severity: #error
-
-Invariant: ptmvp-bundle-provenance
-Description: "A Period Tracking MVP Bundle SHALL contain at least one Provenance resource describing assembly of the export."
-Expression: "entry.resource.ofType(Provenance).exists()"
-Severity: #error
-
-Invariant: ptmvp-panel-content
-Description: "A Daily Tracking Panel SHALL contain at least one member fact or at least one diary note."
-Expression: "hasMember.exists() or note.exists()"
+Invariant: ptmvp-bundle-bleeding-core
+Description: "A Period Tracking MVP Bundle SHALL contain at least one menstrual bleeding core fact."
+Expression: "entry.resource.ofType(Observation).where(code.coding.where(system = 'https://cycle.fhir.me/CodeSystem/cycle' and code = 'menstrual-bleeding').exists() and value.exists()).exists()"
 Severity: #error
 
 Profile: PeriodTrackingBundle
 Parent: Bundle
 Id: period-tracking-bundle
 Title: "Period Tracking MVP Bundle"
-Description: "A self-contained FHIR R4 collection Bundle for transporting granular patient-generated period-tracking facts, daily panels, source application identity, provenance, and an optional native JSON archive."
-* obeys ptmvp-bundle-patient and ptmvp-bundle-device and ptmvp-bundle-observation and ptmvp-bundle-panel and ptmvp-bundle-fact and ptmvp-bundle-provenance
-* identifier 1..1 MS
+Description: "A self-contained FHIR R4 collection Bundle for transporting granular patient-generated period-tracking facts scoped to one person. Patient and Device resources are optional."
+* obeys ptmvp-bundle-bleeding-core
+* identifier MS
 * type = #collection
-* timestamp 1..1 MS
-* total 0..0
-* link 0..0
+* timestamp MS
 * entry 1..* MS
-* entry.fullUrl 1..1 MS
+* entry.fullUrl MS
 * entry.resource 1..1 MS
-* entry.search 0..0
-* entry.request 0..0
-* entry.response 0..0
 * signature MS
 
 Profile: PeriodTrackingFactObservation
 Parent: Observation
 Id: period-tracking-fact
 Title: "Period Tracking Fact Observation"
-Description: "One independently meaningful, granular fact entered, selected, verified, or measured in a period-tracking application. The MVP supports coded, quantitative, boolean, and textual results without requiring a distinct profile for every fact type."
+Description: "Abstract base profile for one independently meaningful fact entered, selected, verified, or measured in a period-tracking application. Concrete facts may be day-scoped or timestamp-scoped at producer discretion; clients can group facts by local date for display."
+* ^abstract = true
 * status = #final
-* category 1..1 MS
+* category MS
 * category from PtmvpFactCategoryVS (required)
 * code 1..1 MS
-* subject 1..1 MS
-* subject only Reference(Patient)
+* subject 0..1 MS
 * effective[x] 1..1 MS
 * effective[x] only dateTime
+* effectiveDateTime 1..1 MS
+* effectiveDateTime ^short = "Date or timestamp for the source fact"
+* effectiveDateTime ^definition = "The date or time associated with the source fact. Producers MAY use date precision (for example, 2026-06-24) when the source stores a calendar-day fact, or full timestamp precision when the source stores a specific time. Producers SHALL NOT invent a time solely to satisfy this profile."
 * issued MS
-* performer 1..1 MS
-* performer only Reference(Patient)
 * value[x] 1..1 MS
 * value[x] only Quantity or CodeableConcept or string or boolean
-* dataAbsentReason 0..0
 * interpretation MS
-* note MS
 * bodySite MS
 * method MS
-* specimen 0..0
-* device 1..1 MS
-* device only Reference(Device)
-* referenceRange 0..0
-* hasMember 0..0
-* derivedFrom 0..0
-* component 0..0
+* device 0..1 MS
 
-Profile: DailyTrackingPanelObservation
-Parent: Observation
-Id: daily-tracking-panel
-Title: "Daily Tracking Panel Observation"
-Description: "Groups the independently meaningful fact Observations associated with one source calendar date. A missing member means not recorded, not absent. A free-text diary note may be carried in Observation.note, including on a note-only day."
-* obeys ptmvp-panel-content
-* status = #final
+Profile: MenstrualBleedingFactObservation
+Parent: PeriodTrackingFactObservation
+Id: menstrual-bleeding-fact
+Title: "Menstrual Bleeding Fact Observation"
+Description: "The required core fact: whether the source reports menstrual bleeding for the stated date or timestamp. Both true and false are meaningful only when explicitly recorded or reliably represented by the source."
+* code = $CycleCS#menstrual-bleeding "Menstrual bleeding"
+* value[x] only boolean
+* valueBoolean 1..1 MS
+
+Profile: MenstrualFlowFactObservation
+Parent: PeriodTrackingFactObservation
+Id: menstrual-flow-fact
+Title: "Menstrual Flow Fact Observation"
+Description: "Optional intensity layer for an app's uncalibrated menstrual-flow category. This layer does not replace the menstrual bleeding boolean core fact."
+* code = $CycleCS#menstrual-flow "Patient-reported menstrual flow category"
+* value[x] only CodeableConcept
+* valueCodeableConcept 1..1 MS
+* valueCodeableConcept from MenstrualFlowValueSet (required)
+
+Profile: SymptomFactObservation
+Parent: PeriodTrackingFactObservation
+Id: symptom-fact
+Title: "Symptom Fact Observation"
+Description: "Optional symptom layer. The Observation code identifies the fact as a symptom report; the value identifies the specific symptom using an exact standard concept when available or an app-native concept when not."
+* code = $CycleCS#symptom "Symptom"
+* value[x] only CodeableConcept
+* valueCodeableConcept 1..1 MS
+* valueCodeableConcept from CommonTrackerSymptomsVS (preferred)
+
+Profile: NumericPainSeverityFactObservation
+Parent: PeriodTrackingFactObservation
+Id: numeric-pain-severity-fact
+Title: "Numeric Pain Severity Fact Observation"
+Description: "Optional numeric pain layer for a source 0-10 patient-reported pain score. Do not map ordinal labels such as mild, severe, or unbearable into this profile unless the source actually stores a numeric 0-10 rating."
+* code = $LNC#72514-3 "Pain severity - 0-10 verbal numeric rating [Score] - Reported"
+* value[x] only Quantity
+* valueQuantity 1..1 MS
+
+Profile: BasalBodyTemperatureFactObservation
+Parent: PeriodTrackingFactObservation
+Id: basal-body-temperature-fact
+Title: "Basal Body Temperature Fact Observation"
+Description: "Optional basal body temperature layer for a source temperature measurement identified by the producer as basal."
 * category 1..1 MS
-* category = $ObsCat#survey "Survey"
-* code = $CycleCS#daily-tracking-panel "Daily tracking panel"
-* subject 1..1 MS
-* subject only Reference(Patient)
-* effective[x] 1..1 MS
-* effective[x] only dateTime
-* issued MS
-* performer 1..1 MS
-* performer only Reference(Patient)
-* value[x] 0..0
-* dataAbsentReason 0..0
-* interpretation 0..0
-* note MS
-* bodySite 0..0
-* method 0..0
-* specimen 0..0
-* device 1..1 MS
-* device only Reference(Device)
-* referenceRange 0..0
-* hasMember 0..* MS
-* hasMember only Reference(PeriodTrackingFactObservation)
-* derivedFrom 0..0
-* component 0..0
+* category = $ObsCat#vital-signs "Vital Signs"
+* code = $LNC#8310-5 "Body temperature"
+* value[x] only Quantity
+* valueQuantity 1..1 MS
+* method 1..1 MS
+* method = $SCT#281660007

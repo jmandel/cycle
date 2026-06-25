@@ -6,24 +6,25 @@ An implementation should pass structural, semantic, privacy, and round-trip test
 
 - SUSHI compiles the FSH with zero errors.
 - The IG Publisher validates all generated resources.
-- Every fact conforms to Period Tracking Fact Observation.
-- Every daily panel references at least one conforming fact.
-- The Bundle contains exactly one Patient, at least one Device, at least one daily panel, at least one granular fact, and at least one Provenance resource.
-- Every Bundle entry has a unique `fullUrl`.
+- Every normalized Observation conforms to the appropriate concrete fact profile.
+- Recorded bleeding days include a `cycle#menstrual-bleeding` fact with `valueBoolean`.
+- Flow facts, when present, are consistent with the bleeding core (`flow-none` with false; spotting or greater with true).
+- The Bundle contains at least one menstrual bleeding core fact.
+- If Patient or `Observation.subject` references are present, they are consistent with the intended single-person scope.
+- Every populated Bundle `fullUrl` is unique.
 
 ## Semantic fixtures
 
 Each source adapter SHOULD implement these fixtures:
 
 1. untouched day;
-2. note-only day;
-3. explicit no-flow or not-menstruating selection;
-4. spotting-only day;
-5. heavy flow plus pain and symptoms;
-6. custom symptom without standard mapping;
-7. timed basal body temperature;
-8. source default that must not become a negative fact; and
-9. app prediction that must not become an observed fact.
+2. explicit no-bleeding selection;
+3. spotting-only day;
+4. heavy flow plus pain and symptoms;
+5. custom symptom without standard mapping;
+6. timed basal body temperature;
+7. source default that must not become a negative fact; and
+8. app prediction that must not become an observed fact.
 
 ## Cross-app equivalence
 
@@ -35,7 +36,7 @@ Capture client network traffic and hosting-server logs. The test fails if any of
 
 - plaintext FHIR JSON;
 - plaintext native source JSON;
-- menstrual dates or diary text;
+- menstrual dates or source free text;
 - SMART Health Link decryption key;
 - owner or management capability; or
 - unencrypted patient labels.
@@ -48,6 +49,6 @@ A clinician should be able to identify observed period timing, flow, pain, sympt
 
 The source package includes:
 
-- `scripts/verify_terminology.py` — checks referenced LOINC and SNOMED CT codes against supplied NDJSON distributions;
-- `scripts/check_mvp.py` — verifies the seven-code limit, resource references, and example Bundle integrity; and
+- `scripts/verify-terminology.ts` — checks referenced LOINC and SNOMED CT codes against supplied licensed LOINC and SNOMED CT releases;
+- `scripts/check-mvp.ts` — verifies the project CodeSystem, resource references, bleeding/flow consistency, and example Bundle integrity; and
 - build scripts for SUSHI and the IG Publisher.

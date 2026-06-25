@@ -1,25 +1,19 @@
-name: Deploy viewer to Pages
+name: Deploy site to Pages
 
-# Bundles the clinician viewer SPA (viewer-src/) with esbuild and publishes it
-# to GitHub Pages. The build emits index.html + app.js into
-# input/images/viewer/, so the site root index.html IS the viewer.
+# Builds the IG site, generated example Bundle, reference viewer, sample JWE, and
+# sample SHLink in the runner. Generated artifacts are uploaded to Pages but are
+# not committed.
 
 on:
   push:
     branches: [main]
-    paths:
-      - 'viewer-src/**'
-      - 'scripts/build-viewer.ts'
-      - '.github/workflows/deploy-viewer.yml'
   workflow_dispatch:
 
-# Allow GITHUB_TOKEN to deploy to Pages.
 permissions:
   contents: read
   pages: write
   id-token: write
 
-# One deploy at a time; don't cancel an in-progress publish.
 concurrency:
   group: pages
   cancel-in-progress: false
@@ -29,19 +23,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
       - uses: oven-sh/setup-bun@v2
       - name: Install deps
         run: bun install --frozen-lockfile
-      - name: Build viewer
-        run: bun scripts/build-viewer.ts
-      - name: Add CNAME for custom domain
-        run: echo 'periodicity.fhir.me' > input/images/viewer/CNAME
+      - name: Build static site
+        run: bun run build:site
+        env:
+          VIEWER_BASE: https://cycle.fhir.me/view
+          PAGES_CNAME: cycle.fhir.me
       - uses: actions/configure-pages@v5
-      - name: Upload viewer as Pages artifact
+      - name: Upload site as Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          # build-viewer.ts writes index.html + app.js here; index.html is the viewer.
-          path: input/images/viewer
+          path: output
 
   deploy:
     needs: build

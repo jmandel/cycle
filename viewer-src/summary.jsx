@@ -83,7 +83,7 @@ function buildNote(m, ctx) {
     `Menstrual cycle review — ${fmtY(ctx.spanStart)} to ${fmtY(ctx.today)} (${m.completeCycles} cycles; ${ctx.sourceApp}).`,
     `Cycle interval: median ${m.intervalMedian != null ? Math.round(m.intervalMedian) : "—"} d (range ${m.intervalMin}–${m.intervalMax}); variation ${m.variation} d.`,
     `Bleeding: median ${m.durMedian} d (range ${m.durMin}–${m.durMax}); ${m.heavyDays} heavy-rated days; intermenstrual ${m.imbDays} d; postcoital ${m.postcoital} d.`,
-    `Pain: peak ${m.peakPain}/10, typical ${m.typicalMensesPain}/10 in menses; activity limited ${m.funcDays} d; non-menstrual ${m.nonMenPain} d; dyspareunia ${m.dyspareunia} d; bowel-associated ${m.bowel} d.`,
+    `Pain: peak ${m.peakPain}/10, typical ${m.typicalMensesPain}/10 on bleeding days; activity limited ${m.funcDays} d; non-bleeding ${m.nonMenPain} d; dyspareunia ${m.dyspareunia} d; bowel-associated ${m.bowel} d.`,
   ];
   if (ctx.iudDate) lines.push(`Context: copper IUD ${fmtY(ctx.iudDate)}; heavier, longer and more painful pattern after this date.`);
   return lines.join("\n");
@@ -140,7 +140,7 @@ function Metrics({ m }) {
     { l: "Variation", v: m.variation ?? "—", u: "d", s: `${m.intervalMin} → ${m.intervalMax} d` },
     { l: "Bleed duration", v: m.durMedian ?? "—", u: "d med", s: `${m.durMin}–${m.durMax} d`, t: "Bleeding up to ~8 d is a common upper reference." },
     { l: "Bleed impact", v: m.heavyDays, u: "heavy d", s: `${m.imbDays} IMB · ${m.postcoital} PCB` },
-    { l: "Pain peak", v: `${m.peakPain}/10`, u: "", s: `${m.typicalMensesPain}/10 menses · ${m.funcDays} d limited` },
+    { l: "Pain peak", v: `${m.peakPain}/10`, u: "", s: `${m.typicalMensesPain}/10 bleeding · ${m.funcDays} d limited` },
   ];
   return (
     <div className="mh-metrics">
@@ -192,7 +192,7 @@ function CycleStrips({ data, onDay }) {
               </div>
               <div className="mh-track mh-track--flow" style={gridStyle()}>
                 {days.map((d) => {
-                  const f = d.rec?.flow || 0; const spec = FLOW[f]; const active = d.rec && (d.rec.flow > 0 || d.rec._entry);
+                  const f = d.rec?.flow || 0; const spec = FLOW[f]; const active = d.rec && (d.rec.bleeding === true || d.rec.flow > 0 || d.rec._entry);
                   return (<button key={d.i} className={"mh-cell" + (d.inCycle ? "" : " is-out") + (f > 0 ? " has-flow" : "")}
                     style={f > 0 ? { background: spec.color, borderColor: spec.border } : undefined}
                     onClick={() => active && onDay(d.date)} tabIndex={active ? 0 : -1}
@@ -290,10 +290,10 @@ function Timeline({ data, onDay }) {
         <div className="mh-tl-lane">
           <span className="mh-tl-lane-cap">Bleeding</span>
           <div className="mh-tl-plot">
-            {daily.filter((d) => d.flow > 0).map((d) => { const spec = FLOW[d.flow]; return (
+            {daily.filter((d) => d.bleeding === true || d.flow > 0).map((d) => { const lvl = d.flow > 0 ? d.flow : 1; const spec = FLOW[lvl]; return (
               <span key={d.date} className={"mh-tl-bar" + (d.intermenstrual ? " is-imb" : "")}
-                style={{ left: xOf(d.date), height: 16 + d.flow * 13, background: spec.color, borderColor: spec.border }}
-                onClick={() => onDay(d.date)} title={`${fmt(d.date)} · ${spec.label}${d.intermenstrual ? " (between periods)" : ""}`} />); })}
+                style={{ left: xOf(d.date), height: 16 + lvl * 13, background: spec.color, borderColor: spec.border }}
+                onClick={() => onDay(d.date)} title={`${fmt(d.date)} · ${d.flow > 0 ? spec.label : "bleeding"}${d.intermenstrual ? " (between episodes)" : ""}`} />); })}
           </div>
         </div>
         <div className="mh-tl-lane">
@@ -356,7 +356,7 @@ function SymptomGrid({ data }) {
         <span className="mh-heat-rowcap">n cycles</span>
         {offsets.map((o) => (<span key={o} className="mh-heat-col mh-heat-n">{colN[o]}</span>))}
       </div>
-      <div className="mh-heat-axis"><span>← before bleeding</span><span>menses →</span></div>
+      <div className="mh-heat-axis"><span>← before bleeding</span><span>bleeding →</span></div>
     </div>
   );
 }
@@ -364,9 +364,9 @@ function SymptomGrid({ data }) {
 /* ---------- pain table ---------- */
 function PainTable({ m }) {
   const rows = [
-    ["Peak", `${m.peakPain}/10`], ["Typical (menses)", `${m.typicalMensesPain}/10`],
+    ["Peak", `${m.peakPain}/10`], ["Typical (bleeding)", `${m.typicalMensesPain}/10`],
     ["Painful days", `${m.painEntryDays}`], ["Activity limited", `${m.funcDays} d`],
-    ["Non-menstrual", `${m.nonMenPain} d`], ["With sex", `${m.dyspareunia} d`], ["Bowel-associated", `${m.bowel} d`],
+    ["Non-bleeding", `${m.nonMenPain} d`], ["With sex", `${m.dyspareunia} d`], ["Bowel-associated", `${m.bowel} d`],
   ];
   return <KV rows={rows} />;
 }
@@ -412,6 +412,7 @@ function DayDetail({ rec, date, cycles, onClose }) {
   const cyc = cycles.find((c) => diffDays(c.start, date) >= 0 && (!c.nextStart || diffDays(date, c.nextStart) > 0));
   const cd = cyc ? diffDays(cyc.start, date) + 1 : null;
   const f = rec?.flow ? FLOW[rec.flow] : null;
+  const bleedingText = rec?.bleeding === true ? (f ? f.label : "yes") : rec?.bleeding === false || rec?.flow === 0 ? "none" : null;
   return (
     <div className="mh-modal" role="dialog" aria-modal="true" onClick={onClose}>
       <div className="mh-day" onClick={(e) => e.stopPropagation()}>
@@ -423,7 +424,7 @@ function DayDetail({ rec, date, cycles, onClose }) {
           <button className="mh-day-x" onClick={onClose} aria-label="Close">×</button>
         </div>
         <dl className="mh-day-list">
-          {f && rec.flow > 0 ? <Row k={rec.intermenstrual ? "Bleeding (IMB)" : "Bleeding"} v={f.label} /> : (rec ? <Row k="Bleeding" v="none" /> : null)}
+          {bleedingText ? <Row k={rec?.intermenstrual ? "Bleeding (IMB)" : "Bleeding"} v={bleedingText} /> : null}
           {rec?.pain != null ? <Row k="Pelvic pain" v={`${rec.pain}/10`} /> : null}
           {rec?.painTypes?.length ? <Row k="Pain type" v={rec.painTypes.join(", ")} /> : null}
           {rec?.functionalLimit ? <Row k="Function" v="activity limited" /> : null}

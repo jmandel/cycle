@@ -4,21 +4,18 @@ The guide ships a single worked example, generated from one synthetic dataset so
 
 ## The longitudinal example
 
-The [**Longitudinal Period Tracking Export**](Bundle-period-tracking-longitudinal-example.html) is a synthetic ~seven-cycle copper-IUD case built entirely from the common-core facts (flow, menstrual status, pain, symptoms, mood, basal body temperature, diary notes), grouped into per-day [daily panels](StructureDefinition-daily-tracking-panel.html) with Provenance. It is the exact Bundle the {% include demo-shlink-link.xhtml %} renders and the exact payload wrapped by the SMART Health Link below — the spec example and the shared link are one and the same.
+The [**Longitudinal Period Tracking Export**](Bundle-period-tracking-longitudinal-example.html) is a synthetic ~seven-cycle copper-IUD case built from the universal bleeding core plus optional layers: flow, pain, symptoms, mood-like symptom values, and basal body temperature. It is generated during the site build, validated by the IG Publisher, and used as the cleartext payload for the sample SMART Health Link.
 
 It exercises every construct in the MVP in one place:
 
-- the **granular-first** pattern — flow intensity and menstrual status as *separate* facts, so spotting without a period status reads as intermenstrual bleeding;
-- **pain** as a 0–10 score, **symptoms** as LOINC `75325-1` + SNOMED findings, **basal body temperature** as a vital sign;
-- an **explicit negative** — a day the user verified they were *not* menstruating (distinct from a day that simply wasn't recorded);
-- a **note-only day** — a diary note with no structured fact;
+- the **granular-first** pattern — boolean bleeding and flow intensity as *separate* facts, so binary-only apps and flow-capable apps share the same core;
+- **pain** as a 0–10 score, **symptoms** as `cycle#symptom` facts with exact SNOMED or app-native values, and **basal body temperature** as a vital sign;
+- an **explicit negative** — a day the user verified *no bleeding* (distinct from a day that simply wasn't recorded);
 - one **app-native custom symptom** via the escape hatch (a code from an app-controlled CodeSystem, with no false standard mapping); and
-- an optional **`Binary` native-JSON archive** with `Provenance` citing it as the source — the "Complete export" safety net.
+- an optional **`Binary` native-JSON archive** — the "Complete export" safety net.
 
-{% include demo-shlink-block.md %}
-
-The link is a direct-file SMART Health Link: the viewer fetches the encrypted file, decrypts it in the browser with the key carried in the link fragment, and computes every cycle metric from the granular facts. The key here is public **only because the data is synthetic** — a real share keeps the key in the link and out of any server log.
+The published site build also creates a direct-file SMART Health Link for this Bundle. The reference viewer fetches the encrypted file, decrypts it in the browser with the key carried in the link fragment, and computes every cycle metric from the granular facts. A provider scanner or another viewer can extract the same `shlink:/...` payload from either a viewer-prefixed or raw SHLink QR and apply its own visualization. The key here is public **only because the data is synthetic** — a real share keeps the key in the link fragment and out of any server log.
 
 ## How it's built
 
-The example is generated, not hand-authored, so it can't drift from the data model: `viewer-src/dataset.mjs` (the deterministic synthetic case) → `scripts/gen-example.ts` emits the FHIR resources (autoloaded into the IG and validated against the profiles) → `scripts/gen-shl.ts` encrypts the Bundle into the link above. All JSON resources are available from the artifact pages and under `input/resources/` in the [source repository](https://github.com/jmandel/periodicity).
+The example is generated, not hand-authored, so it can't drift from the data model: `viewer-src/dataset.mjs` (the deterministic synthetic case) → `scripts/gen-example.ts` emits the FHIR resources into the build's `input/resources/` directory → the IG Publisher validates and publishes the Bundle → `scripts/gen-shl.ts` encrypts the Bundle into the sample link under `view-assets/`. The generated JSON and encrypted SHLink are build artifacts, not committed source files.

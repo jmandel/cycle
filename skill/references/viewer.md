@@ -1,9 +1,8 @@
 # Viewer reference
 
-A receiver needs to turn a decrypted Bundle into something a clinician (or the patient) can read. The project ships a complete, self-contained reference viewer you can **point at, reuse, or learn from** — you do not have to write one from scratch.
+A receiver needs to turn a decrypted Bundle into something a clinician (or the patient) can read. The project ships a complete, self-contained reference viewer you can **point at, reuse, or learn from**. It is optional: an app can host its own viewer, embed the transform in another UI, or scan bare SHLinks in a provider workflow.
 
-Reference viewer: `https://periodicity.fhir.me/`
-Source: `viewer-src/` in the IG repo.
+Reference viewer source: `viewer-src/` in the IG repo.
 
 ## The pipeline (what any viewer does)
 
@@ -27,21 +26,23 @@ The reference implementation, file by file (all dependency-light, browser + bun 
 
 ## Reuse options
 
-1. **Just link to it.** Generate `https://periodicity.fhir.me/#shlink:/…` (or your own copy) and let the user open it. Zero integration.
-2. **Host your own copy.** Build it — `scripts/build-viewer.ts` bundles `viewer-src/` into a self-contained `app.js` + `index.html` (no CDN, no runtime transpile) under `input/images/viewer/`. Drop both files on any static host (`periodicity.fhir.me` serves them at the site root; inside the IG output they live at `/viewer/`). A real `#shlink:/…` (or `?shlink=`) prepopulates the chooser and keeps the SHLink visible in the URL; the recipient enters or accepts the visible name field and clicks Open before the viewer sends the SHLink `recipient` value, decrypts, and renders. A bare visit shows the same explicit chooser (paste a link, scan a QR via the device camera, or load a co-located `shlink.txt` demo link into the paste field) rather than silently rendering demo data as if it were the visitor's own.
+1. **Host the reference viewer.** `scripts/build-viewer.ts` bundles `viewer-src/` into a self-contained `view.html` page plus `view-assets/app.js` (no CDN, no runtime transpile). Local builds write `dist/view.html` and `dist/view-assets/`; the site build writes `output/view.html` and `output/view-assets/`.
+2. **Embed the core.** Reuse `viewer-src/shl.mjs`, `viewer-src/jwe.mjs`, and `viewer-src/transform.mjs` inside your app while replacing the render layer.
+
+A real `#shlink:/...` fragment prepopulates the chooser and keeps the SHLink key off the server; the recipient enters or accepts the visible name field and clicks Open before the viewer sends the SHLink `recipient` value, decrypts, and renders. A bare visit shows the same explicit chooser (paste a bare `shlink:/...`, scan a QR via the device camera, or load a co-located `shlink.txt` demo link into the paste field) rather than silently rendering demo data as if it were the visitor's own.
 3. **Embed the transform.** If your app already has UI, reuse just `transform.mjs` + `viewmodel.mjs` to get the view model and render with your own components.
 
 ## Key derivation rules the transform encodes (match these if you write your own)
 
-- **Period day** = an explicit menstrual-status-present fact, OR flow ≥ light when no status is given (so flow-only apps still produce cycles), unless the user explicitly said "not menstruating" that day.
-- **Intermenstrual bleeding** = a bleeding day (flow ≥ spotting) that is not a period day.
-- **Cycle** = a run of period days; a new cycle starts after a gap > 3 bleeding-free days. Cycle length = onset-to-onset; bleed duration = consecutive period days from onset.
+- **Bleeding day** = a `cycle#menstrual-bleeding` fact with `valueBoolean=true`. Legacy or partial inputs may fall back to flow ≥ spotting, but conformant exports emit the boolean core.
+- **No-bleeding day** = a `cycle#menstrual-bleeding` fact with `valueBoolean=false`. Missing means not recorded, not absent.
+- **Cycle/episode** = a run of bleeding days; a new episode starts after a gap > 3 bleeding-free days. Interval = onset-to-onset; bleed duration = consecutive bleeding days from onset.
 - **Everything derived in the UI** — intervals, medians, heavy-day counts — comes from the granular facts, per the IG (`scope.html`). Nothing is read from precomputed summary fields.
 
 ## Privacy
 
-Decrypt and render **client-side only**. Never POST the decrypted FHIR back to a server. Keep the `shlink:/` in the URL fragment so the key never reaches a server. Display the result as patient-generated data, clearly not clinically attested.
+Decrypt and render **client-side only**. Never POST the decrypted FHIR back to a server. For viewer-prefixed links, keep the `shlink:/` in the URL fragment so the key never reaches a server. Dedicated scanner apps can ignore any viewer prefix after extracting the `shlink:/` payload. Display the result as patient-generated data, clearly not clinically attested.
 
 ## Verifying a viewer headlessly
 
-The IG repo's `scripts/verify-viewer.sh` serves the built output, drives headless Chromium against both the chooser at `/viewer/` and `/viewer/#shlink:/…`, asserts the fragment URL prepopulates without auto-rendering, and then resolves the SHLink with a recipient name. Adapt it for your own host. (Assert on the *presence* of rendered sections, not the *absence* of an error string — app source text lives in the DOM/bundle and would yield false negatives.)
+The IG repo's `scripts/verify-viewer.ts` serves the built output, drives headless Chromium against both the chooser at `/view` and `/view#shlink:/…`, asserts the fragment URL prepopulates without auto-rendering, and then resolves the SHLink with a recipient name. Adapt it for your own host. (Assert on the *presence* of rendered sections, not the *absence* of an error string — app source text lives in the DOM/bundle and would yield false negatives.)

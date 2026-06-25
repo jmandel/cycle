@@ -31,7 +31,7 @@ menu:
   Implementation:
     Clinical display: clinical-display.html
     SMART Health Links: smart-health-links.html
-    Clinician viewer: https://periodicity.fhir.me/
+    Clinician viewer: view.html
     Security and privacy: security.html
   Examples and testing:
     Worked example: examples.html
@@ -42,5 +42,5 @@ menu:
 resources:
   Bundle/period-tracking-longitudinal-example:
     name: Longitudinal Period Tracking Export
-    description: A synthetic ~seven-cycle copper-IUD worked example built from the common-core facts; this is the Bundle wrapped by the example SMART Health Link and rendered by the clinician viewer.
+    description: A synthetic ~seven-cycle copper-IUD worked example built from the boolean bleeding core plus optional layers; this is the Bundle wrapped by the example SMART Health Link and rendered by the clinician viewer.
     exampleBoolean: true

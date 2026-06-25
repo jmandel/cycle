@@ -5,13 +5,13 @@
  * decrypted, so the file host never needs to understand the data.
  *
  * Output: { meta, cycles[], daily[], byDate, events[], context }
- *   daily record: { date, source, flow 0-4, isPeriod, intermenstrual,
+ *   daily record: { date, source, bleeding true/false, flow 0-4, isPeriod, intermenstrual,
  *     postcoital, pain, painTypes[], functionalLimit, symptoms{key:1-3},
  *     bbt, mucus, lh, sex, note }
  */
 
 import {
-  SYS, LOINC, SCT, FLOW_LEVEL_BY_CODE, FINDING_SYMPTOM_KEY, FINDING_PAINTYPE,
+  SYS, LOINC, SCT, FLOW_LEVEL_BY_CODE, FINDING_SYMPTOM_KEY, APP_SYMPTOM_KEY, FINDING_PAINTYPE,
 } from "./codes.mjs";
 
 const dayOf = (s) => (s ? String(s).slice(0, 10) : null);
@@ -57,10 +57,10 @@ export function transformBundle(bundle, opts = {}) {
       const cs = codings(code);
       const d = day(date);
 
-      // daily tracking panel: carries the day's free-text diary note
-      if (has(code, SYS.cycle, "daily-tracking-panel")) {
-        const n = r.note?.[0]?.text;
-        if (n) d.note = n;
+      // universal bleeding core (boolean)
+      if (has(code, SYS.cycle, "menstrual-bleeding")) {
+        if (r.valueBoolean === true) d.bleeding = true;
+        else if (r.valueBoolean === false) d.bleeding = false;
         continue;
       }
       // menstrual flow (coded)
@@ -68,12 +68,7 @@ export function transformBundle(bundle, opts = {}) {
         const fc = firstCode(r.valueCodeableConcept);
         const lvl = FLOW_LEVEL_BY_CODE[fc] ?? 0;
         d.flow = Math.max(d.flow || 0, lvl);
-        continue;
-      }
-      // menstrual status -> explicit period marker / explicit negative
-      if (has(code, SYS.loinc, LOINC.menstrualStatus)) {
-        if (has(r.valueCodeableConcept, SYS.sct, SCT.bleedingPresent)) { d.isPeriod = 1; d.flow = Math.max(d.flow || 0, 1); }
-        else if (has(r.valueCodeableConcept, SYS.sct, SCT.notMenstruating)) { d.statusAbsent = 1; }
+        if (d.bleeding == null) d.bleeding = lvl > 0;
         continue;
       }
       // pain score 0-10
@@ -85,10 +80,15 @@ export function transformBundle(bundle, opts = {}) {
       }
       // basal body temperature (a vital sign)
       if (has(code, SYS.loinc, LOINC.bodyTemp)) { const v = num(r); if (v != null) d.bbt = v; continue; }
-      // symptom / finding (LOINC 75325-1 "Symptom" or mood) + a SNOMED finding value
-      if (has(code, SYS.loinc, LOINC.symptom) || has(code, SYS.loinc, LOINC.mood)) {
-        const fc = firstCode(r.valueCodeableConcept);
-        const fk = FINDING_SYMPTOM_KEY[fc];
+      // symptom / finding + an exact standard or app-native value.
+      if (has(code, SYS.cycle, "symptom") || has(code, SYS.loinc, LOINC.symptom) || has(code, SYS.loinc, LOINC.mood)) {
+        const valueCodings = codings(r.valueCodeableConcept);
+        const fc = valueCodings[0]?.code ?? null;
+        const fk = valueCodings.map((c) => (
+          c.system === SYS.sct ? FINDING_SYMPTOM_KEY[c.code]
+            : c.system === SYS.appExample ? APP_SYMPTOM_KEY[c.code]
+              : null
+        )).find(Boolean);
         if (fk) { d.symptoms = d.symptoms || {}; d.symptoms[fk] = Math.max(d.symptoms[fk] || 0, 2); }
         const pt = FINDING_PAINTYPE[fc];
         if (pt) { d.painTypes = d.painTypes || ["pelvic"]; if (!d.painTypes.includes(pt)) d.painTypes.push(pt); }
@@ -104,16 +104,15 @@ export function transformBundle(bundle, opts = {}) {
   }
 
   for (const d of daily.values()) {
-    // derive period from flow when no explicit status is present (flow-only apps),
-    // unless the user explicitly asserted "not menstruating" that day
-    if (!d.isPeriod && (d.flow || 0) >= 2 && !d.statusAbsent) d.isPeriod = 1;
-    // intermenstrual: a bleeding day that is not a period day
-    if (!d.isPeriod && (d.flow || 0) >= 1) d.intermenstrual = 1;
+    // Legacy / partial-input fallback: flow implies the boolean core if absent.
+    if (d.bleeding == null && d.flow != null) d.bleeding = d.flow > 0;
     if (d.painTypes && d.painTypes.length > 1) d.painTypes = [...new Set(d.painTypes)];
   }
 
   const dailyArr = [...daily.values()].sort((a, b) => (a.date < b.date ? -1 : 1));
-  const cycles = buildCycles(dailyArr, opts.cycleGapDays ?? 3, opts.rangeEnd, events);
+  const cycleGap = opts.cycleGapDays ?? 3;
+  classifyBleedingRuns(dailyArr, cycleGap);
+  const cycles = buildCycles(dailyArr, cycleGap, opts.rangeEnd, events);
   const rangeStart = dailyArr[0]?.date || null;
   const rangeEnd = opts.rangeEnd || dailyArr[dailyArr.length - 1]?.date || null;
   const byDate = Object.fromEntries(dailyArr.map((d) => [d.date, d]));
@@ -130,6 +129,28 @@ export function transformBundle(bundle, opts = {}) {
       episodeStarts: cycles.map((c) => c.start),
     },
   };
+}
+
+function classifyBleedingRuns(dailyArr, cycleGap) {
+  const bleeding = dailyArr.filter((d) => d.bleeding === true);
+  let run = [];
+  const flush = () => {
+    if (!run.length) return;
+    const hasLightOrMore = run.some((d) => (d.flow || 0) >= 2);
+    const hasNoFlowData = run.every((d) => d.flow == null);
+    const episode = hasLightOrMore || hasNoFlowData;
+    for (const d of run) {
+      if (episode) d.isPeriod = 1;
+      else d.intermenstrual = 1;
+    }
+    run = [];
+  };
+  for (const d of bleeding) {
+    const prev = run[run.length - 1];
+    if (prev && diffDays(prev.date, d.date) > cycleGap) flush();
+    run.push(d);
+  }
+  flush();
 }
 
 function buildCycles(dailyArr, cycleGap, rangeEnd, events) {

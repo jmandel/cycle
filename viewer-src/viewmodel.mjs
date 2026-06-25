@@ -17,7 +17,7 @@ export function prepare(vm) {
   const intervals = complete.map((c) => c.length);
   const durations = complete.map((c) => c.bleedDuration);
   const pains = daily.filter((d) => d.pain != null).map((d) => d.pain);
-  const mensesPain = daily.filter((d) => d.isPeriod && d.pain > 0).map((d) => d.pain);
+  const bleedingPain = daily.filter((d) => d.isPeriod && d.pain > 0).map((d) => d.pain);
   const spanDays = ctx.spanStart && ctx.today ? diffDays(ctx.spanStart, ctx.today) + 1 : daily.length;
 
   const m = {
@@ -33,14 +33,14 @@ export function prepare(vm) {
     imbDays: daily.filter((d) => d.intermenstrual).length,
     postcoital: daily.filter((d) => d.postcoital).length,
     peakPain: pains.length ? Math.max(...pains) : 0,
-    typicalMensesPain: mensesPain.length ? Math.round(median(mensesPain)) : 0,
+    typicalMensesPain: bleedingPain.length ? Math.round(median(bleedingPain)) : 0,
     funcDays: daily.filter((d) => d.functionalLimit).length,
     nonMenPain: daily.filter((d) => d.pain > 0 && !d.isPeriod).length,
     dyspareunia: daily.filter((d) => d.painTypes?.includes("dyspareunia")).length,
     bowel: daily.filter((d) => d.painTypes?.includes("bowel")).length,
     spanDays,
     loggedDays: daily.length,
-    bleedInfoDays: daily.filter((d) => d.flow != null).length,
+    bleedInfoDays: daily.filter((d) => d.bleeding != null).length,
     painEntryDays: pains.length,
     symEntryDays: daily.filter((d) => d.symptoms && Object.keys(d.symptoms).length).length,
   };

@@ -11,18 +11,18 @@ skinparam rectangle {
   roundCorner 12
 }
 rectangle "**PeriodTrackingBundle** — Bundle.type = collection" as Bundle #EAF0F7 {
-  rectangle "Patient — exactly one" as Pat
-  rectangle "Device — one or more source apps" as Dev
-  rectangle "DailyTrackingPanelObservation\none per exported source day (+ optional diary note)" as Panel
-  rectangle "PeriodTrackingFactObservation\none per independent fact" as Fact
-  rectangle "Provenance — required export provenance" as Prov
+  rectangle "Patient — optional, at most one" as Pat
+  rectangle "Device — optional source app" as Dev
+  rectangle "PeriodTrackingFactObservation\nabstract base fact" as Fact
+  rectangle "MenstrualBleedingFact\nrequired core boolean" as Bleed
+  rectangle "Flow / Symptom / Pain / BBT\noptional concrete facts" as Layers
   rectangle "CodeSystem — optional app-native dictionary" as CS
   rectangle "Binary — optional native JSON archive" as Bin
   Pat -[hidden]down- Dev
-  Dev -[hidden]down- Panel
-  Panel ..> Fact : hasMember
-  Fact -[hidden]down- Prov
-  Prov -[hidden]down- CS
+  Dev -[hidden]down- Fact
+  Fact <|-- Bleed
+  Fact <|-- Layers
+  Layers -[hidden]down- CS
   CS -[hidden]down- Bin
 }
 @enduml

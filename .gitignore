@@ -1,9 +1,14 @@
 # Build products
 fsh-generated/
 output/
+dist/
 temp/
 template/
 input-cache/
+input/resources/Bundle-period-tracking-longitudinal-example.json
+
+# Generated examples/viewer artifacts are build products. GitHub Actions copies
+# them into the ephemeral IG/static-site build; they are not committed.
 
 # Tooling deps (restored with `bun install`)
 node_modules/
@@ -12,8 +17,3 @@ node_modules/
 .DS_Store
 .vscode/
 .idea/
-
-# NOTE: artifacts produced by `bun run build` ARE committed on purpose so
-# build.fhir.org (which only runs the IG Publisher) finds them in place:
-#   input/resources/Bundle-period-tracking-longitudinal-example.json
-#   input/images/viewer/{app.js,index.html,example.jwe,shl.json,shlink.txt}

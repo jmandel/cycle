@@ -1,11 +1,7 @@
 name: Checks
 
-# Fast, deterministic, network-light checks on every push: compile the FSH and
-# run the integrity checks on the generated resources + the worked-example
-# Bundle. The FULL IG publish (HTML site, profile validation, terminology) is
-# done by the FHIR auto IG builder at build.fhir.org/ig/jmandel/periodicity —
-# that pipeline owns the template/Jekyll/publisher toolchain, so we don't
-# duplicate (and re-fight) it here.
+# Fast, deterministic checks on every push. Generated examples are created in
+# the runner, not committed.
 
 on:
   push:
@@ -20,7 +16,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Compile FSH
-        run: ./_sushi.sh
+      - uses: oven-sh/setup-bun@v2
       - name: Deterministic integrity checks
-        run: python3 scripts/check_mvp.py
+        run: bun run check

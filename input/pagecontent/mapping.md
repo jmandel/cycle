@@ -1,29 +1,31 @@
 # Normalized mapping contract
 
-The following mappings are the interoperable core that MVP viewers are expected to understand.
+The first row is the universal interoperable core that MVP producers emit and MVP viewers understand:
+a boolean bleeding fact at the source date or timestamp. The remaining rows are optional layers that
+add intensity, symptoms, pain, or temperature when the source app has those data.
 
 | Clinical fact | Observation.code | Result | Notes |
 |---|---|---|---|
-| Menstrual status | LOINC `8678-5` — Menstrual status - Reported | SNOMED CT `289894009` menstrual bleeding present, or `289895005` not currently menstruating | Emit the negative only when explicitly reported or verified. |
-| Menstrual flow | `https://cycle.fhir.me/CodeSystem/cycle#menstrual-flow` | One of the five MVP flow codes | Ordinal source category; never convert to mL or hemorrhage severity. |
-| Symptom | LOINC `75325-1` — Symptom | SNOMED CT finding when exact; otherwise app-native coding and/or text | One Observation per selected symptom. |
+| Bleeding (core) | `https://cycle.fhir.me/CodeSystem/cycle#menstrual-bleeding` | `valueBoolean` true or false | The universal bleeding fact. Emit `false` only when the source explicitly records no bleeding or otherwise reliably represents a user-verified no-bleeding state. |
+| Menstrual flow | `https://cycle.fhir.me/CodeSystem/cycle#menstrual-flow` | One of the five MVP flow codes | Optional intensity layer. Ordinal source category; never convert to mL or hemorrhage severity. |
+| Symptom | `https://cycle.fhir.me/CodeSystem/cycle#symptom` | `valueCodeableConcept`: preferred starter ValueSet concept when exact; otherwise app-native coding and/or text | One Observation per selected symptom. Do not force a nearby SNOMED finding. |
 | Numeric pain | LOINC `72514-3` — Pain severity 0–10 verbal numeric rating | Quantity using UCUM `{score}` | Use only for a true 0–10 rating. |
-| Ordinal pain | LOINC `38208-5` — Pain severity - Reported | Standard qualifier or app-native coded value | Do not turn “unbearable” into a 10/10 score. |
+| Ordinal pain | LOINC `38208-5` — Pain severity - Reported, or a stable app/project code | Standard qualifier or app-native coded value | Do not turn “unbearable” into a 10/10 score or a near-match qualifier. |
 | Basal body temperature | LOINC `8310-5` — Body temperature | UCUM temperature Quantity | Add SNOMED CT `281660007` as method when the source establishes basal measurement. |
-| Mood | LOINC `80296-7` — Patient Mood | SNOMED CT finding when exact; otherwise app-native coding/text | Preserve the original source label. |
-| Diary note | Daily panel `note` | Free text | A note applies to the source date unless the source gives narrower context. |
+| Mood-like symptoms | `cycle#symptom` | Preferred symptom concept such as SNOMED CT depressed mood when exact; otherwise app-native coding/text | Preserve the original source label. |
 
 ## Standard symptom examples
 
-The MVP does not define a required symptom ValueSet. Implementers SHOULD use exact SNOMED CT concepts when reviewed mappings are available. Examples verified in the terminology releases used for this draft include:
+The symptom profile has a preferred, non-closed starter ValueSet. Implementers SHOULD use exact SNOMED CT concepts from that set when they fit, but a stable app-native code is better than a close-but-wrong standard code. Examples verified in the terminology releases used for this draft include:
 
-| Source meaning | SNOMED CT |
+| Source meaning | Preferred coding |
 |---|---|
 | Menstrual cramp | `431416001` — Menstrual cramp (finding) |
 | Headache | `25064002` — Headache (finding) |
+| Depressed mood | `366979004` — Depressed mood (finding), only when the source meaning is exact |
 | Stress | `73595000` — Stress (finding) |
 
-Additional app symptoms may remain local until a mapping is reviewed.
+Additional app symptoms may remain local until a mapping is reviewed, and some may remain local permanently if no standard concept preserves the source meaning.
 
 ## Multiple codings
 
@@ -45,6 +47,11 @@ Map a source application's ordinal flow categories to the project codes as follo
 
 A source with multiple simultaneous or ambiguous flow tags SHOULD retain those raw tags in the native archive and SHOULD NOT silently choose one normalized value.
 
+Flow does not replace the boolean bleeding core. A flow-capable app emits both facts when it
+has a source flow value: `flow-none` is consistent with `menstrual-bleeding=false`, while
+`flow-spotting`, `flow-light`, `flow-moderate`, and `flow-heavy` are consistent with
+`menstrual-bleeding=true`. A binary app can emit only `menstrual-bleeding`.
+
 ## Notes and functional impact
 
-Diary text is carried in the panel note for the MVP. Implementers MAY additionally emit a source-coded fact when a structured item such as missed work or sleep disruption exists, but MVP viewers are not required to interpret it.
+Diary text is not a normalized MVP fact. A complete export MAY preserve notes in the optional native archive. Implementers MAY emit source-coded facts for structured items such as missed work or sleep disruption, but MVP viewers are not required to interpret them.

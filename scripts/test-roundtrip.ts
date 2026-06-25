@@ -2,7 +2,8 @@
 import { transformBundle } from "../viewer-src/transform.mjs";
 import { buildDataset, IUD_DATE } from "../viewer-src/dataset.mjs";
 
-const bundle = await Bun.file(`${import.meta.dir}/../input/resources/Bundle-period-tracking-longitudinal-example.json`).json();
+const bundlePath = Bun.env.BUNDLE_FILE || `${import.meta.dir}/../dist/examples/Bundle-period-tracking-longitudinal-example.json`;
+const bundle = await Bun.file(bundlePath).json();
 const vm = transformBundle(bundle, { rangeEnd: "2026-06-21" });
 const orig = buildDataset();
 
@@ -17,10 +18,13 @@ ok(vm.cycles.some((c: any) => c.postIUD), "some cycles flagged postIUD");
 ok(vm.cycles.filter((c: any) => c.postIUD).length === 3, `3 postIUD cycles (got ${vm.cycles.filter((c:any)=>c.postIUD).length})`);
 
 // spot fields
-const byd = vm.byDate;
 const heavy = vm.daily.filter((d: any) => d.flow === 4).length;
 const origHeavy = orig.filter((d: any) => d.flow === 4).length;
 ok(heavy === origHeavy, `heavy days ${heavy} == ${origHeavy}`);
+const bleeding = vm.daily.filter((d: any) => d.bleeding === true).length;
+const origBleeding = orig.filter((d: any) => (d.flow || 0) > 0).length;
+ok(bleeding === origBleeding, `bleeding days ${bleeding} == ${origBleeding}`);
+ok(vm.daily.some((d: any) => d.bleeding === false), "explicit no-bleeding days present");
 const pain = vm.daily.filter((d: any) => d.pain > 0).length;
 const origPain = orig.filter((d: any) => d.pain > 0).length;
 ok(pain === origPain, `pain days ${pain} == ${origPain}`);
@@ -33,9 +37,6 @@ ok(!!anySym, `symptom present (e.g. ${anySym?.date} ${JSON.stringify(anySym?.sym
 const symKinds = new Set<string>();
 for (const d of vm.daily) if (d.symptoms) Object.keys(d.symptoms).forEach((k) => symKinds.add(k));
 ok([...symKinds].length >= 3, `>=3 symptom kinds present (${[...symKinds].join(",")})`);
-
-// the special day's diary note survives on the panel
-ok(byd["2026-05-22"]?.note?.includes("after sex"), "2026-05-22 diary note preserved");
 
 console.log(fail ? `\n${fail} FAILURES` : "\nALL CHECKS PASSED");
 process.exit(fail ? 1 : 0);

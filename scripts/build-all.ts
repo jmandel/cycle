@@ -1,16 +1,13 @@
 /**
- * build-all.ts (bun) — the full pre-publisher build. Runs every step that
- * produces committed artifacts, in dependency order, so build.fhir.org (which
- * only runs the IG Publisher, no arbitrary scripts) finds everything in place.
+ * build-all.ts (bun) — local generated demo build. Runs every step that
+ * produces uncommitted artifacts under dist/ for local testing or deployment.
  *
  *   bun scripts/build-all.ts   (or: bun run build)
  *
  * Steps:
- *   1. gen-example  -> input/resources/Bundle-...longitudinal-example.json (IG example)
- *   2. gen-shl      -> input/images/viewer/{example.jwe, shlink.txt, ...}
- *                    -> input/includes/demo-shlink-{link.xhtml,block.md}
- *   3. build-viewer -> input/images/viewer/{app.js, index.html}
- * Then run the IG Publisher (./_genonce.sh) to validate + publish.
+ *   1. gen-example  -> dist/examples/Bundle-...longitudinal-example.json
+ *   2. build-viewer -> dist/view.html + dist/view-assets/{app.js, index.html}
+ *   3. gen-shl      -> dist/view-assets/{example.jwe, shlink.txt, ...}
  */
 const here = import.meta.dir;
 async function step(name: string, file: string) {
@@ -21,6 +18,6 @@ async function step(name: string, file: string) {
 }
 
 await step("generate example bundle", "gen-example.ts");
+await step("bundle viewer SPA", "build-viewer.ts");
 await step("package SMART Health Link", "gen-shl.ts");
-await step("bundle viewer SPA (in-IG)", "build-viewer.ts");
-console.log("\n✔ pre-publisher artifacts built. Now run ./_genonce.sh to publish.");
+console.log("\n✔ local generated demo artifacts built under dist/.");

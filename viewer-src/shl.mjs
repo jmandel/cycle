@@ -7,7 +7,7 @@
  * then decrypts the JWE (dir / A256GCM) with the link's key.
  *
  * Relative `url`s are resolved against `baseUrl` so a single committed link can
- * work both locally (localhost:5525/viewer/) and when published.
+ * work both locally (localhost:5525/view) and when published.
  */
 import { b64uFromBytes, bytesFromB64u, decryptCompact } from "./jwe.mjs";
 

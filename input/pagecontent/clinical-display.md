@@ -7,9 +7,9 @@ A receiving application can remain lightweight. It does not need to display raw 
 A conforming MVP viewer SHOULD provide:
 
 1. **Context header** — patient-selected identity, source app, date range, and “patient-generated/self-reported” label.
-2. **Cycle-aligned rows** — observed period days and flow intensity across recent cycles.
+2. **Cycle-aligned rows** — observed bleeding days and flow intensity across recent cycles.
 3. **Pain and symptom overlay** — numeric pain when available and a restrained set of recurring symptoms.
-4. **Exact-day detail** — calendar date, source facts, source labels, and diary note.
+4. **Exact-day detail** — calendar date, source facts, and source labels.
 5. **Data completeness statement** — dates with records and categories with observations; never infer symptom absence from missing data.
 6. **Copy-ready note** — a descriptive documentation snippet that remains editable.
 
@@ -17,7 +17,7 @@ A conforming MVP viewer SHOULD provide:
 
 The viewer MAY calculate:
 
-- observed period episodes;
+- observed bleeding episodes;
 - intervals between observed starts;
 - bleeding duration;
 - median and range of cycle intervals;
@@ -42,11 +42,11 @@ Avoid diagnostic labels, composite menstrual-health scores, or converting ordina
 
 ```text
 Reviewed patient-generated period tracking data from [source app] covering
-[start] through [end]. Observed cycle interval was median [X] days
-(range [A–B]); bleeding duration was median [Y] days. The patient selected
-“heavy” flow on [N] days, recorded pain up to [P]/10, and reported
-[symptoms]. Missing observations were treated as not recorded, not absent.
-App predictions were excluded from this summary.
+[start] through [end]. Bleeding was recorded on [N] days; observed bleeding
+episode interval was median [X] days (range [A–B]); bleeding duration was
+median [Y] days. The patient selected “heavy” flow on [N] days, recorded
+pain up to [P]/10, and reported [symptoms]. Missing observations were treated
+as not recorded, not absent. App predictions were excluded from this summary.
 ```
 
 The viewer SHALL label the output as descriptive and patient-generated. It SHALL NOT create a diagnosis or assert causality.

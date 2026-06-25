@@ -10,20 +10,22 @@ FHIR defines a Bundle as a container for a collection of resources. The MVP uses
 
 The source applications use radically different persistence patterns: wide daily rows, nested daily documents, date-keyed state, normalized event tables, and sparse date-to-tag joins. A shared exchange model should not reproduce any one database design.
 
-A standalone Observation is used when a fact can be interpreted, displayed, filtered, or summarized on its own. This applies to menstrual status, flow, symptoms, pain, temperature, and mood.
+A standalone Observation is used when a fact can be interpreted, displayed, filtered, or summarized on its own. This applies first to the universal boolean bleeding core, and then to optional layers such as flow, symptoms, pain, and temperature.
 
-`Observation.hasMember` groups those facts into a daily panel without taking away their independent identity. This follows the FHIR distinction between a grouping relationship and components that do not have independent meaning outside their parent Observation.
+The MVP does not define a daily grouping Observation. Receivers can group facts by the local date portion of `effectiveDateTime` for visualization, while timed facts such as basal body temperature can retain their source timestamp.
 
 ## Fact shape
 
-The Period Tracking Fact Observation permits four result forms:
+The abstract Period Tracking Fact Observation permits four result forms:
 
-- `valueCodeableConcept` for status, flow, symptoms, mood, and ordinal severity;
+- `valueCodeableConcept` for flow, symptoms, and ordinal source-coded layers;
 - `valueQuantity` for numeric pain and temperature;
 - `valueBoolean` for a source fact that is inherently true/false; and
 - `valueString` for a source result that cannot yet be represented more precisely.
 
 The preferred approach for a coded-but-unmapped result is still `valueCodeableConcept`, using an app-native coding and `CodeableConcept.text`. FHIR specifically permits text-only coded results when no appropriate code is available.
+
+Concrete MVP fact profiles narrow the base shape where producers and consumers need a predictable recipe: menstrual bleeding, menstrual flow, symptom, numeric pain severity, and basal body temperature.
 
 ## Source identity and fidelity
 
@@ -65,4 +67,4 @@ The optional Binary SHOULD contain the exact selected native JSON after any app-
 - stable source identifiers; and
 - enough vocabulary metadata to interpret custom codes.
 
-`Binary.securityContext` SHOULD reference the Patient. The Binary SHALL be encrypted together with the rest of the Bundle when distributed through a SMART Health Link.
+`Binary.securityContext` SHOULD reference the Patient when a Patient resource is included. The Binary SHALL be encrypted together with the rest of the Bundle when distributed through a SMART Health Link.

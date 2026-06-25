@@ -1,15 +1,14 @@
 /**
  * codes.mjs — terminology for the Period Tracking MVP *new* data model.
  *
- * The IG's point is a small COMMON CORE expressed in standard codes, so almost
- * everything here is LOINC / SNOMED / the IG's own cycle CodeSystem:
- *   - flow is a coded value (cycle#flow-*)
- *   - menstrual status is LOINC 8678-5 with a SNOMED present/absent finding
+ * The IG's point is a small common core plus optional layers:
+ *   - bleeding is the universal boolean core (cycle#menstrual-bleeding)
+ *   - flow is a coded optional intensity layer (cycle#flow-*)
  *   - pain is LOINC 72514-3, a 0-10 {score} Quantity
- *   - symptoms are LOINC 75325-1 "Symptom" + a SNOMED finding (presence)
+ *   - symptoms use cycle#symptom + an exact SNOMED or app-native value
  *   - basal body temperature is LOINC 8310-5 (a vital sign)
- * The only app-native datum is a single illustrative custom symptom reusing the
- * IG's existing example-app-symptoms CodeSystem (the documented escape hatch).
+ * The worked example includes a single illustrative custom symptom reusing the
+ * IG's existing example-app-symptoms CodeSystem.
  *
  * Used by generate-example.ts (write) and transform.mjs (read).
  */
@@ -24,7 +23,6 @@ export const SYS = {
 };
 
 export const LOINC = {
-  menstrualStatus: "8678-5",
   painScore: "72514-3",
   symptom: "75325-1",
   mood: "80296-7",
@@ -32,8 +30,6 @@ export const LOINC = {
 };
 
 export const SCT = {
-  bleedingPresent: "289894009",
-  notMenstruating: "289895005",
   basalTempMethod: "281660007",
   iudInsertion: "65200003", // Insertion of intrauterine contraceptive device (procedure)
   dyspareunia: "71315007",
@@ -43,18 +39,23 @@ export const SCT = {
 export const FLOW_CODE_BY_LEVEL = ["flow-none", "flow-spotting", "flow-light", "flow-moderate", "flow-heavy"];
 export const FLOW_LEVEL_BY_CODE = { "flow-none": 0, "flow-spotting": 1, "flow-light": 2, "flow-moderate": 3, "flow-heavy": 4 };
 
-/* ----- premenstrual tracker symptoms -> SNOMED finding (LOINC 75325-1) ----- */
+/* ----- premenstrual tracker symptoms -> exact SNOMED finding or app-native coding ----- */
 export const SYMPTOM_DEFS = [
-  { key: "irritability", sct: "24199005" },
-  { key: "lowMood", sct: "366979004" },
+  { key: "irritability", sct: "55929007" },
   { key: "headache", sct: "25064002" },
   { key: "bloating", sct: "116289008" }, // Abdominal bloating (finding) — active
   { key: "fatigue", sct: "84229001" },
 ];
+export const APP_SYMPTOM_DEFS = [
+  { key: "lowMood", code: "low-mood", display: "Low mood" },
+];
 /* SNOMED finding (and the IG example's mood/stress) -> view-model symptom key */
 export const FINDING_SYMPTOM_KEY = Object.fromEntries([
   ...SYMPTOM_DEFS.map((s) => [s.sct, s.key]),
+  ["366979004", "lowMood"], // Depressed mood (finding), preferred starter concept when exact
   ["73595000", "lowMood"], // Stress (finding), used by the IG's own example
 ]);
+/* app-native value code -> view-model symptom key */
+export const APP_SYMPTOM_KEY = Object.fromEntries(APP_SYMPTOM_DEFS.map((s) => [s.code, s.key]));
 /* SNOMED finding -> pain association the viewer recognises */
 export const FINDING_PAINTYPE = { [SCT.dyspareunia]: "dyspareunia" };

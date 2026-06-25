@@ -1,8 +1,8 @@
 Period Tracking MVP integrity check
 
-PASS: Project CodeSystem contains exactly the expected seven concepts.
+PASS: Project CodeSystem contains exactly the expected eight concepts.
 PASS: Menstrual Flow ValueSet contains exactly the five ordinal result codes.
-PASS: Exactly three MVP profiles were generated.
-PASS: Worked Bundle: 113 daily panels, 301 facts, explicit-negative + note-only days, Provenance, and a decodable native archive.
-PASS: All 8 generated JSON resources parse successfully.
+PASS: Exactly seven MVP profiles were generated.
+PASS: Worked Bundle: 566 profiled facts, boolean bleeding core, flow consistency, and optional native archive parsing.
+PASS: All 12 generated JSON resources parse successfully.
 

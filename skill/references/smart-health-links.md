@@ -6,7 +6,7 @@ This page is a condensed, self-contained reference for the SHL wire format plus 
 
 ## How a SMART Health Link works
 
-An SHL is a small JSON payload, base64url-encoded after `shlink:/`, that points a receiver at **encrypted file(s)** and carries the **decryption key in the link fragment** so the host stays blind. The shareable form is `<viewer>/#shlink:/<b64url>`; the `#` fragment (key included) never reaches a server.
+An SHL is a small JSON payload, base64url-encoded after `shlink:/`, that points a receiver at **encrypted file(s)** and carries the **decryption key in the link fragment** so the host stays blind. The shareable form can be the bare `shlink:/<b64url>` or a viewer launch URL such as `<viewer>#shlink:/<b64url>`. Prefer a viewer-prefixed form for broad patient-to-clinician sharing because it opens cleanly from ordinary QR scanners and browsers; SHL-aware provider scanners can scan either form and extract the embedded `shlink:/...`. When a viewer prefix is used, the `#` fragment (key included) never reaches a server.
 
 ### The `shlink:/` payload
 
@@ -46,9 +46,9 @@ Treat a share as a **live, revocable object the user owns**, not a one-off expor
 
 ### Present the link — checklist
 
-The shareable string is a **viewer URL + fragment**: `<viewer>/#shlink:/eyJ…`. The `#` fragment is never sent to the server (so the key never leaks into logs). The project's own viewer prefix is `https://periodicity.fhir.me/#shlink:/…`.
+The shareable string is either a bare `shlink:/eyJ...` or a **viewer URL + fragment**: `<viewer>#shlink:/eyJ...`. The viewer-prefixed form is the preferred default for general QR/copy UX; the bare form is still fully valid when the receiver expects a raw SHLink. SHL-aware scanners should process either by extracting the `shlink:/...`. The `#` fragment is never sent to the server, so a viewer-prefixed link keeps the key out of logs. The project's own reference viewer prefix is `https://cycle.fhir.me/view#shlink:/...`.
 
-- [ ] **MUST render an on-screen QR** of that full string — error-correction level M, sized to scan from a phone, label visible (optionally the SMART logo). A bare `shlink:/…` only works with SHL-aware scanners; the viewer-prefixed form opens from any phone camera. *This is the primary in-person handoff and the step implementers most often skip — it is not optional.*
+- [ ] **MUST render an on-screen QR** of that full string — error-correction level M, sized to scan from a phone, label visible (optionally the SMART logo). Prefer a viewer-prefixed link for ordinary phone-camera launch into a browser viewer. Use a bare `shlink:/...` when the receiving workflow explicitly expects the raw SHLink. A provider's dedicated scanner should extract and process either form. *The QR is the primary in-person handoff and the step implementers most often skip — it is not optional.*
 - [ ] **MUST offer copy-to-clipboard** of the identical string.
 - [ ] **SHOULD offer the native share sheet** (`navigator.share()` / OS share) for remote delivery — message, email, paste into a portal.
 - [ ] **SHOULD state in plain language** what's inside (data types + date range), that it's encrypted, and that anyone with the link can open it.
@@ -93,7 +93,7 @@ You deploy and operate it (no public hosted instance) — the right posture for 
 
 ## Implementing it yourself (no service)
 
-If you'd rather not run a service, the client side is small. Use shlep's reference client crypto — `src/crypto.ts` (compact JWE `dir`/A256GCM, WebCrypto only) and `src/client.ts` (encrypt + compose the `shlink:/`) at https://github.com/jmandel/shlep — directly or translated; it uses a **fresh random IV per encryption and a fresh key per share** (the correct nonce discipline). For direct-file mode you then host the `.jwe` and hand out `<viewer>#shlink:/<payload>`.
+If you'd rather not run a service, the client side is small. Use shlep's reference client crypto — `src/crypto.ts` (compact JWE `dir`/A256GCM, WebCrypto only) and `src/client.ts` (encrypt + compose the `shlink:/`) at https://github.com/jmandel/shlep — directly or translated; it uses a **fresh random IV per encryption and a fresh key per share** (the correct nonce discipline). For direct-file mode you then host the `.jwe` and hand out a bare `shlink:/<payload>` or `<viewer>#shlink:/<payload>`.
 
 The IG's own `viewer-src/jwe.mjs` is the viewer's **decrypt** path; `scripts/gen-shl.ts` is **editorial demo tooling** that pins a fixed key+IV only to keep the published example byte-stable — do not copy that pattern for real encryption.
 

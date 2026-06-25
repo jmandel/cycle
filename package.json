@@ -3,7 +3,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "bun scripts/build-all.ts"
+    "build": "bun scripts/build-all.ts",
+    "build:site": "bun scripts/build-site.ts",
+    "check": "EXAMPLE_OUT=input/resources/Bundle-period-tracking-longitudinal-example.json bun scripts/gen-example.ts && ./_sushi.sh && BUNDLE_FILE=input/resources/Bundle-period-tracking-longitudinal-example.json bun scripts/check-mvp.ts",
+    "check:r4": "bun scripts/validate-r4-structures.ts --r4-package ~/.fhir/packages/hl7.fhir.r4.core#4.0.1",
+    "verify:viewer": "bun run build && bun scripts/verify-viewer.ts"
   },
   "devDependencies": {
     "esbuild": "^0.24.0",
