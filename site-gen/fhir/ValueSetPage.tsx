@@ -1,6 +1,7 @@
 import React from 'react';
 import { Badge } from '../ds/Badge.jsx';
 import { PageHeader, StatusBadge, Tag, SectionHeading } from '../chrome/Parts';
+import { CopyValue } from '../ds/CopyValue.jsx';
 import type { ResolveType } from './ElementTable';
 import type { ResourceRow } from '../core/db';
 
@@ -16,8 +17,8 @@ export function ValueSetPage({ r, data, resolve, expansion }: { r: ResourceRow; 
         badges={<><StatusBadge status={r.Status} /><Badge tone="neutral" variant="outline">{(expansion.length || includes.reduce((n, i) => n + (i.concept?.length || 0), 0))} codes</Badge></>}
         lead={r.Description}
         meta={[
-          ['Official URL', <Tag>{r.Url}</Tag>],
-          ['Computable', <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-sm)' }}>{r.Name}</span>],
+          ['Official URL', <CopyValue value={r.Url} label="official URL" />],
+          ['Computable', <CopyValue value={r.Name} label="computable name" />],
           ['Status', `${r.Status} · v${r.Version}`],
         ]}
       />

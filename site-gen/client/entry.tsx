@@ -65,6 +65,33 @@ function chrome() {
     });
   });
 
+  // Copy buttons for canonical URLs, computable names, and other fixed IDs.
+  document.querySelectorAll<HTMLButtonElement>('[data-copy-value]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const root = btn.closest<HTMLElement>('.copy-value');
+      const code = root?.querySelector<HTMLElement>('.copy-value-code');
+      const text = code?.textContent || '';
+      const label = btn.querySelector<HTMLElement>('[data-copy-label]');
+      const markCopied = () => {
+        btn.setAttribute('data-copied', 'true');
+        if (label) label.textContent = 'Copied';
+        window.setTimeout(() => {
+          btn.removeAttribute('data-copied');
+          if (label) label.textContent = 'Copy';
+        }, 1200);
+      };
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(text).then(markCopied).catch(() => {});
+      } else if (code) {
+        const range = document.createRange();
+        range.selectNodeContents(code);
+        const sel = window.getSelection();
+        sel?.removeAllRanges();
+        sel?.addRange(range);
+      }
+    });
+  });
+
   // Mobile nav drawer
   const menuBtn = document.querySelector('[data-toggle="mobile-nav"]');
   const nav = document.querySelector('.cycle-nav');

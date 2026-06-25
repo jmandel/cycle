@@ -8,11 +8,12 @@ export function ExamplePage({ r, data }: { r: ResourceRow; data: any }) {
   const jsonFile = `${r.Type}-${r.Id}.json`;
   const previewLines = json.split('\n');
   const maxPreviewLines = 220;
+  const truncated = previewLines.length > maxPreviewLines;
   const preview = previewLines.length > maxPreviewLines
     ? [
       ...previewLines.slice(0, maxPreviewLines),
       '',
-      `... ${previewLines.length - maxPreviewLines} more lines in ${jsonFile}`,
+      `... ${previewLines.length - maxPreviewLines} more lines; open the full JSON file below`,
     ].join('\n')
     : json;
   return (
@@ -34,6 +35,11 @@ export function ExamplePage({ r, data }: { r: ResourceRow; data: any }) {
           Preview only. The full JSON is published as <a href={jsonFile}><code>{jsonFile}</code></a>.
         </p>
         <CodeBlock lang="json" filename={`${jsonFile} preview`} code={preview} showLines copy={false} />
+        {truncated && (
+          <p className="source-action">
+            <a href={jsonFile}>Open full JSON: <code>{jsonFile}</code> ({previewLines.length.toLocaleString()} lines) →</a>
+          </p>
+        )}
       </section>
     </>
   );

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Badge } from '../ds/Badge.jsx';
 import { PageHeader, StatusBadge, Tag, SectionHeading } from '../chrome/Parts';
+import { CopyValue } from '../ds/CopyValue.jsx';
 import { Callout } from '../ds/Callout.jsx';
 import { ElementTable, elementViews, ResolveType } from './ElementTable';
 import { Tabs } from '../chrome/Tabs';
@@ -17,8 +18,8 @@ export function ProfilePage({ r, data, resolve }: { r: ResourceRow; data: any; r
         badges={<><StatusBadge status={r.Status} /><Badge tone="neutral" variant="outline">{r.derivation === 'constraint' ? 'Constraint' : r.derivation || 'Profile'}</Badge></>}
         lead={r.Description}
         meta={[
-          ['Official URL', <Tag>{r.Url}</Tag>],
-          ['Computable', <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-sm)' }}>{r.Name}</span>],
+          ['Official URL', <CopyValue value={r.Url} label="official URL" />],
+          ['Computable', <CopyValue value={r.Name} label="computable name" />],
           ['Status', `${r.Status} · v${r.Version}`],
           ['Base', <Tag tone="luteal" href={resolve(rootType!, r.base)}>{baseName}</Tag>],
         ]}
