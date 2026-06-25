@@ -27,9 +27,14 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
       - uses: oven-sh/setup-bun@v2
       - name: Install deps
         run: bun install --frozen-lockfile
+      - name: Install Jekyll
+        run: gem install jekyll --no-document
       - name: Build static site
         run: bun run build:site
         env:
