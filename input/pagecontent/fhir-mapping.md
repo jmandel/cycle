@@ -2,9 +2,10 @@
 
 The authoritative model is the IG. Open these alongside this file:
 
-- Mapping contract: https://cycle.fhir.me/mapping.html
-- Scope & missing-data rules: https://cycle.fhir.me/scope.html
-- Terminology: https://cycle.fhir.me/terminology.html
+- Specification: https://cycle.fhir.me/specification.html
+- Mapping contract: https://cycle.fhir.me/specification.html#normalized-mapping-contract
+- Scope & missing-data rules: https://cycle.fhir.me/specification.html#scope-and-conformance-principles
+- Terminology: https://cycle.fhir.me/specification.html#terminology
 - Profiles (artifacts): https://cycle.fhir.me/artifacts.html
 - Worked Bundle: `Bundle-period-tracking-longitudinal-example.json`, generated during the IG/site build and published with the rendered artifacts.
 
@@ -30,8 +31,8 @@ Code system URLs:
 
 | Fact | `code` | `value[x]` | Notes |
 |---|---|---|---|
-| Bleeding (core) | `cycle#menstrual-bleeding` | `valueBoolean` = `true` or `false` | The universal bleeding fact. Emit this even when flow is present. Emit `false` only when the source explicitly records no bleeding or reliably represents user-verified no bleeding. |
-| Flow intensity | `cycle#menstrual-flow` | `valueCodeableConcept` = `cycle#flow-none\|flow-spotting\|flow-light\|flow-moderate\|flow-heavy` | Optional ordinal *source* category. NEVER convert to mL. "heavy" = the app's top bucket, not clinical menorrhagia. |
+| Bleeding (Layer 0 core) | `cycle#menstrual-bleeding` | `valueBoolean` = `true` or `false` | The universal bleeding fact. Emit this even when flow is present. Emit `false` only when the source explicitly records no bleeding or reliably represents user-verified no bleeding. |
+| Flow intensity | `cycle#menstrual-flow` | `valueCodeableConcept` = `cycle#flow-none\|flow-spotting\|flow-light\|flow-moderate\|flow-heavy` | Optional Layer 1 ordinal *source* category. NEVER convert to mL. "heavy" = the app's top bucket, not clinical menorrhagia. |
 | Pain, 0–10 | LOINC `72514-3` | `valueQuantity` `{ value, system: ucum, code: "{score}" }` | For a numeric scale. |
 | Pain, ordinal | LOINC `38208-5`, or a stable app/project code | `valueCodeableConcept` (exact standard qualifier or app-native value) | For apps with mild/moderate/severe, not 0–10. Do not use a close-but-wrong qualifier. |
 | Symptom | `cycle#symptom` | `valueCodeableConcept` = a SNOMED finding or app-native coding/`text` | One Observation per symptom. Starter concepts in the common-tracker-symptoms ValueSet only when exact. |
@@ -48,7 +49,7 @@ Pain associations the viewer understands (e.g. dyspareunia) are expressed as the
 
 ## Missing-data rules (do not skip)
 
-From the IG `scope.md`:
+From the [Specification](specification.html#missingness):
 
 | Source state | Emit |
 |---|---|
@@ -67,10 +68,10 @@ Do not emit predicted periods, fertile windows, or roll-up statistics (cycle len
 
 ## Complete export (optional)
 
-A *Normalized* export is just the facts. A *Complete* export additionally preserves every selected source datum not represented in the normalized layer — the recommended mechanism is one `Binary` holding an exact, versioned native-JSON snapshot. It is an audit / migration / future-remapping safety net, never a substitute for the normalized facts.
+A *Normalized* export includes Layer 0 and any supported Layer 1 facts. A *Complete* export additionally preserves every selected source datum not represented in the normalized facts — the recommended Layer 2 mechanism is one `Binary` holding an exact, versioned native-JSON snapshot. It is an audit / migration / future-remapping safety net, never a substitute for the normalized facts.
 
 ## Build & validate
 
 - Build the JSON with the app's own serializer (see the IG's `bun` generator `scripts/gen-example.ts` for a complete worked generator you can adapt).
 - Validate against the profiles with the HL7 FHIR validator or by building the IG with your example added under `input/resources/`.
-- Sanity-check the round trip by transforming your bundle with the reference transform (`viewer-src/transform.mjs`) — see `references/viewer.md`.
+- Sanity-check the round trip by transforming your bundle with the reference transform (`viewer-src/transform.mjs`) — see [Viewer integration](viewer-integration.html).

@@ -3,8 +3,8 @@
  *
  * Turns the deterministic copper-IUD case (viewer-src/dataset.mjs) into
  * new-model FHIR R4 resources, assembled into a PeriodTrackingBundle that
- * conforms to the IG's profiles. The encoding emits the boolean bleeding core
- * first, then optional layers. Use standard codes only where they match the
+ * conforms to the IG's profiles. The encoding emits the Layer 0 boolean
+ * bleeding core first, then Layer 1 structured facts. Use standard codes only where they match the
  * synthetic source meaning; several values use the app-native escape hatch. Writes
  * the bundle under dist/ for local validation/demo use; generated sample data is
  * not committed as IG input.
@@ -90,7 +90,7 @@ add({
   text: { status: "generated", div: `<div xmlns="http://www.w3.org/1999/xhtml"><p>Copper IUD inserted on ${IUD_DATE}.</p></div>` },
 });
 
-// --- facts (bleeding core + optional layers) ---
+// --- facts (Layer 0 bleeding core + Layer 1 structured facts) ---
 const daily = buildDataset();
 const slug = (d: string) => d.replace(/-/g, "");
 let factCount = 0;

@@ -20,4 +20,5 @@ async function step(name: string, file: string) {
 await step("generate example bundle", "gen-example.ts");
 await step("bundle viewer SPA", "build-viewer.ts");
 await step("package SMART Health Link", "gen-shl.ts");
+await step("package agent assets", "build-agent-assets.ts");
 console.log("\n✔ local generated demo artifacts built under dist/.");

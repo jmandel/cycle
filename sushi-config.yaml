@@ -9,7 +9,7 @@ releaseLabel: ci-build
 title: Period Tracking MVP Implementation Guide
 publisher:
   name: fhir.me Cycle Project
-  url: https://github.com/jmandel/periodicity
+  url: https://github.com/jmandel/cycle
 description: >-
   A deliberately small FHIR R4 implementation guide for sharing granular,
   patient-generated menstrual period tracking data from consumer applications.
@@ -24,10 +24,17 @@ parameters:
 menu:
   Home: index.html
   Specification:
-    Scope and principles: scope.html
-    Data model: modeling.html
-    Mapping contract: mapping.html
-    Terminology: terminology.html
+    Overview: specification.html
+    Adoption layers: specification.html#adoption-layers
+    Scope and principles: specification.html#scope-and-conformance-principles
+    Data model: specification.html#data-model
+    Mapping contract: specification.html#normalized-mapping-contract
+    Terminology: specification.html#terminology
+    Agent implementation skill: skill.html
+    FHIR mapping reference: fhir-mapping.html
+    SHL implementation notes: smart-health-links-implementation.html
+    Viewer integration: viewer-integration.html
+    Journal templates: journal-templates.html
   Implementation:
     Clinical display: clinical-display.html
     SMART Health Links: smart-health-links.html
@@ -40,7 +47,51 @@ menu:
   Artifacts: artifacts.html
   IG details: ig-details.html
 resources:
+  StructureDefinition/menstrual-bleeding-fact:
+    extension:
+      - url: http://hl7.org/fhir/tools/StructureDefinition/resource-sort
+        valueInteger: 10
+  StructureDefinition/period-tracking-bundle:
+    extension:
+      - url: http://hl7.org/fhir/tools/StructureDefinition/resource-sort
+        valueInteger: 20
+  StructureDefinition/menstrual-flow-fact:
+    extension:
+      - url: http://hl7.org/fhir/tools/StructureDefinition/resource-sort
+        valueInteger: 30
+  StructureDefinition/symptom-fact:
+    extension:
+      - url: http://hl7.org/fhir/tools/StructureDefinition/resource-sort
+        valueInteger: 40
+  StructureDefinition/numeric-pain-severity-fact:
+    extension:
+      - url: http://hl7.org/fhir/tools/StructureDefinition/resource-sort
+        valueInteger: 50
+  StructureDefinition/basal-body-temperature-fact:
+    extension:
+      - url: http://hl7.org/fhir/tools/StructureDefinition/resource-sort
+        valueInteger: 60
+  StructureDefinition/period-tracking-fact:
+    extension:
+      - url: http://hl7.org/fhir/tools/StructureDefinition/resource-sort
+        valueInteger: 10
+  ValueSet/menstrual-flow:
+    extension:
+      - url: http://hl7.org/fhir/tools/StructureDefinition/resource-sort
+        valueInteger: 10
+  ValueSet/common-tracker-symptoms:
+    extension:
+      - url: http://hl7.org/fhir/tools/StructureDefinition/resource-sort
+        valueInteger: 20
+  ValueSet/ptmvp-fact-category:
+    extension:
+      - url: http://hl7.org/fhir/tools/StructureDefinition/resource-sort
+        valueInteger: 30
+  CodeSystem/cycle:
+    extension:
+      - url: http://hl7.org/fhir/tools/StructureDefinition/resource-sort
+        valueInteger: 10
   Bundle/period-tracking-longitudinal-example:
     name: Longitudinal Period Tracking Export
-    description: A synthetic ~seven-cycle copper-IUD worked example built from the boolean bleeding core plus optional layers; this is the Bundle wrapped by the example SMART Health Link and rendered by the clinician viewer.
+    description: A synthetic ~seven-cycle copper-IUD worked example built from the Layer 0 boolean bleeding core plus Layer 1 structured facts; this is the Bundle wrapped by the example SMART Health Link and rendered by the clinician viewer.
     exampleBoolean: true

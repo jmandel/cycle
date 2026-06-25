@@ -31,6 +31,20 @@ const EXPECTED_CODES = new Set(["menstrual-bleeding", "menstrual-flow", "symptom
 const EXPECTED_PROFILES = new Set(["period-tracking-bundle", "period-tracking-fact", "menstrual-bleeding-fact", "menstrual-flow-fact", "symptom-fact", "numeric-pain-severity-fact", "basal-body-temperature-fact"]);
 const FLOW_VALUES = new Set(["flow-none", "flow-spotting", "flow-light", "flow-moderate", "flow-heavy"]);
 const VALUE_KEYS = new Set(["valueQuantity", "valueCodeableConcept", "valueString", "valueBoolean"]);
+const RESOURCE_SORT = "http://hl7.org/fhir/tools/StructureDefinition/resource-sort";
+const EXPECTED_ARTIFACT_SORT = new Map([
+  ["StructureDefinition/menstrual-bleeding-fact", 10],
+  ["StructureDefinition/period-tracking-bundle", 20],
+  ["StructureDefinition/menstrual-flow-fact", 30],
+  ["StructureDefinition/symptom-fact", 40],
+  ["StructureDefinition/numeric-pain-severity-fact", 50],
+  ["StructureDefinition/basal-body-temperature-fact", 60],
+  ["StructureDefinition/period-tracking-fact", 10],
+  ["ValueSet/menstrual-flow", 10],
+  ["ValueSet/common-tracker-symptoms", 20],
+  ["ValueSet/ptmvp-fact-category", 30],
+  ["CodeSystem/cycle", 10],
+]);
 
 const glob = (pattern: string, cwd: string) => Array.from(new Bun.Glob(pattern).scanSync({ cwd })).sort();
 const setEq = <T>(a: Set<T>, b: Set<T>) => a.size === b.size && [...a].every((x) => b.has(x));
@@ -91,6 +105,15 @@ async function main() {
     for (const file of glob("StructureDefinition-*.json", RES)) profiles.add((await load(join(RES, file))).id);
     assert(setEq(profiles, EXPECTED_PROFILES), `profile set differs: ${JSON.stringify([...profiles].sort())}`);
     messages.push("Exactly seven MVP profiles were generated.");
+
+    const ig = await load(join(RES, "ImplementationGuide-me.fhir.period-tracking-mvp.json"));
+    for (const [reference, expectedSort] of EXPECTED_ARTIFACT_SORT) {
+      const resource = (ig.definition?.resource || []).find((r: any) => r.reference?.reference === reference);
+      assert(resource, `ImplementationGuide missing resource ${reference}`);
+      const sort = (resource.extension || []).find((e: any) => e.url === RESOURCE_SORT)?.valueInteger;
+      assert(sort === expectedSort, `ImplementationGuide ${reference} sort is ${sort}, expected ${expectedSort}`);
+    }
+    messages.push("Artifact sort metadata keeps the core profiles and terminology first.");
 
     const bundle = await load(BUNDLE_FILE);
     assert((bundle.meta?.profile || []).includes(BUNDLE_PROFILE), "bundle missing profile");

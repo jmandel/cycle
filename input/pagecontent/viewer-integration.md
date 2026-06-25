@@ -37,7 +37,7 @@ A real `#shlink:/...` fragment prepopulates the chooser and keeps the SHLink key
 - **Bleeding day** = a `cycle#menstrual-bleeding` fact with `valueBoolean=true`. Legacy or partial inputs may fall back to flow ≥ spotting, but conformant exports emit the boolean core.
 - **No-bleeding day** = a `cycle#menstrual-bleeding` fact with `valueBoolean=false`. Missing means not recorded, not absent.
 - **Cycle/episode** = a run of bleeding days; a new episode starts after a gap > 3 bleeding-free days. Interval = onset-to-onset; bleed duration = consecutive bleeding days from onset.
-- **Everything derived in the UI** — intervals, medians, heavy-day counts — comes from the granular facts, per the IG (`scope.html`). Nothing is read from precomputed summary fields.
+- **Everything derived in the UI** — intervals, medians, heavy-day counts — comes from the granular facts, per the [Specification](specification.html). Nothing is read from precomputed summary fields.
 
 ## Privacy
 

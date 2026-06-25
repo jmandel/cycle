@@ -45,7 +45,7 @@ Profile: MenstrualBleedingFactObservation
 Parent: PeriodTrackingFactObservation
 Id: menstrual-bleeding-fact
 Title: "Menstrual Bleeding Fact Observation"
-Description: "The required core fact: whether the source reports menstrual bleeding for the stated date or timestamp. Both true and false are meaningful only when explicitly recorded or reliably represented by the source."
+Description: "Layer 0 required core fact: whether the source reports menstrual bleeding for the stated date or timestamp. Both true and false are meaningful only when explicitly recorded or reliably represented by the source."
 * code = $CycleCS#menstrual-bleeding "Menstrual bleeding"
 * value[x] only boolean
 * valueBoolean 1..1 MS
@@ -54,7 +54,7 @@ Profile: MenstrualFlowFactObservation
 Parent: PeriodTrackingFactObservation
 Id: menstrual-flow-fact
 Title: "Menstrual Flow Fact Observation"
-Description: "Optional intensity layer for an app's uncalibrated menstrual-flow category. This layer does not replace the menstrual bleeding boolean core fact."
+Description: "Layer 1 optional intensity fact for an app's uncalibrated menstrual-flow category. This fact does not replace the Layer 0 menstrual bleeding boolean core fact."
 * code = $CycleCS#menstrual-flow "Patient-reported menstrual flow category"
 * value[x] only CodeableConcept
 * valueCodeableConcept 1..1 MS
@@ -64,7 +64,7 @@ Profile: SymptomFactObservation
 Parent: PeriodTrackingFactObservation
 Id: symptom-fact
 Title: "Symptom Fact Observation"
-Description: "Optional symptom layer. The Observation code identifies the fact as a symptom report; the value identifies the specific symptom using an exact standard concept when available or an app-native concept when not."
+Description: "Layer 1 optional symptom fact. The Observation code identifies the fact as a symptom report; the value identifies the specific symptom using an exact standard concept when available or an app-native concept when not."
 * code = $CycleCS#symptom "Symptom"
 * value[x] only CodeableConcept
 * valueCodeableConcept 1..1 MS
@@ -74,7 +74,7 @@ Profile: NumericPainSeverityFactObservation
 Parent: PeriodTrackingFactObservation
 Id: numeric-pain-severity-fact
 Title: "Numeric Pain Severity Fact Observation"
-Description: "Optional numeric pain layer for a source 0-10 patient-reported pain score. Do not map ordinal labels such as mild, severe, or unbearable into this profile unless the source actually stores a numeric 0-10 rating."
+Description: "Layer 1 optional numeric pain fact for a source 0-10 patient-reported pain score. Do not map ordinal labels such as mild, severe, or unbearable into this profile unless the source actually stores a numeric 0-10 rating."
 * code = $LNC#72514-3 "Pain severity - 0-10 verbal numeric rating [Score] - Reported"
 * value[x] only Quantity
 * valueQuantity 1..1 MS
@@ -83,7 +83,7 @@ Profile: BasalBodyTemperatureFactObservation
 Parent: PeriodTrackingFactObservation
 Id: basal-body-temperature-fact
 Title: "Basal Body Temperature Fact Observation"
-Description: "Optional basal body temperature layer for a source temperature measurement identified by the producer as basal."
+Description: "Layer 1 optional basal body temperature fact for a source temperature measurement identified by the producer as basal."
 * category 1..1 MS
 * category = $ObsCat#vital-signs "Vital Signs"
 * code = $LNC#8310-5 "Body temperature"

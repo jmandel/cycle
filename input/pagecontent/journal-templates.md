@@ -1,6 +1,6 @@
 # Journal & planning templates
 
-Keep a light paper trail in the **target app's** repo so mapping decisions are reviewable and reversible. Match the repo's existing doc conventions; these are starting points, not mandates. The plan checklist tracks *progress* (keep it live as you build); the journal records *decisions*. For the terms used below — IG validation, the `Binary` native snapshot, FHIR codes/values, the host choices — see `references/fhir-mapping.md` and `references/smart-health-links.md`.
+Keep a light paper trail in the **target app's** repo so mapping decisions are reviewable and reversible. Match the repo's existing doc conventions; these are starting points, not mandates. The plan checklist tracks *progress* (keep it live as you build); the journal records *decisions*. For the terms used below — IG validation, the `Binary` native snapshot, FHIR codes/values, the host choices — see [FHIR mapping reference](fhir-mapping.html) and [SMART Health Links implementation notes](smart-health-links-implementation.html).
 
 ## `period-fhir-plan.md`
 

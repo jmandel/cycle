@@ -9,7 +9,7 @@ This draft defines a deliberately small FHIR R4 exchange model for **patient-gen
 {{ system_diagram | remove_first: '<?xml version="1.0" encoding="us-ascii" standalone="no"?>' }}
 </div>
 
-1. **Model** — an app maps the data it actually stores to the Bundle profile and concrete fact profiles below. See [Data model](modeling.html) and the [Mapping contract](mapping.html).
+1. **Model** — an app maps the data it actually stores to the Bundle profile and concrete fact profiles below. See the [Specification](specification.html) and the [FHIR mapping reference](fhir-mapping.html).
 2. **Share** — the Bundle is encrypted into a [SMART Health Link](smart-health-links.html) (compact JWE; the file host never sees the key or plaintext).
 3. **View** — a receiving app decrypts the link and renders a cycle summary, **computing all analytics from the granular facts** (no precomputed summaries travel in the Bundle). The site includes a [reference clinician viewer](view.html) as one compatible receiver.
 
@@ -29,29 +29,30 @@ This draft defines a deliberately small FHIR R4 exchange model for **patient-gen
 6. **[Numeric Pain Severity Fact Observation](StructureDefinition-numeric-pain-severity-fact.html)** — optional 0-10 pain score.
 7. **[Basal Body Temperature Fact Observation](StructureDefinition-basal-body-temperature-fact.html)** — optional timed or day-scoped basal body temperature.
 
-It defines one small [Menstrual Flow ValueSet](ValueSet-menstrual-flow.html), a non-binding [Common Period-Tracking Symptoms](ValueSet-common-tracker-symptoms.html) starter set, a small fact-category ValueSet, and a [project CodeSystem](CodeSystem-cycle.html) of exactly eight concepts. The universal core is `menstrual-bleeding` true/false at the source date or timestamp; standard LOINC, SNOMED CT, and UCUM are used for optional layers when the source meaning supports them.
+It defines one small [Menstrual Flow ValueSet](ValueSet-menstrual-flow.html), a non-binding [Common Period-Tracking Symptoms](ValueSet-common-tracker-symptoms.html) starter set, a small fact-category ValueSet, and a [project CodeSystem](CodeSystem-cycle.html) of exactly eight concepts. The universal Layer 0 core is `menstrual-bleeding` true/false at the source date or timestamp; standard LOINC, SNOMED CT, and UCUM are used for optional Layer 1 facts when the source meaning supports them.
 
 ## For period-tracking app developers and AI agents
 
 Any menstrual, fertility, or cycle-tracking app — regardless of its internal data model — can adopt this IG. The work is mostly mapping the data you already store and choosing how to host the encrypted share.
 
-**An AI agent adding support to an app should** clone the repo and read the **skill** in place — it's written to be used alongside the repo's example Bundle, sample viewer, and profiles.
+**An AI agent adding support to an app should** start with the [agent implementation skill](skill.html). It is written to be used alongside the profiles, example Bundle, SHLink guidance, and viewer references published in this IG.
 
-- **The skill** (a complete working method for agents) lives at **`skill/SKILL.md`** in the source repository: **[github.com/jmandel/periodicity](https://github.com/jmandel/periodicity)**. Read it in situ (`git clone` then open `skill/SKILL.md`) so its references to `viewer-src/` and `scripts/` resolve. It covers app inventory and field classification, the fact-by-fact FHIR mapping, the missing-data rules, how to make a SMART Health Link, how to reuse or build a viewer, and how to verify end to end.
+- **The skill** (a complete working method for agents) is browsable at [skill.html](skill.html) and downloadable as a self-contained [skill.zip](skill.zip). The zip maps this page to `SKILL.md`, includes the skill references, and includes the core spec markdown under `spec/`.
 - **Reference implementation in the repo:** `viewer-src/` (the transform + viewer source) and `scripts/` (the `bun` generators that build the example Bundle, the SHL, and the viewer as build artifacts).
 - **Hosting the share:** publish one encrypted JWE file through a static host/CDN/object store, or through a backend endpoint that behaves like a direct-file SHLink (`flag: "U"`). See the [SMART Health Link packaging](smart-health-links.html) guidance for lifetime and use-limit expectations.
 
-Start: **`git clone https://github.com/jmandel/periodicity`, read `skill/SKILL.md`, run `bun run build` for local generated artifacts, and inspect the [mapping](mapping.html).**
+{% assign source_repo = site.data.fhir.ig.contact[0].telecom[0] %}
+Source repository: **[{{ source_repo | replace: 'https://', '' }}]({{ source_repo }})**.
 
 ## Core rule
 
 > Emit only information that the user entered, selected, verified, or measured. Absence of an Observation means **not recorded**, not **absent**.
 
-An explicit negative may be exported only when the source can distinguish it from an untouched default. See [Scope and principles](scope.html).
+An explicit negative may be exported only when the source can distinguish it from an untouched default. See [Scope and conformance principles](specification.html#scope-and-conformance-principles).
 
 ## What the MVP covers — and deliberately excludes
 
-The normalized layer has one universal clinician-facing core: `menstrual-bleeding` true/false at the source date or timestamp. Optional layers can add patient-rated flow, symptoms, numeric pain severity, and basal body temperature. A complete export may also include an optional FHIR `Binary` holding the exact native JSON selected for sharing — a lossless safety net for source fields outside the normalized layer.
+The MVP has three adoption layers. **Layer 0: Core bleeding facts** is required for compatibility: `menstrual-bleeding` true/false at the source date or timestamp. **Layer 1: Structured optional facts** adds patient-rated flow, symptoms, numeric pain severity, and basal body temperature when available. **Layer 2: Native archive** optionally adds a FHIR `Binary` holding the exact native JSON selected for sharing — a lossless safety net for source fields outside the normalized facts.
 
 The MVP does **not** require normalized representations for predictions, cycle summaries, medication adherence, contraception lifecycle, detailed sexual activity, cervical mucus/examination, menstrual products, fertility tests, or app configuration. Apps may keep these in the native archive or add source-coded granular Observations; later versions can standardize what real clinical workflows prove necessary.
 

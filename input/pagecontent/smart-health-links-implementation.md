@@ -2,7 +2,7 @@
 
 A SMART Health Link (SHL) lets a user share the FHIR Bundle as an **encrypted file plus a key**, where the hosting server only ever sees ciphertext. The key travels inside the link (in the URL fragment), so a blind host — your CDN, an object store, or a third party — can never read the cycle data.
 
-This page is a condensed, self-contained reference for the SHL wire format plus the sharing-UX and host guidance this IG adds. For the normative protocol, defer to the **SMART Health Links specification** (HL7 SMART Health Cards & Links IG) — read the source markdown: https://github.com/HL7/smart-health-cards-and-links/blob/main/input/pagecontent/links-specification.md. For Period Tracking MVP packaging specifics (share shape, lifetime, use-limit), see `input/pagecontent/smart-health-links.md` (published as `smart-health-links.html`).
+This page is a condensed, self-contained reference for the SHL wire format plus the sharing-UX and host guidance this IG adds. For the normative protocol, defer to the **SMART Health Links specification** (HL7 SMART Health Cards & Links IG) — read the source markdown: https://github.com/HL7/smart-health-cards-and-links/blob/main/input/pagecontent/links-specification.md. For Period Tracking MVP packaging specifics (share shape, lifetime, use-limit), see [SMART Health Links packaging](smart-health-links.html).
 
 ## How a SMART Health Link works
 
