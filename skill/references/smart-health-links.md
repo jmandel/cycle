@@ -2,43 +2,43 @@
 
 A SMART Health Link (SHL) lets a user share the FHIR Bundle as an **encrypted file plus a key**, where the hosting server only ever sees ciphertext. The key travels inside the link (in the URL fragment), so a blind host — your CDN, an object store, or a third party — can never read the cycle data.
 
-The normative Period Tracking MVP packaging guidance lives in `input/pagecontent/smart-health-links.md` and is published at https://build.fhir.org/ig/jmandel/periodicity/smart-health-links.html. Follow that page for the required share shape, lifetime, and use-limit rules; this reference is implementation support.
-Spec: SMART Health Links (smarthealthit.org / HL7).
+This page is a condensed, self-contained reference for the SHL wire format plus the sharing-UX and host guidance this IG adds. For the normative protocol, defer to the **SMART Health Links specification** (HL7 SMART Health Cards & Links IG): https://build.fhir.org/ig/HL7/smart-health-cards-and-links/links-specification.html. For Period Tracking MVP packaging specifics (share shape, lifetime, use-limit), see `input/pagecontent/smart-health-links.md` (published as `smart-health-links.html`).
 
-## The `shlink:/` payload
+## How a SMART Health Link works
 
-A link is `shlink:/` + base64url(minified JSON):
+An SHL is a small JSON payload, base64url-encoded after `shlink:/`, that points a receiver at **encrypted file(s)** and carries the **decryption key in the link fragment** so the host stays blind. The shareable form is `<viewer>/#shlink:/<b64url>`; the `#` fragment (key included) never reaches a server.
 
-| field | meaning |
-|---|---|
-| `url` | where the encrypted content lives. For Period Tracking MVP, see the packaging page. ≤128 chars. |
-| `key` | base64url of **32 random bytes** — the AES-256 key. (43 chars.) |
-| `flag` | optional letters defined by SMART Health Links. For Period Tracking MVP requirements, see the packaging page. |
-| `label` | optional ≤80-char human label. |
-| `exp` | optional expiry, **epoch seconds** (advisory staleness hint). |
-| `v` | optional version int, default 1. |
+### The `shlink:/` payload
 
-Encryption: **compact JWE, `alg:"dir"`, `enc:"A256GCM"`**, `cty` header = `application/fhir+json`. A fresh 12-byte IV per encryption. Optional `zip:"DEF"` (raw DEFLATE before encrypt).
+`shlink:/` + base64url(minified JSON), with these fields:
 
-**DEFLATE caveat:** `zip:"DEF"` shrinks a bundle dramatically (our ~640 KB example → ~20 KB), and the IG demo uses it. But modern `jose` dropped JWE `zip` support, so DEF is a common failure point for third-party receivers. **Default to uncompressed** for links you'll send to unknown viewers; use DEF only for large bundles when you control or trust the receiver. The IG reference viewer inflates DEF.
+| field | req | meaning |
+|---|---|---|
+| `url` | ✓ | where the encrypted content lives. SHALL carry **≥256 bits of entropy** in its unguessable part (e.g. 32 random bytes → 43 base64url chars) and be **≤128 chars** total. |
+| `key` | ✓ | base64url of **32 random bytes** — the AES-256 content key (43 chars). |
+| `flag` | | zero or more of `L` (long-term, re-resolvable), `P` (passcode required), `U` (direct file). **`U` SHALL NOT combine with `P`.** |
+| `label` | | human label, **≤80 chars**. |
+| `exp` | | expiry, epoch seconds — an advisory staleness hint; real enforcement is the host's. |
+| `v` | | version int, default 1. |
 
-## Retrieval implementation note
+### Encryption
 
-For a direct-file SHLink, the receiver does `GET <url>?recipient=<org>` and the body is the JWE (`Content-Type: application/jose`). `recipient` is required. The receiver then decrypts the JWE with `key` and parses the FHIR Bundle.
+Each file is a **compact JWE** — `alg:"dir"`, `enc:"A256GCM"`, `cty` header = the payload's media type (`application/fhir+json` for a Bundle). Generate a **fresh random 96-bit IV from a CSPRNG for every encryption**, cap a single key at ~2³² messages, then rotate keys — the simplest correct discipline is a **fresh key per share**, so each key encrypts one file.
 
-**Why a plain static file is a compliant SHL.** Normally `url` is a *manifest endpoint* the receiver `POST`s to — that needs a server. The **`U` ("direct file") flag** tells the receiver to skip the manifest and `GET` the `url` directly, with the encrypted JWE as the body. A static host (S3 / GCS / Azure blob, a CDN object, a GitHub Pages file) just returns the bytes and ignores the `?recipient` query, so no server logic is required. Our own demo *is* this: `example.jwe` is a static file on GitHub Pages with `flag:"U"`. The flip side is exactly why it's the weakest tier in the host table below — a dumb host can't read `recipient`, count opens, or enforce `exp`, and it must send permissive CORS so a browser viewer can fetch it cross-origin.
+Optional `zip:"DEF"` (raw DEFLATE before encrypt) shrinks a bundle dramatically (our ~640 KB example → ~20 KB) and the IG demo uses it — but modern `jose` dropped JWE `zip`, so DEF is a common failure point for third-party receivers. **Default to uncompressed** for links to unknown viewers; use DEF only when you control the receiver. The IG viewer inflates DEF.
 
-## SHL conformance — the easy-to-miss SHALLs
+### Retrieving the content
 
-If you implement the wire format yourself (rather than deploying shlep, which handles these), the SHL spec has a few requirements implementers routinely miss. Verify each — they are also the right checklist for reviewing any SHL implementation:
+`recipient` (a display string naming who is opening the link) is **required** on every retrieval. Two rails:
 
-- **`recipient` is required** on every resolve (GET query or manifest POST body) — reject if absent.
-- **`url` entropy:** the unguessable part SHALL carry **≥256 bits** of randomness (e.g. 32 random bytes → 43 base64url chars), and the whole `url` SHALL stay **≤128 chars**.
-- **Flags are `{L, P, U}` only**, and **`U` SHALL NOT combine with `P`** — a passcoded share is served via the **manifest only**, never the direct-file GET.
-- **Manifest `files[].contentType` is the *decrypted* type** (`application/fhir+json`, `application/smart-health-card`, or `application/smart-api-access`) — **not** `application/jose` (that is only the HTTP `Content-Type` of the JWE body).
-- **Passcode:** enforce a bounded incorrect-attempt budget; on a wrong passcode return **401 with `{remainingAttempts}`**, and disable the link once it is spent.
-- **Nonce:** a fresh **random 96-bit IV from a CSPRNG per encryption**, with a hard limit of ~2³² messages per key, then rotate keys — simplest is a fresh key per share.
-- **`label` ≤ 80 chars.**
+- **Manifest** (default; required for multi-file, passcode, or any server-enforced control): the receiver `POST`s `{recipient, passcode?, embeddedLengthMax?}` to `url` and gets `{ files: [ { contentType, embedded | location } ] }`. Each file's **`contentType` is the *decrypted* payload type** — `application/fhir+json`, `application/smart-health-card`, or `application/smart-api-access` — **not** `application/jose` (that is only the HTTP type of a JWE body). Small files come back inline as `embedded`; larger ones as a short-lived `location` URL the receiver then fetches.
+- **Direct file** (`flag` contains `U`): the receiver simply `GET`s `url?recipient=…`, body is the JWE (`Content-Type: application/jose`). **Single-file, and SHALL NOT carry a passcode.** Because a `GET` needs no server logic, a plain static object (S3 / GCS / Azure blob, a CDN or GitHub Pages file) is a compliant direct-file host — it returns the bytes and ignores the `?recipient` query. That is also its ceiling: a dumb host can't read `recipient`, count opens, or enforce `exp`, and it must send permissive CORS so a browser viewer can fetch cross-origin. Our demo *is* this — `example.jwe` is a static GitHub Pages file with `flag:"U"`.
+
+Either way the receiver decrypts the JWE with `key` and parses the payload.
+
+### Passcode (`flag` `P`)
+
+A host-enforced second factor: the receiver supplies it in the manifest `POST`, and the host withholds the ciphertext unless it matches. The host SHALL bound incorrect attempts — on a wrong passcode return **`401` with a `{remainingAttempts}`** body, and **disable** the link once the budget is spent. Passcode is manifest-only (incompatible with the `U` rail).
 
 ## Sharing UX — present and manage the link
 
