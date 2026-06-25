@@ -1,7 +1,7 @@
 name: Checks
 
-# Fast, deterministic checks on every push. Generated examples are created in
-# the runner, not committed.
+# Real build checks on every push. Generated examples/site artifacts are created
+# in the runner, not committed.
 
 on:
   push:
@@ -16,8 +16,27 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
       - uses: oven-sh/setup-bun@v2
+      - name: Install native build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y graphviz zip
+      - name: Install deps
+        run: bun install --frozen-lockfile
+      - name: Install Jekyll
+        run: gem install jekyll --no-document
       - name: Deterministic integrity checks
         run: bun run check
-      - name: site-gen renderer smoke
-        run: SITE_GEN_USE_FIXTURE=1 bun site-gen/ingest.ts && bun site-gen/build.tsx
+      - name: Build static site
+        run: bun run build:sitegen
+        env:
+          GRAPHVIZ_DOT: /usr/bin/dot
+          VIEWER_BASE: https://cycle.fhir.me/view
+          PAGES_CNAME: cycle.fhir.me
