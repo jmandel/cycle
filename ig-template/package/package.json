@@ -1,0 +1,18 @@
+{
+  "name": "me.fhir.period-tracking-mvp.template",
+  "version": "0.1.0",
+  "type": "fhir.template",
+  "license": "CC0-1.0",
+  "canonical": "https://cycle.fhir.me/template",
+  "url": "https://cycle.fhir.me/template",
+  "title": "Period Tracking MVP Publisher Shim",
+  "description": "Minimal local IG Publisher template used only to run Publisher validation and emit output/package.db; final site rendering is handled by site-gen.",
+  "author": "fhir.me Cycle Project",
+  "base": "fhir2.base.template",
+  "dependencies": {
+    "fhir2.base.template": "current"
+  },
+  "fhirVersions": [
+    "4.0.1"
+  ]
+}

@@ -32,7 +32,7 @@ A conforming share SHALL:
 - include `U` in the SHLink `flag`;
 - set `url` to a direct-file endpoint for one compact JWE;
 - encrypt exactly one `application/fhir+json` Period Tracking MVP Bundle; and
-- let receivers retrieve the JWE with `GET <url>?recipient=...`.
+- let receivers retrieve the JWE by issuing a direct-file `GET` with `recipient` supplied as a query parameter.
 
 This guide does not define a manifest-based Period Tracking MVP share. If an implementation chooses another SMART Health Links pattern, it is outside this guide's constrained exchange profile.
 

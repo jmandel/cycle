@@ -19,7 +19,7 @@ The reference implementation, file by file (all dependency-light, browser + bun 
 
 - `viewer-src/jwe.mjs` — compact JWE `dir`/A256GCM decrypt (+ `zip:DEF` inflate), WebCrypto only.
 - `viewer-src/shl.mjs` — parse `shlink:/`, fetch direct-file SHLinks (with base-SHL manifest compatibility for receivers), decrypt → Bundle.
-- `viewer-src/transform.mjs` — **the reusable core**: Bundle → application-independent view model `{ meta, cycles[], daily[], byDate, events[], context }`. Tolerant: unknown codes ignored, missing fields skipped, a day with no entry is never treated as "no symptom."
+- `viewer-src/transform.mjs` — **the reusable core**: Bundle → application-independent view model. Tolerant: unknown codes ignored, missing fields skipped, a day with no entry is never treated as "no symptom."
 - `viewer-src/viewmodel.mjs` — derive descriptive metrics from the view model (the UI hard-codes no numbers).
 - `viewer-src/summary.jsx` — the render layer (React): cycle-comparison strips, per-cycle table, bleeding/pain timeline, symptom heatmap, fertility (BBT) panel, day detail.
 - `viewer-src/app.jsx` — glue: read `#shlink:/…` from the URL, paste field, camera scan, or generated `shlink.txt` demo link; prepopulate the chooser; then decrypt, transform, and render after the recipient clicks Open.
@@ -47,4 +47,4 @@ Decrypt and render **client-side only**. Never POST the decrypted FHIR back to a
 
 ## Verifying a viewer headlessly
 
-The IG repo's `scripts/verify-viewer.ts` serves the built output, drives headless Chromium against the chooser at `/view` and `/view#shlink:/…`, asserts the fragment URL prepopulates without auto-rendering, resolves the SHLink with a recipient name, and smoke-tests the demo/Open flow for `view`, `view2`, and `view3`. Adapt it for your own host. (Assert on the *presence* of rendered sections, not the *absence* of an error string — app source text lives in the DOM/bundle and would yield false negatives.)
+The IG repo's `scripts/verify-viewer.ts` serves the built output, drives headless Chromium against the chooser with and without a viewer-prefixed SHLink fragment, asserts the fragment URL prepopulates without auto-rendering, resolves the SHLink with a recipient name, and smoke-tests the demo/Open flow for `view`, `view2`, and `view3`. Adapt it for your own host. (Assert on the *presence* of rendered sections, not the *absence* of an error string — app source text lives in the DOM/bundle and would yield false negatives.)

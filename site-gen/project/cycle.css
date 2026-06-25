@@ -1,0 +1,14 @@
+/* ============================================================
+   project/cycle.css — PROJECT-SPECIFIC CSS (cycle.fhir.me only).
+   Not part of the generic shell/prose system in base.css. Another
+   IG would replace this file. Shipped to out/assets/project.css.
+   ============================================================ */
+
+/* Home "whole system at a glance" diagram: swaps landscape/portrait
+   art via <picture>, centered + capped on tall/narrow viewports. */
+.ptmvp-diagram { margin: var(--space-5) 0 var(--space-6); }
+.ptmvp-diagram picture, .ptmvp-diagram img { display: block; }
+.ptmvp-diagram img { width: 100%; height: auto; }
+@media (max-aspect-ratio: 4/5) {
+  .ptmvp-diagram { max-width: 620px; margin-inline: auto; }
+}

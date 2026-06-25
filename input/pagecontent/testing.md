@@ -1,8 +1,8 @@
-# Conformance testing
+# Implementation testing guide
 
-An implementation should pass structural, semantic, privacy, and round-trip tests.
+This page is an implementer-facing verification checklist. It does not define a separate conformance claim; the conformance language is in [Scope and conformance principles](specification.html#scope-and-conformance-principles). Use these checks to show that a producer, receiver, or adapter actually satisfies that contract.
 
-## Structural validation
+## Structural checks
 
 - SUSHI compiles the FSH with zero errors.
 - The IG Publisher validates all generated resources.
@@ -13,7 +13,7 @@ An implementation should pass structural, semantic, privacy, and round-trip test
 - If Patient or `Observation.subject` references are present, they are consistent with the intended single-person scope.
 - Every populated Bundle `fullUrl` is unique.
 
-## Semantic fixtures
+## Adapter fixtures
 
 Each source adapter SHOULD implement these fixtures:
 
@@ -30,7 +30,7 @@ Each source adapter SHOULD implement these fixtures:
 
 Load equivalent synthetic histories into at least two applications with different persistence architectures. The normalized Bundles should contain clinically equivalent codes and values while retaining distinct source identifiers and native archives.
 
-## Privacy test
+## Privacy check
 
 Capture client network traffic and hosting-server logs. The test fails if any of the following appear outside the trusted client:
 
@@ -41,7 +41,7 @@ Capture client network traffic and hosting-server logs. The test fails if any of
 - owner or management capability; or
 - unencrypted patient labels.
 
-## Viewer test
+## Viewer smoke test
 
 A clinician should be able to identify observed period timing, flow, pain, symptoms, and missingness without reading raw JSON. Every derived display value should be traceable to the source facts used in its calculation.
 

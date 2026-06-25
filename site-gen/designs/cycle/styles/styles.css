@@ -1,0 +1,13 @@
+/* ============================================================
+   cycle — Design System · token entry point (template copy)
+   ------------------------------------------------------------
+   IMPORTS ONLY. The IG template links the individual token files
+   directly from fragment-css.html (explicit load order), but this
+   file is kept for fidelity with the upstream design system.
+   ============================================================ */
+
+@import url('./fonts.css');
+@import url('./colors.css');
+@import url('./typography.css');
+@import url('./spacing.css');
+@import url('./effects.css');

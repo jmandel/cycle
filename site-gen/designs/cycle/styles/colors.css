@@ -1,0 +1,89 @@
+/* ============================================================
+   cycle · color tokens
+   ------------------------------------------------------------
+   The signature of the system is the PHASE PALETTE — four colors
+   mapped to the phases of the menstrual cycle. They are used for
+   accents, status, data-viz, and (geeky touch) code syntax.
+
+     1 · Menstrual   coral red    ← also the brand primary
+     2 · Follicular  amber
+     3 · Ovulatory   teal
+     4 · Luteal      plum
+
+   Everything sits on warm CREAM paper with warm INK text.
+   ============================================================ */
+
+:root {
+  /* ---- Paper & ink (warm neutral ramp) ---- */
+  --paper:          #FCFCFA;   /* app / page background · "porcelain"  */
+  --paper-sunken:   #F1F0EA;   /* wells, code gutters, hovers    */
+  --paper-card:     #FFFFFF;   /* raised card surface            */
+  --paper-edge:     #FFFFFF;   /* top-highlight on cards         */
+
+  --ink-900:        #211B18;   /* primary text, near-black warm  */
+  --ink-700:        #463C36;   /* strong secondary text          */
+  --ink-500:        #6E6259;   /* muted text, captions           */
+  --ink-300:        #A99C90;   /* disabled, placeholder          */
+  --ink-100:        #D9CDBF;   /* faint dividers on dark/photo   */
+
+  --line:           #EAE7E0;   /* default hairline border         */
+  --line-strong:    #DBD7CD;   /* emphasized border / inputs     */
+
+  /* ---- Phase palette · core ---- */
+  --menstrual:      #E5484D;   /* phase 1 · coral red  (PRIMARY) */
+  --follicular:     #E7902B;   /* phase 2 · amber               */
+  --ovulatory:      #109E83;   /* phase 3 · teal                */
+  --luteal:         #7C5BD9;   /* phase 4 · plum                */
+
+  /* phase · tints (chips, fills, wells) */
+  --menstrual-tint:  #FBE3E1;
+  --follicular-tint: #FBEBD3;
+  --ovulatory-tint:  #D7F0E9;
+  --luteal-tint:     #E9E2FB;
+
+  /* phase · deep (text on tint, dark accents) */
+  --menstrual-deep:  #B22F33;
+  --follicular-deep: #B16A12;
+  --ovulatory-deep:  #0A6E5C;
+  --luteal-deep:     #563CA3;
+
+  /* ---- Brand primary aliases (= menstrual) ---- */
+  --brand:          var(--menstrual);
+  --brand-deep:     var(--menstrual-deep);
+  --brand-tint:     var(--menstrual-tint);
+  --brand-press:    #C93C40;   /* primary button pressed         */
+
+  /* ---- Semantic status ---- */
+  --success:        var(--ovulatory);
+  --success-tint:   var(--ovulatory-tint);
+  --warning:        var(--follicular);
+  --warning-tint:   var(--follicular-tint);
+  --danger:         var(--menstrual);
+  --danger-tint:    var(--menstrual-tint);
+  --info:           var(--luteal);
+  --info-tint:      var(--luteal-tint);
+
+  /* ---- FHIR conformance accents (used in resource tables) ---- */
+  --fhir-required:  var(--menstrual);   /* 1..1 / must-support    */
+  --fhir-optional:  var(--ink-300);     /* 0..1                   */
+  --fhir-extension: var(--luteal);      /* extensions             */
+  --fhir-mustsupport:#0A6E5C;           /* MS flag                */
+
+  /* ---- Code surface (dark, warm) ---- */
+  --code-bg:        #251F1C;   /* dark warm panel                */
+  --code-bg-2:      #2F2723;   /* nested / inline pill           */
+  --code-fg:        #F3E9DB;   /* base code text (cream)         */
+  --code-line:      #3C322D;   /* code panel hairlines           */
+  --code-gutter:    #8B7C6F;   /* line numbers                   */
+  /* syntax = phase palette, tuned for dark bg */
+  --code-key:       #FF7A6E;   /* keywords / resource types      */
+  --code-str:       #59C9AC;   /* strings                        */
+  --code-num:       #F2B45A;   /* numbers / booleans             */
+  --code-type:      #B79BF2;   /* types / urls                   */
+  --code-comment:   #8B7C6F;   /* comments                       */
+  --code-prop:      #F3E9DB;   /* json keys                      */
+
+  /* ---- Focus / selection ---- */
+  --focus-ring:     #7C5BD9;
+  --selection:      #FBE3E1;
+}

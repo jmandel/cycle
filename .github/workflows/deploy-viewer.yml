@@ -39,8 +39,8 @@ jobs:
         run: bun install --frozen-lockfile
       - name: Install Jekyll
         run: gem install jekyll --no-document
-      - name: Build static site
-        run: bun run build:site
+      - name: Build static site (site-gen renderer from the Publisher's package.db)
+        run: bun run build:sitegen
         env:
           GRAPHVIZ_DOT: /usr/bin/dot
           VIEWER_BASE: https://cycle.fhir.me/view
@@ -49,7 +49,9 @@ jobs:
       - name: Upload site as Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: output
+          # site-gen/out is the root static site; the Publisher's output/ is now an
+          # intermediate validation + package.db source only.
+          path: site-gen/out
 
   deploy:
     needs: build

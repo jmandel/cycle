@@ -5,6 +5,8 @@
   "scripts": {
     "build": "bun scripts/build-all.ts",
     "build:site": "bun scripts/build-site.ts",
+    "build:sitegen": "bun scripts/build-sitegen-site.ts",
+    "test:sitegen": "bash site-gen/test.sh",
     "check": "EXAMPLE_OUT=input/resources/Bundle-period-tracking-longitudinal-example.json bun scripts/gen-example.ts && ./_sushi.sh && BUNDLE_FILE=input/resources/Bundle-period-tracking-longitudinal-example.json bun scripts/check-mvp.ts && bun scripts/check-view2.ts",
     "check:r4": "bun scripts/validate-r4-structures.ts --r4-package ~/.fhir/packages/hl7.fhir.r4.core#4.0.1",
     "verify:viewer": "bun run build && bun scripts/verify-viewer.ts"
@@ -16,6 +18,9 @@
     "react-dom": "^18.3.1"
   },
   "dependencies": {
-    "jsqr": "^1.4.0"
+    "jsqr": "^1.4.0",
+    "liquidjs": "^10.27.1",
+    "markdown-it": "^14.2.0",
+    "markdown-it-anchor": "^9.2.0"
   }
 }

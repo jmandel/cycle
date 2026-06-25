@@ -5,7 +5,10 @@ This draft defines a deliberately small FHIR R4 exchange model for **patient-gen
 ## The whole system at a glance
 
 <div class="ptmvp-diagram">
-<img src="system-overview.png" alt="Three-step overview: source app maps period-tracking data to Layer 0 bleeding facts and optional richer facts, packages the Bundle as an encrypted SMART Health Link, and a receiving viewer decrypts locally to compute clinical views." width="1536" height="1024" style="max-width: 100%; height: auto;">
+<picture>
+  <source media="(max-aspect-ratio: 4/5)" srcset="system-overview-portrait.png" width="864" height="1821" type="image/png">
+  <img src="system-overview.png" alt="Three-step overview: source app maps period-tracking data to Layer 0 bleeding facts and optional richer facts, packages the Bundle as an encrypted SMART Health Link, and a receiving viewer decrypts locally to compute clinical views." width="1536" height="1024" loading="eager" fetchpriority="high" decoding="async">
+</picture>
 </div>
 
 1. **Model** — an app maps the data it actually stores to the Bundle profile and concrete fact profiles below. See the [Specification](specification.html) and the [FHIR mapping reference](fhir-mapping.html).
@@ -17,7 +20,7 @@ This draft defines a deliberately small FHIR R4 exchange model for **patient-gen
 - **Open the reference viewer:** [view.html](view.html) — the published site build includes the generated sample link next to the viewer.
 - **Compare viewer variants:** [view2.html](view2.html) is a binary-first clinician view that derives the cycle picture from Layer 0 before showing optional overlays; [view3.html](view3.html) is a bleeding-first alternate that foregrounds Layer 0 extrapolations before optional overlays.
 - Inspect the data behind it: the [longitudinal example Bundle](Bundle-period-tracking-longitudinal-example.html) (a synthetic seven-cycle copper-IUD case — the same data the viewer renders).
-- The sample is published as a viewer-prefixed link (`https://cycle.fhir.me/view#shlink:/...`) because that is the most robust default for ordinary browser launch. A provider's dedicated receiving app can scan that same QR, ignore the viewer prefix, and process the embedded `shlink:/...` with its own display logic.
+- The sample is published through the [reference viewer](view.html) as a viewer-prefixed SHLink because that is the most robust default for ordinary browser launch. A provider's dedicated receiving app can scan that same QR, ignore the viewer prefix, and process the embedded `shlink:/...` with its own display logic.
 
 ## The profiles
 
@@ -35,11 +38,11 @@ It defines one small [Menstrual Flow ValueSet](ValueSet-menstrual-flow.html), a 
 
 Any menstrual, fertility, or cycle-tracking app — regardless of its internal data model — can adopt this IG. The work is mostly mapping the data you already store and choosing how to host the encrypted share.
 
-**An AI agent adding support to an app should** start with the [agent implementation skill](skill.html). It is written to be used alongside the profiles, example Bundle, SHLink guidance, and viewer references published in this IG.
+**An AI agent adding support to an app should** start with the [AI implementation skill](skill.html). It is the implementation checklist for inspecting real app data, mapping only stored facts, packaging an encrypted SHLink, and verifying the viewer/privacy path.
 
 - **The skill** (a complete working method for agents) is browsable at [skill.html](skill.html) and downloadable as a self-contained [skill.zip](skill.zip). The zip maps this page to `SKILL.md`, includes the skill references, and includes the core spec markdown under `spec/`.
 - **Reference implementation in the repo:** `viewer-src/` (the transform + viewer source) and `scripts/` (the `bun` generators that build the example Bundle, the SHL, and the viewer as build artifacts).
-- **Hosting the share:** publish one encrypted JWE file through a static host/CDN/object store, or through a backend endpoint that behaves like a direct-file SHLink (`flag: "U"`). See the [SMART Health Link packaging](smart-health-links.html) guidance for lifetime and use-limit expectations.
+- **Hosting the share:** use an application backend or deployable blind SHLink service that can actually enforce revocation, expiry, use limits, passcodes, and access logs. See the [SMART Health Links reference](smart-health-links-implementation.html) for the implementation choices.
 
 {% assign source_repo = site.data.fhir.ig.contact[0].telecom[0] %}
 Source repository: **[{{ source_repo | replace: 'https://', '' }}]({{ source_repo }})**.

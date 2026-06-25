@@ -1,6 +1,8 @@
-# Agent implementation skill
+# AI implementation skill
 
-Help an app turn the cycle data it already stores into a **FHIR R4 Bundle**, share that bundle as an **encrypted SMART Health Link** the user controls, and (optionally) render it in a **client-side clinician viewer**. The authoritative model is the published **Period Tracking MVP Implementation Guide**:
+Use this page when an AI agent is adding cycle.fhir.me support to an app. It is the implementation checklist: inspect the app's real data, map only true stored facts, package them as an encrypted SMART Health Link, and verify the viewer/privacy path end to end.
+
+The authoritative model is the published **Period Tracking MVP Implementation Guide**:
 
 > **IG home:** https://cycle.fhir.me/
 

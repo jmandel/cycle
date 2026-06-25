@@ -25,29 +25,30 @@ menu:
   Home: index.html
   Specification:
     Overview: specification.html
-    Adoption layers: specification.html#adoption-layers
-    Scope and principles: specification.html#scope-and-conformance-principles
-    Data model: specification.html#data-model
-    Mapping contract: specification.html#normalized-mapping-contract
-    Terminology: specification.html#terminology
-    Agent implementation skill: skill.html
-    FHIR mapping reference: fhir-mapping.html
-    SHL implementation notes: smart-health-links-implementation.html
-    Viewer integration: viewer-integration.html
-    Journal templates: journal-templates.html
+    Data:
+      Adoption layers: specification.html#adoption-layers
+      Scope and principles: specification.html#scope-and-conformance-principles
+      Data model: specification.html#data-model
+      Mapping contract: specification.html#normalized-mapping-contract
+      Terminology: specification.html#terminology
+    Sharing:
+      SMART Health Link packaging: smart-health-links.html
+      Security and privacy: security.html
   Implementation:
-    Clinical display: clinical-display.html
-    SMART Health Links: smart-health-links.html
-    Clinician viewer v1: view.html
-    Clinician viewer v2: view2.html
-    Clinician viewer v3: view3.html
-    Security and privacy: security.html
-  Examples and testing:
-    Worked example: examples.html
-    Conformance testing: testing.html
-  References: references.html
-  Artifacts: artifacts.html
-  IG details: ig-details.html
+    Mapping and testing:
+      AI implementation skill: skill.html
+      FHIR mapping guide: fhir-mapping.html
+      Testing guide: testing.html
+      Journal templates: journal-templates.html
+    Sharing and viewing:
+      SHL implementation reference: smart-health-links-implementation.html
+      Viewer integration: viewer-integration.html
+      Clinical display guidance: clinical-display.html
+      Worked example: examples.html
+  More:
+    References: references.html
+    Artifacts: artifacts.html
+    IG details: ig-details.html
 resources:
   StructureDefinition/menstrual-bleeding-fact:
     extension:

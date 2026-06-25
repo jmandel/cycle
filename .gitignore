@@ -17,3 +17,23 @@ node_modules/
 .DS_Store
 .vscode/
 .idea/
+
+# IG Publisher indexes template package sources in place
+.index.db
+.index.json
+
+# site-gen build products
+site-gen/out/
+site-gen/package.db
+
+site-gen/.shots/
+
+# site-gen build products / working DBs (regenerated; never commit)
+temp/site-gen/
+site-gen/site.db
+site-gen/site.db-wal
+site-gen/site.db-shm
+site-gen/fixtures/*.db
+site-gen/fixtures/*.db-wal
+site-gen/fixtures/*.db-shm
+!site-gen/fixtures/package.db

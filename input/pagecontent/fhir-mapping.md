@@ -2,12 +2,12 @@
 
 The authoritative model is the IG. Open these alongside this file:
 
-- Specification: https://cycle.fhir.me/specification.html
-- Mapping contract: https://cycle.fhir.me/specification.html#normalized-mapping-contract
-- Scope & missing-data rules: https://cycle.fhir.me/specification.html#scope-and-conformance-principles
-- Terminology: https://cycle.fhir.me/specification.html#terminology
-- Profiles (artifacts): https://cycle.fhir.me/artifacts.html
-- Worked Bundle: `Bundle-period-tracking-longitudinal-example.json`, generated during the IG/site build and published with the rendered artifacts.
+- [Specification](specification.html)
+- [Mapping contract](specification.html#normalized-mapping-contract)
+- [Scope and missing-data rules](specification.html#scope-and-conformance-principles)
+- [Terminology](specification.html#terminology)
+- [Profiles and artifacts](artifacts.html)
+- [Worked Bundle](Bundle-period-tracking-longitudinal-example.html), generated during the IG/site build and published with the rendered artifacts.
 
 ## Bundle shape
 
@@ -22,24 +22,101 @@ Bundle (type=collection; one-person scope)
 └── Binary             optional native-JSON snapshot (see "Complete export")
 ```
 
-Each **fact** Observation: `status=final`; a `code`; `effectiveDateTime` (day precision for date-only facts, full timestamp when the source has one — never invent a time); optional `subject`; optional `device`; and exactly one `value[x]` (`Quantity | CodeableConcept | string | boolean`). The Bundle is intended to describe one person's period-tracking data even when no Patient reference is populated. The MVP uses independently meaningful facts; group by the date portion of `effectiveDateTime` in the viewer/client when you need daily rows.
+Each **fact** Observation has:
+
+- `status=final`;
+- a `code`;
+- `effectiveDateTime`, using day precision for date-only facts and a full timestamp when the source has one;
+- optional `subject`;
+- optional `device`; and
+- exactly one `value[x]`.
+
+Supported result forms are `Quantity`, `CodeableConcept`, `string`, and `boolean`. Never invent a time merely to create a full timestamp. The Bundle is intended to describe one person's period-tracking data even when no Patient reference is populated. The MVP uses independently meaningful facts; group by the date portion of `effectiveDateTime` in the viewer/client when you need daily rows.
 
 Code system URLs:
-`http://loinc.org` · `http://snomed.info/sct` · `http://unitsofmeasure.org` · `http://terminology.hl7.org/CodeSystem/observation-category` · project: `https://cycle.fhir.me/CodeSystem/cycle`.
+
+| Prefix | System |
+|---|---|
+| LOINC | `http://loinc.org` |
+| SNOMED CT | `http://snomed.info/sct` |
+| UCUM | `http://unitsofmeasure.org` |
+| Observation category | `http://terminology.hl7.org/CodeSystem/observation-category` |
+| `cycle` | `https://cycle.fhir.me/CodeSystem/cycle` |
 
 ## Fact-by-fact mapping
 
-| Fact | `code` | `value[x]` | Notes |
-|---|---|---|---|
-| Bleeding (Layer 0 core) | `cycle#menstrual-bleeding` | `valueBoolean` = `true` or `false` | The universal bleeding fact. Emit this even when flow is present. Emit `false` only when the source explicitly records no bleeding or reliably represents user-verified no bleeding. |
-| Flow intensity | `cycle#menstrual-flow` | `valueCodeableConcept` = `cycle#flow-none\|flow-spotting\|flow-light\|flow-moderate\|flow-heavy` | Optional Layer 1 ordinal *source* category. NEVER convert to mL. "heavy" = the app's top bucket, not clinical menorrhagia. |
-| Pain, 0–10 | LOINC `72514-3` | `valueQuantity` `{ value, system: ucum, code: "{score}" }` | For a numeric scale. |
-| Pain, ordinal | LOINC `38208-5`, or a stable app/project code | `valueCodeableConcept` (exact standard qualifier or app-native value) | For apps with mild/moderate/severe, not 0–10. Do not use a close-but-wrong qualifier. |
-| Symptom | `cycle#symptom` | `valueCodeableConcept` = a SNOMED finding or app-native coding/`text` | One Observation per symptom. Starter concepts in the common-tracker-symptoms ValueSet only when exact. |
-| Mood-like symptom | `cycle#symptom` | `valueCodeableConcept` = exact preferred concept such as SNOMED depressed mood, otherwise app-native value | Preserve the source mood label's meaning. |
-| Basal body temperature | LOINC `8310-5` | `valueQuantity` `Cel` | `category` MUST be `vital-signs` (FHIR forces this for vital-sign codes). Add `method` SNOMED `281660007` (basal measurement). |
+### Layer 0: required core
 
-Pain associations the viewer understands (e.g. dyspareunia) are expressed as their own symptom facts (e.g. `cycle#symptom` + SNOMED `71315007` "Dyspareunia"). Intermenstrual / postcoital bleeding can be inferred by a receiver from bleeding timing and optional source context; it is not a separate required core code.
+Every MVP export emits the Layer 0 bleeding facts it can represent.
+
+#### Bleeding
+
+- Code: `cycle#menstrual-bleeding`
+- Value: `valueBoolean` = `true` or `false`
+- Emit this boolean even when a flow-intensity fact is also present.
+- Emit `false` only when the source explicitly records no bleeding or reliably represents user-verified no bleeding.
+- Absence of a bleeding fact means not recorded or not assessed, not "false."
+
+### Layer 1: optional structured facts
+
+Emit Layer 1 facts only when the source data supports them. These facts add detail without replacing the Layer 0 bleeding core.
+
+#### Flow intensity
+
+- Code: `cycle#menstrual-flow`
+- Value: `valueCodeableConcept`
+- Allowed values: `cycle#flow-none`, `cycle#flow-spotting`, `cycle#flow-light`, `cycle#flow-moderate`, `cycle#flow-heavy`
+- Treat flow as an ordinal source-app category. Do not convert it to mL.
+- `flow-heavy` means the app's top bucket, not clinical menorrhagia.
+
+#### Symptoms
+
+- Code: `cycle#symptom`
+- Value: `valueCodeableConcept`
+- Emit one Observation per symptom.
+- Use a SNOMED CT finding when the meaning is exact, or use a stable app-native coding and/or `CodeableConcept.text` when it is not.
+- The common-tracker-symptoms ValueSet is a starter set, not a closed or required binding.
+
+#### Mood-like symptom labels
+
+- Code: `cycle#symptom`
+- Value: `valueCodeableConcept`
+- Preserve the source mood label's meaning.
+- Use a preferred concept such as SNOMED CT depressed mood only when exact; otherwise keep an app-native value.
+
+#### Pain
+
+Numeric 0-10 pain:
+
+- Code: LOINC `72514-3`
+- Value: `valueQuantity`
+- Use only when the source really stores a numeric 0-10 rating.
+
+```json
+{
+  "value": 6,
+  "system": "http://unitsofmeasure.org",
+  "code": "{score}"
+}
+```
+
+Ordinal pain:
+
+- Code: LOINC `38208-5`, or a stable app/project code when the LOINC meaning is not exact
+- Value: `valueCodeableConcept`
+- Use for source labels such as mild, moderate, or severe.
+- Do not map ordinal labels to a close-but-wrong numeric or qualifier code.
+
+Pain associations the viewer understands, such as dyspareunia, are expressed as their own symptom facts. For example: `cycle#symptom` plus SNOMED CT `71315007` "Dyspareunia."
+
+#### Basal body temperature
+
+- Code: LOINC `8310-5`
+- Value: `valueQuantity` using UCUM `Cel`
+- Category: `vital-signs` because FHIR requires vital-sign category behavior for vital-sign codes.
+- Method: add SNOMED CT `281660007` when the source establishes basal measurement.
+
+Intermenstrual or postcoital bleeding can be inferred by a receiver from bleeding timing and optional source context. They are not separate required core codes.
 
 ## Terminology choices
 

@@ -1,0 +1,37 @@
+/* ============================================================
+   cycle · spacing & layout tokens
+   8px base grid, with 2/4px half-steps for dense docs UI.
+   ============================================================ */
+
+:root {
+  /* ---- Space scale ---- */
+  --space-0:   0;
+  --space-px:  1px;
+  --space-1:   0.25rem;   /*  4px */
+  --space-2:   0.5rem;    /*  8px */
+  --space-3:   0.75rem;   /* 12px */
+  --space-4:   1rem;      /* 16px */
+  --space-5:   1.5rem;    /* 24px */
+  --space-6:   2rem;      /* 32px */
+  --space-7:   2.5rem;    /* 40px */
+  --space-8:   3rem;      /* 48px */
+  --space-9:   4rem;      /* 64px */
+  --space-10:  6rem;      /* 96px */
+  --space-11:  8rem;      /* 128px */
+
+  /* ---- Layout widths ---- */
+  --measure-prose:  68ch;     /* readable doc column            */
+  --width-sidebar:  264px;    /* IG left nav                    */
+  --width-toc:      220px;    /* right-hand "on this page"      */
+  --width-content:  760px;    /* main doc column max            */
+  --width-page:     1320px;   /* full shell max                 */
+
+  /* ---- Component sizing ---- */
+  --control-sm:  28px;
+  --control-md:  36px;
+  --control-lg:  44px;        /* min touch target               */
+  --control-xl:  52px;
+
+  --gutter:      var(--space-5);
+  --section-y:   var(--space-10);
+}

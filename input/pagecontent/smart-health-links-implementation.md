@@ -2,7 +2,7 @@
 
 A SMART Health Link (SHL) lets a user share the FHIR Bundle as an **encrypted file plus a key**, where the hosting server only ever sees ciphertext. The key travels inside the link (in the URL fragment), so a blind host — your CDN, an object store, or a third party — can never read the cycle data.
 
-This page is a condensed, self-contained reference for the SHL wire format plus the sharing-UX and host guidance this IG adds. For the normative protocol, defer to the **SMART Health Links specification** (HL7 SMART Health Cards & Links IG) — read the source markdown: https://github.com/HL7/smart-health-cards-and-links/blob/main/input/pagecontent/links-specification.md. For Period Tracking MVP packaging specifics (share shape, lifetime, use-limit), see [SMART Health Links packaging](smart-health-links.html).
+This page is a condensed, self-contained reference for the SHL wire format plus the sharing-UX and host guidance this IG adds. For the normative protocol, defer to the **SMART Health Links specification** (HL7 SMART Health Cards & Links IG) — the source markdown is [links-specification.md](https://github.com/HL7/smart-health-cards-and-links/blob/main/input/pagecontent/links-specification.md). For Period Tracking MVP packaging specifics (share shape, lifetime, use-limit), see [SMART Health Links packaging](smart-health-links.html).
 
 ## How a SMART Health Link works
 
@@ -23,22 +23,81 @@ An SHL is a small JSON payload, base64url-encoded after `shlink:/`, that points 
 
 ### Encryption
 
-Each file is a **compact JWE** — `alg:"dir"`, `enc:"A256GCM"`, `cty` header = the payload's media type (`application/fhir+json` for a Bundle). Generate a **fresh random 96-bit IV from a CSPRNG for every encryption**, cap a single key at ~2³² messages, then rotate keys — the simplest correct discipline is a **fresh key per share**, so each key encrypts one file.
+Each file is a **compact JWE**. For a Period Tracking MVP Bundle, the protected header uses direct key management, AES-256-GCM content encryption, and the FHIR JSON payload media type:
+
+```json
+{
+  "alg": "dir",
+  "enc": "A256GCM",
+  "cty": "application/fhir+json"
+}
+```
+
+Generate a **fresh random 96-bit IV from a CSPRNG for every encryption**, cap a single key at ~2³² messages, then rotate keys — the simplest correct discipline is a **fresh key per share**, so each key encrypts one file.
 
 Optional `zip:"DEF"` (raw DEFLATE before encrypt) shrinks a bundle dramatically (our ~640 KB example → ~20 KB) and the IG demo uses it — but modern `jose` dropped JWE `zip`, so DEF is a common failure point for third-party receivers. **Default to uncompressed** for links to unknown viewers; use DEF only when you control the receiver. The IG viewer inflates DEF.
 
 ### Retrieving the content
 
-`recipient` (a display string naming who is opening the link) is **required** on every retrieval. Two rails:
+`recipient` (a display string naming who is opening the link) is **required** on every retrieval. SHL has two retrieval rails.
 
-- **Manifest** (default; required for multi-file, passcode, or any server-enforced control): the receiver `POST`s `{recipient, passcode?, embeddedLengthMax?}` to `url` and gets `{ files: [ { contentType, embedded | location } ] }`. Each file's **`contentType` is the *decrypted* payload type** — `application/fhir+json`, `application/smart-health-card`, or `application/smart-api-access` — **not** `application/jose` (that is only the HTTP type of a JWE body). Small files come back inline as `embedded`; larger ones as a short-lived `location` URL the receiver then fetches.
-- **Direct file** (`flag` contains `U`): the receiver simply `GET`s `url?recipient=…`, body is the JWE (`Content-Type: application/jose`). **Single-file, and SHALL NOT carry a passcode.** Because a `GET` needs no server logic, a plain static object (S3 / GCS / Azure blob, a CDN or GitHub Pages file) is a compliant direct-file host — it returns the bytes and ignores the `?recipient` query. That is also its ceiling: a dumb host can't read `recipient`, count opens, or enforce `exp`, and it must send permissive CORS so a browser viewer can fetch cross-origin. Our demo *is* this — `example.jwe` is a static GitHub Pages file with `flag:"U"`.
+**Manifest rail.** This is the default rail, and it is required for multi-file links, passcodes, or any server-enforced control. The receiver sends:
+
+```http
+POST {url}
+```
+
+```json
+{
+  "recipient": "Display name",
+  "passcode": "optional",
+  "embeddedLengthMax": 1048576
+}
+```
+
+The host returns a manifest:
+
+```json
+{
+  "files": [
+    {
+      "contentType": "application/fhir+json",
+      "embedded": "compact-jwe-or-omitted",
+      "location": "short-lived-url-or-omitted"
+    }
+  ]
+}
+```
+
+Each file's **`contentType` is the *decrypted* payload type**, such as `application/fhir+json`, `application/smart-health-card`, or `application/smart-api-access`. It is **not** `application/jose`; that is only the HTTP type of a JWE body. Small files come back inline as `embedded`; larger ones come back as a short-lived `location` URL the receiver then fetches.
+
+**Direct-file rail.** This rail is selected when `flag` contains `U`. The receiver fetches:
+
+```http
+GET {url}?recipient=Display%20name
+```
+
+The response body is the compact JWE, with:
+
+```http
+Content-Type: application/jose
+```
+
+Direct-file SHLinks are **single-file, and SHALL NOT carry a passcode**. Because a `GET` needs no server logic, a plain static object can satisfy the wire format for demos or unmanaged snapshots: it returns the bytes and ignores the `recipient` query. That is also its ceiling. A dumb host cannot read `recipient`, count opens, or enforce `exp`, and it must send permissive CORS so a browser viewer can fetch cross-origin. Treat static hosting as a demo convenience, not the product default for revocable period-tracking shares. Our demo uses this rail: `example.jwe` is a static GitHub Pages file with `flag:"U"`.
 
 Either way the receiver decrypts the JWE with `key` and parses the payload.
 
 ### Passcode (`flag` `P`)
 
-A host-enforced second factor: the receiver supplies it in the manifest `POST`, and the host withholds the ciphertext unless it matches. The host SHALL bound incorrect attempts — on a wrong passcode return **`401` with a `{remainingAttempts}`** body, and **disable** the link once the budget is spent. Passcode is manifest-only (incompatible with the `U` rail).
+A host-enforced second factor: the receiver supplies it in the manifest `POST`, and the host withholds the ciphertext unless it matches. The host SHALL bound incorrect attempts. On a wrong passcode, return `401` with a body such as:
+
+```json
+{
+  "remainingAttempts": 2
+}
+```
+
+Disable the link once the attempt budget is spent. Passcode is manifest-only and incompatible with the `U` rail.
 
 ## Sharing UX — present and manage the link
 
@@ -46,7 +105,13 @@ Treat a share as a **live, revocable object the user owns**, not a one-off expor
 
 ### Present the link — checklist
 
-The shareable string is either a bare `shlink:/eyJ...` or a **viewer URL + fragment**: `<viewer>#shlink:/eyJ...`. The viewer-prefixed form is the preferred default for general QR/copy UX; the bare form is still fully valid when the receiver expects a raw SHLink. SHL-aware scanners should process either by extracting the `shlink:/...`. The `#` fragment is never sent to the server, so a viewer-prefixed link keeps the key out of logs. The project's own reference viewer prefix is `https://cycle.fhir.me/view#shlink:/...`.
+The shareable string is either a bare `shlink:/eyJ...` or a **viewer URL + fragment**:
+
+```text
+<viewer>#shlink:/eyJ...
+```
+
+The viewer-prefixed form is the preferred default for general QR/copy UX; the bare form is still fully valid when the receiver expects a raw SHLink. SHL-aware scanners should process either by extracting the `shlink:/...`. The `#` fragment is never sent to the server, so a viewer-prefixed link keeps the key out of logs. This IG's reference viewer uses the [view.html](view.html) prefix.
 
 - [ ] **MUST render an on-screen QR** of that full string — error-correction level M, sized to scan from a phone, label visible (optionally the SMART logo). Prefer a viewer-prefixed link for ordinary phone-camera launch into a browser viewer. Use a bare `shlink:/...` when the receiving workflow explicitly expects the raw SHLink. A provider's dedicated scanner should extract and process either form. *The QR is the primary in-person handoff and the step implementers most often skip — it is not optional.*
 - [ ] **MUST offer copy-to-clipboard** of the identical string.
@@ -68,36 +133,35 @@ Two automatic take-down triggers, both host-enforced and surfaced here: **after 
 
 ### Honesty rule
 
-**Only surface a control the host actually enforces.** Don't show "2 opens left" if the host can't count GETs; don't imply auto-expiry a static object won't enforce. The link itself carries only an advisory `exp` — enforcement (expiry, use-count, revocation) is the *host's* job, so what you can promise in the UI is gated by where the ciphertext lives (next section).
+**Only surface a control the host actually enforces.** Don't show "2 opens left" if the host cannot count retrievals; don't imply auto-expiry unless the host stops serving at expiry. The link itself carries only an advisory `exp` — enforcement (expiry, use-count, revocation) is the *host's* job.
 
-## Choosing a host by the controls you need
+## Choosing an enforcement host
 
-Start from the controls you must honestly offer, then pick the host that can back them.
+For product shares, start from the assumption that the user needs a managed, revocable share. A static object can demonstrate the direct-file wire format, but it is not a good implementation target for period-tracking products because it cannot enforce use limits, passcodes, expiry, or access logs.
 
-| Host | Real auto-expiry | Use-limit / count | Explicit revoke | Access visible | Use when |
-|---|---|---|---|---|---|
-| **Static object, no backend** (CDN / S3 / GCS / Azure, permissive CORS) | ✗ advisory only — must delete to enforce | ✗ blind host can't count | ✓ delete / overwrite / rotate key | ✗ | you just need to publish a snapshot the user can hand to a clinician |
-| **Your own backend** (direct-file: `GET <url>?recipient=…` → `application/jose`) | ✓ | ✓ | ✓ | ✓ | clinic check-in, tighter operational control, production with no third party in the path |
-| **shlep** (deployable blind SHLink service over any object store) | ✓ | ✓ | ✓ pause / revoke | ✓ | client-only / static / mobile apps with no backend to enforce limits, revocation, passcode, or audit |
+The practical choice is whether to build the SHLink hosting controls into your own backend or deploy a reusable blind SHLink service.
 
-**Decision rule:** if the product promises use-limits, guaranteed revocation, passcode, or "opens remaining," a blind static host is insufficient — use a backend or deploy shlep. Static is fine for a plain snapshot, but you still owe the user a real take-down (delete the object) and must not display counters you cannot compute.
+| Choice | What it provides | What you own | Use when |
+|---|---|---|---|
+| **Build it into your backend** | Direct-file and/or manifest endpoints; expiry, use count, passcode, revoke, and access log behavior you implement. | Storage, share IDs, manage tokens, authorization, rate limiting, CORS, audit logging, and tests. | The app already has a backend and the team wants first-party operational control. |
+| **Deploy shlep** | Existing blind SHLink data plane and control plane: file hosting, expiry, max-use, passcode, pause/resume, revoke, and access log. | Operating the service and object store; integrating share creation and manage-token handling into the app. | Client-only, static, or mobile apps with no natural backend, or teams that want a reusable SHLink service instead of building this feature from scratch. |
 
-In all three, the privacy boundary holds: the host stores only ciphertext; the key stays client-side.
+Either way, the privacy boundary holds: the host stores only ciphertext; the key stays client-side.
 
 **shlep — a deployable blind SHLink service.** Use [shlep](https://github.com/jmandel/shlep) when the app can encrypt a Bundle but has no natural backend to host the ciphertext. It implements the SHLink data plane this guide needs (`GET /shl/{id}?recipient=…` → compact JWE; plus the manifest rail) and a capability-token control plane: create shares, add/replace/delete files, set expiry and max-use, set/clear a passcode, pause/resume, revoke, and read an access log — over ciphertext + a hashed manage token, never plaintext or the content key.
 
-- Source + spec: https://github.com/jmandel/shlep (`docs/api-design.md`; a running instance self-documents at `GET /llms.txt`).
+- Source + spec: [github.com/jmandel/shlep](https://github.com/jmandel/shlep) (`docs/api-design.md`; a running instance self-documents at `GET /llms.txt`).
 - Backends: any object store — S3, R2, GCS, Azure Blob, MinIO.
 
 You deploy and operate it (no public hosted instance) — the right posture for production health data: you control retention, monitoring, and how manage tokens are issued.
 
 ## Implementing it yourself (no service)
 
-If you'd rather not run a service, the client side is small. Use shlep's reference client crypto — `src/crypto.ts` (compact JWE `dir`/A256GCM, WebCrypto only) and `src/client.ts` (encrypt + compose the `shlink:/`) at https://github.com/jmandel/shlep — directly or translated; it uses a **fresh random IV per encryption and a fresh key per share** (the correct nonce discipline). For direct-file mode you then host the `.jwe` and hand out a bare `shlink:/<payload>` or `<viewer>#shlink:/<payload>`.
+If you'd rather not run a service, the client side is small. Use shlep's reference client crypto — `src/crypto.ts` (compact JWE `dir`/A256GCM, WebCrypto only) and `src/client.ts` (encrypt + compose the `shlink:/`) in [github.com/jmandel/shlep](https://github.com/jmandel/shlep) — directly or translated. For direct-file mode you then host the `.jwe` and hand out a bare `shlink:/<payload>` or `<viewer>#shlink:/<payload>`.
 
 The IG's own `viewer-src/jwe.mjs` is the viewer's **decrypt** path; `scripts/gen-shl.ts` is **editorial demo tooling** that pins a fixed key+IV only to keep the published example byte-stable — do not copy that pattern for real encryption.
 
 ## Receiver notes
 
-- **Recipient flow:** scan/paste → extract `shlink:/` → decode → `GET <url>?recipient=...` → fetch JWE → decrypt with `key` → FHIR. Always send `recipient`; expect one-time/expiring links not to re-resolve.
+- **Recipient flow:** scan/paste → extract `shlink:/` → decode → retrieve with `recipient` → fetch JWE → decrypt with `key` → FHIR. Always send `recipient`; expect one-time/expiring links not to re-resolve.
 - **Receiver hygiene:** fetch payload URLs through a hardened, SSRF-resistant retrieval path and treat decrypted content as untrusted input. Label the rendering clearly as patient-generated, not clinically attested.

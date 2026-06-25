@@ -158,11 +158,13 @@ The optional Layer 2 Binary SHOULD contain the exact selected native JSON after 
 
 The first row is the universal interoperable core that MVP producers emit and MVP viewers understand: a Layer 0 boolean bleeding fact at the source date or timestamp. The remaining rows are optional Layer 1 facts that add intensity, symptoms, pain, or temperature when the source app has those data.
 
+In this table, `cycle#...` means the project [Period Tracking MVP Codes](CodeSystem-cycle.html) CodeSystem.
+
 | Clinical fact | Observation.code | Result | Notes |
 |---|---|---|---|
-| Bleeding (Layer 0 core) | `https://cycle.fhir.me/CodeSystem/cycle#menstrual-bleeding` | `valueBoolean` true or false | The universal bleeding fact. Emit `false` only when the source explicitly records no bleeding or otherwise reliably represents a user-verified no-bleeding state. |
-| Menstrual flow | `https://cycle.fhir.me/CodeSystem/cycle#menstrual-flow` | One of the five MVP flow codes | Optional Layer 1 intensity fact. Ordinal source category; never convert to mL or hemorrhage severity. |
-| Symptom | `https://cycle.fhir.me/CodeSystem/cycle#symptom` | `valueCodeableConcept`: preferred starter ValueSet concept when exact; otherwise app-native coding and/or text | Optional Layer 1 symptom fact. One Observation per selected symptom. Do not force a nearby SNOMED finding. |
+| Bleeding (Layer 0 core) | `cycle#menstrual-bleeding` | `valueBoolean` true or false | The universal bleeding fact. Emit `false` only when the source explicitly records no bleeding or otherwise reliably represents a user-verified no-bleeding state. |
+| Menstrual flow | `cycle#menstrual-flow` | One of the five MVP flow codes | Optional Layer 1 intensity fact. Ordinal source category; never convert to mL or hemorrhage severity. |
+| Symptom | `cycle#symptom` | `valueCodeableConcept`: preferred starter ValueSet concept when exact; otherwise app-native coding and/or text | Optional Layer 1 symptom fact. One Observation per selected symptom. Do not force a nearby SNOMED finding. |
 | Numeric pain | LOINC `72514-3` - Pain severity 0-10 verbal numeric rating | Quantity using UCUM `{score}` | Optional Layer 1 numeric pain fact. Use only for a true 0-10 rating. |
 | Ordinal pain | LOINC `38208-5` - Pain severity - Reported, or a stable app/project code | Standard qualifier or app-native coded value | Optional app-native Layer 1 fact. Do not turn "unbearable" into a 10/10 score or a near-match qualifier. |
 | Basal body temperature | LOINC `8310-5` - Body temperature | UCUM temperature Quantity | Optional Layer 1 temperature fact. Add SNOMED CT `281660007` as method when the source establishes basal measurement. |

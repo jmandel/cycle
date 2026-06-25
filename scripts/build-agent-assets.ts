@@ -1,18 +1,22 @@
 #!/usr/bin/env bun
 /**
- * Build agent-facing static artifacts from the IG pagecontent source.
+ * Build agent-facing static artifacts from the RENDERED site (one source of truth).
+ *
+ * Reads the Liquid-resolved markdown that site-gen publishes (site-gen/out/*.md),
+ * not the raw input/pagecontent, so the skill package matches the published pages.
  *
  * Outputs:
- *   - <out>/skill.zip: Codex-style skill package with SKILL.md, references/*,
- *     and spec/* copied from input/pagecontent.
- *   - <out>/llms.txt: small agent entrypoint for the published site.
+ *   - <out>/skill.zip: skill package (SKILL.md + references/* + spec/*).
+ *   - <out>/llms.txt: APPENDS an "Agent package" note to site-gen's DB-generated
+ *     llms.txt — it does not overwrite the rendered inventory.
  */
 import { cp, mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 const root = `${import.meta.dir}/..`;
-const pagecontent = join(root, "input", "pagecontent");
 const outDir = Bun.env.AGENT_OUTDIR || join(root, "dist");
+// Source the resolved markdown from the rendered site (defaults to the same dir).
+const pagecontent = Bun.env.AGENT_SITE_DIR || outDir;
 const staging = join(root, "temp", "skill-package");
 const zipOut = join(outDir, "skill.zip");
 const llmsOut = join(outDir, "llms.txt");
@@ -145,29 +149,16 @@ Source repository: ${sourceRepo}
 
 await zipDir(staging, zipOut);
 
-await writeFile(llmsOut, `# Period Tracking MVP Implementation Guide
+// Preserve site-gen's DB-generated llms.txt (the rendered inventory mirroring the
+// menu + artifacts). Only APPEND an "Agent package" section — never overwrite it.
+const agentSection = `\n## Agent package\n- [skill.zip](skill.zip): self-contained skill package (SKILL.md + references + core spec markdown), generated from this published site. Source: ${sourceRepo}\n`;
+const existingLlms = (await Bun.file(llmsOut).exists()) ? await read(llmsOut) : "";
+if (!existingLlms) {
+  console.warn(`warning: ${llmsOut} not found — run site-gen first so llms.txt exists. Writing agent section only.`);
+}
+const nextLlms = existingLlms.includes("## Agent package")
+  ? existingLlms // idempotent: already has the section
+  : (existingLlms.trimEnd() + "\n" + agentSection);
+await writeFile(llmsOut, nextLlms);
 
-Canonical site: https://cycle.fhir.me/
-Source repository: ${sourceRepo}
-
-This site defines a small FHIR R4 exchange model for patient-generated menstrual period tracking data, plus SMART Health Link packaging and a client-side reference viewer.
-
-Key pages:
-- Specification: https://cycle.fhir.me/specification.html
-- Agent implementation skill: https://cycle.fhir.me/skill.html
-- FHIR mapping reference: https://cycle.fhir.me/fhir-mapping.html
-- SMART Health Links packaging: https://cycle.fhir.me/smart-health-links.html
-- SMART Health Links implementation notes: https://cycle.fhir.me/smart-health-links-implementation.html
-- Viewer integration: https://cycle.fhir.me/viewer-integration.html
-- Reference viewer v1: https://cycle.fhir.me/view
-- Reference viewer v2: https://cycle.fhir.me/view2.html
-- Reference viewer v3: https://cycle.fhir.me/view3.html
-
-Agent package:
-- Download https://cycle.fhir.me/skill.zip for a self-contained skill package. It maps the browsable IG skill page to SKILL.md and includes references plus core spec markdown.
-
-Primary compatibility rule:
-- Layer 0 is required: emit cycle#menstrual-bleeding boolean facts at the source date or timestamp. Layer 1 structured facts and Layer 2 native archive are optional additive layers.
-`);
-
-console.log(`agent assets -> ${zipOut} + ${llmsOut}`);
+console.log(`agent assets -> ${zipOut} (+ appended Agent package to ${llmsOut})`);
