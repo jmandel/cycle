@@ -6,11 +6,11 @@
  * not the raw input/pagecontent, so the skill package matches the published pages.
  *
  * Outputs:
- *   - <out>/skill.zip: skill package (SKILL.md + references/* + spec/*).
+ *   - <out>/skill.zip: skill package (SKILL.md + spec/*).
  *   - <out>/llms.txt: APPENDS an "Agent package" note to site-gen's DB-generated
  *     llms.txt — it does not overwrite the rendered inventory.
  */
-import { cp, mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 const root = `${import.meta.dir}/..`;
@@ -46,20 +46,19 @@ description: Add standards-based menstrual/cycle data sharing to a period-, fert
 `;
 
 const siteLinkTargets: Record<string, string> = {
-  "fhir-mapping": "references/fhir-mapping.md",
-  "journal-templates": "references/journal-templates.md",
-  "smart-health-links-implementation": "references/smart-health-links.md",
-  "viewer-integration": "references/viewer.md",
   "smart-health-links": "spec/smart-health-links.md",
   specification: "spec/specification.md",
+  implementation: "SKILL.md",
+  skill: "SKILL.md",
 };
 
 const specLinkTargets: Record<string, string> = {
-  "fhir-mapping": "../references/fhir-mapping.md",
-  "journal-templates": "../references/journal-templates.md",
-  "smart-health-links-implementation": "../references/smart-health-links.md",
-  "viewer-integration": "../references/viewer.md",
+  "fhir-mapping": `${siteBase}/fhir-mapping.html`,
+  "journal-templates": `${siteBase}/journal-templates.html`,
+  "smart-health-links-implementation": `${siteBase}/smart-health-links-implementation.html`,
+  "viewer-integration": `${siteBase}/viewer-integration.html`,
   skill: "../SKILL.md",
+  implementation: "../SKILL.md",
   index: "index.md",
   specification: "specification.md",
   "smart-health-links": "smart-health-links.md",
@@ -84,16 +83,6 @@ function rewriteSitePageLinks(markdown: string, targets: Record<string, string>)
 
 function siteToPackageLinks(markdown: string) {
   return rewriteSitePageLinks(markdown.replaceAll("(skill.zip)", "(README.md)"), siteLinkTargets);
-}
-
-function referencePackageLinks(markdown: string) {
-  return siteToPackageLinks(markdown)
-    .replaceAll("(references/fhir-mapping.md)", "(fhir-mapping.md)")
-    .replaceAll("(references/journal-templates.md)", "(journal-templates.md)")
-    .replaceAll("(references/smart-health-links.md)", "(smart-health-links.md)")
-    .replaceAll("(references/viewer.md)", "(viewer.md)")
-    .replaceAll("(spec/specification.md", "(../spec/specification.md")
-    .replaceAll("(spec/smart-health-links.md)", "(../spec/smart-health-links.md)");
 }
 
 function specPackageLinks(markdown: string) {
@@ -124,15 +113,9 @@ async function zipDir(sourceDir: string, targetZip: string) {
 
 await mkdir(outDir, { recursive: true });
 await rm(staging, { recursive: true, force: true });
-await mkdir(join(staging, "references"), { recursive: true });
 await mkdir(join(staging, "spec"), { recursive: true });
 
-await writeFile(join(staging, "SKILL.md"), skillFrontMatter + siteToPackageLinks(await read(join(pagecontent, "skill.md"))));
-
-await writeTransformed("fhir-mapping.md", join(staging, "references", "fhir-mapping.md"), referencePackageLinks);
-await writeTransformed("smart-health-links-implementation.md", join(staging, "references", "smart-health-links.md"), referencePackageLinks);
-await writeTransformed("viewer-integration.md", join(staging, "references", "viewer.md"), referencePackageLinks);
-await writeTransformed("journal-templates.md", join(staging, "references", "journal-templates.md"), referencePackageLinks);
+await writeFile(join(staging, "SKILL.md"), skillFrontMatter + siteToPackageLinks(await read(join(pagecontent, "implementation.md"))));
 
 for (const file of [
   "index.md",
@@ -154,7 +137,6 @@ await writeFile(join(staging, "README.md"), `# Period Tracking FHIR Sharing Skil
 This zip is generated from the Period Tracking MVP IG source content.
 
 - Start with \`SKILL.md\`.
-- The \`references/\` directory contains the implementation method details.
 - The \`spec/\` directory contains the core IG markdown snapshot used by the skill.
 
 Published IG: ${siteBase}/
@@ -165,7 +147,7 @@ await zipDir(staging, zipOut);
 
 // Preserve site-gen's DB-generated llms.txt (the rendered inventory mirroring the
 // menu + artifacts). Only APPEND an "Agent package" section — never overwrite it.
-const agentSection = `\n## Agent package\n- [skill.zip](skill.zip): self-contained skill package (SKILL.md + references + core spec markdown), generated from this published site. Source: ${sourceRepo}\n`;
+const agentSection = `\n## Agent package\n- [skill.zip](skill.zip): self-contained skill package (SKILL.md + core spec markdown), generated from this published site. Source: ${sourceRepo}\n`;
 const existingLlms = (await Bun.file(llmsOut).exists()) ? await read(llmsOut) : "";
 if (!existingLlms) {
   console.warn(`warning: ${llmsOut} not found — run site-gen first so llms.txt exists. Writing agent section only.`);

@@ -3,7 +3,7 @@
 The authoritative model is the IG. Open these alongside this file:
 
 - [Specification](specification.html)
-- [Mapping contract](specification.html#normalized-mapping-contract)
+- [Core facts](specification.html#core-facts)
 - [Scope and missing-data rules](specification.html#scope-and-conformance-principles)
 - [Terminology](specification.html#terminology)
 - [Profiles and artifacts](artifacts.html)

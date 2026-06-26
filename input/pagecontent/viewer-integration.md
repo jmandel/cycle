@@ -6,14 +6,13 @@ Reference viewer source: `viewer-src/` and `view3-src/` in the IG repo.
 
 ## Viewer pipeline
 
-```mermaid
-flowchart LR
-  L["shlink:/…"] -->|parse| P["{ url, key, flag }"]
-  P -->|fetch + decrypt JWE| F["FHIR Bundle"]
-  F -->|transform| V["view model<br/>(cycles, daily facts, events)"]
-  V -->|derive| M["metrics<br/>(intervals, durations, medians)"]
-  M -->|render| U["summary UI"]
-```
+| Step | Output |
+|---|---|
+| Parse `shlink:/...` | `{ url, key, flag }` |
+| Fetch and decrypt JWE | FHIR Bundle |
+| Transform Bundle | View model: cycles, daily facts, events |
+| Derive metrics | Intervals, durations, medians |
+| Render | Summary UI |
 
 The reference implementation, file by file (all dependency-light, browser + bun safe):
 

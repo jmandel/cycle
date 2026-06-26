@@ -30,30 +30,25 @@ menu:
   Home: index.html
   Specification:
     Overview: specification.html
-    Data:
-      Adoption layers: specification.html#adoption-layers
-      Scope and principles: specification.html#scope-and-conformance-principles
-      Data model: specification.html#data-model
-      Mapping contract: specification.html#normalized-mapping-contract
-      Terminology: specification.html#terminology
-    Sharing:
-      SMART Health Link packaging: smart-health-links.html
-      Security and privacy: security.html
+    Adoption layers: specification.html#adoption-layers
+    Scope and conformance: specification.html#scope-and-conformance-principles
+    Data model: specification.html#data-model
+    Profiles: specification.html#profiles
+    Core facts: specification.html#core-facts
+    SMART Health Link packaging: specification.html#smart-health-link-packaging
+    Security and privacy: specification.html#security-and-privacy
+    Terminology: specification.html#terminology
   Implementation:
-    Mapping and testing:
-      AI implementation skill: skill.html
-      FHIR mapping guide: fhir-mapping.html
-      Testing guide: testing.html
-      Journal templates: journal-templates.html
-    Sharing and viewing:
-      SHL implementation reference: smart-health-links-implementation.html
-      Viewer integration: viewer-integration.html
-      Clinical display guidance: clinical-display.html
-      Worked example: examples.html
+    Overview: implementation.html
+    Workflow: implementation.html#workflow
+    FHIR mapping: implementation.html#fhir-mapping
+    Sharing and hosting: implementation.html#sharing-and-hosting
+    Viewer and display: implementation.html#viewer-and-display
+    Testing and journal: implementation.html#testing-and-journal
   More:
-    References: references.html
     Artifacts: artifacts.html
     IG details: ig-details.html
+    References: references.html
 resources:
   StructureDefinition/menstrual-bleeding:
     extension:

@@ -69,6 +69,11 @@ export function Layout({
                   ))}
                 </nav>
               )}
+              {aiSource && (
+                <a className="copy-ai-source copy-ai-source-mobile" href={aiSource} data-copy-ai-source={aiSource}>
+                  Copy page for AI
+                </a>
+              )}
               {children}
             </article>
           </main>

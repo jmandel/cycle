@@ -356,6 +356,8 @@ img { max-width: 100%; }
   transform: scale(.96);
 }
 .copy-value--codeblock .copy-value-code {
+  width: 100%;
+  box-sizing: border-box;
   padding-right: 46px;
   white-space: pre;
   overflow-x: auto;
@@ -618,6 +620,10 @@ h2.sec, .page-title { position: relative; }
   transform: scale(.98);
 }
 .copy-ai-source[data-copied="true"]::after { content: " copied"; }
+.copy-ai-source-mobile { display: none; margin: 0 0 18px; }
+@media (max-width: 1180px) {
+  .copy-ai-source-mobile { display: inline-flex; }
+}
 .source-action { margin: 10px 0 0; display: flex; flex-wrap: wrap; gap: 8px; }
 .source-action a {
   display: inline-flex; align-items: baseline; gap: 6px; flex-wrap: wrap;
