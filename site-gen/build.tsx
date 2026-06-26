@@ -149,7 +149,7 @@ function profileRootRequirements(data: any, rootType: string): ProfileRequiremen
 const derivedProfiles = new Map<string, string[]>();
 for (const r of structureDefinitions) {
   if (!r.Url) continue;
-  const data = structureDefinitionDataByUrl.get(r.Url) || db.parse(r);
+  const data = structureDefinitionDataByUrl.get(r.Url)!;
   const base = data.baseDefinition;
   if (!base || !byUrl.has(base)) continue;
   derivedProfiles.set(base, [...(derivedProfiles.get(base) || []), r.Url]);
@@ -313,7 +313,7 @@ emit('artifacts.html', <ArtifactsPage resources={artifactResources()} page={page
 // ---- profile pages ----
 let nProfiles = 0;
 for (const r of artifactResources('StructureDefinition')) {
-  const data = r.Url ? (structureDefinitionDataByUrl.get(r.Url) || db.parse(r)) : db.parse(r);
+  const data = r.Url ? structureDefinitionDataByUrl.get(r.Url)! : db.parse(r);
   const rootType = r.sdType || data.type;
   const requirements = profileRootRequirements(data, rootType);
   const examples = profileExamples(r.Url || '');
