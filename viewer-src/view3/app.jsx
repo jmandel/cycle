@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { transformBundle } from "../viewer-src/transform.mjs";
-import { prepare } from "../viewer-src/viewmodel.mjs";
-import { DEFAULT_RECIPIENT, extractShlinkURI, parseShlink, resolveShl, shlinkFromPayload } from "../viewer-src/shl.mjs";
+import { transformBundle } from "../shared/transform.mjs";
+import { prepare } from "../shared/viewmodel.mjs";
+import { DEFAULT_RECIPIENT, extractShlinkURI, parseShlink, resolveShl, shlinkFromPayload } from "../shared/shl.mjs";
 
 const DAY_MS = 86400000;
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];

@@ -83,6 +83,26 @@ async function walk(dir: string, base = dir): Promise<string[]> {
   }
   return out;
 }
+async function writeCompatibility404() {
+  await writeFile(join(OUT, '404.html'), `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Not found</title>
+<script>
+const path = location.pathname;
+const next = path === '/en' ? '/' : path.startsWith('/en/') ? path.slice(3) : null;
+if (next) location.replace(next + location.search + location.hash);
+</script>
+</head>
+<body>
+<h1>Not found</h1>
+<p>If this was an old /en/ URL, remove /en from the path.</p>
+</body>
+</html>
+`);
+  console.log('Wrote 404.html compatibility redirect for old /en/ URLs');
+}
 
 // 1–3. FHIR inputs, SUSHI, integrity checks
 await requireTool('Graphviz dot', ['dot', '-V'], 'Install graphviz so PlantUML diagrams render.');
@@ -120,6 +140,7 @@ await mirrorDemoAssets(primary.output.assets, others.map((v) => v.output.assets)
 await step('package agent assets (skill.zip)', ['bun', 'scripts/build-agent-assets.ts'], { AGENT_OUTDIR: OUT });
 const cname = Bun.env.PAGES_CNAME || project.cname;
 await writeFile(join(OUT, 'CNAME'), `${cname}\n`);
+await writeCompatibility404();
 
 // 12. final whole-site link check (strict: every internal href/src must now exist)
 const files = (await walk(OUT)).filter((f) => f.endsWith('.html'));

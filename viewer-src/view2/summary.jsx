@@ -1,5 +1,5 @@
 /**
- * summary2.jsx — view2's presentation. A fresh take that follows the DevDays
+ * summary.jsx — view2's presentation. A fresh take that follows the DevDays
  * principle literally:
  *   1. Lead with the DERIVED clinical metrics (the "bulk of meaning"), computed
  *      from (date, bleeding) — not with the raw calendar.

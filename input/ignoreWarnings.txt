@@ -7,3 +7,15 @@
 # spec's own survey/score examples). The validator's note is a best-practice
 # caution, not a defect. Accepted by the IG author.
 UCUM Codes that contain human readable annotations like {score} can be misleading (e.g. they are ignored when comparing units). Best Practice is not to depend on annotations in the UCUM code, so this usage should be checked
+
+# Publisher checks its own output/en tree before sitegen injects these final
+# static artifacts. The sitegen wrapper then adds the viewers and skill.zip and
+# runs a strict final internal link check over site-gen/out.
+The link 'skill.zip' for "skill.zip" cannot be resolved
+%The link 'view.html#shlink:/%
+%The link 'view2.html#shlink:/%
+%The link 'view3.html#shlink:/%
+
+# The final site intentionally uses <picture> for responsive home-page art.
+# Publisher's legacy XHTML checker does not include that HTML5 element.
+Illegal HTML: Illegal HTML element: picture

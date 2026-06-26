@@ -3,7 +3,7 @@ import React, { useState } from "react";
 /* ============================================================================
    Menstrual Health Summary — clinician-facing viewer (render layer)
    Adapted from the original kit viewer to consume a view model produced from a
-   real FHIR Bundle (viewer-src/transform.mjs -> viewmodel.mjs:prepare), instead
+   real FHIR Bundle (viewer-src/shared/transform.mjs -> viewmodel.mjs:prepare), instead
    of a hard-coded synthetic case. All metrics come from the data, never literals.
    ========================================================================== */
 

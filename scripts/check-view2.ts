@@ -5,7 +5,7 @@
  *
  *   bun scripts/check-view2.ts
  */
-import { transformBundle } from "../viewer-src/transform.mjs";
+import { transformBundle } from "../viewer-src/shared/transform.mjs";
 import { derive } from "../viewer-src/view2/derive.mjs";
 
 const path = `${import.meta.dir}/../input/resources/Bundle-period-tracking-longitudinal-example.json`;

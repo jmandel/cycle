@@ -17,4 +17,4 @@ The published site build also creates a direct-file SMART Health Link for this B
 
 ## Build process
 
-The example is generated, not hand-authored, so it can't drift from the data model: `viewer-src/dataset.mjs` (the deterministic synthetic case) → `scripts/gen-example.ts` emits the FHIR resources into the build's `input/resources/` directory → the IG Publisher validates and publishes the Bundle → `scripts/gen-shl.ts` encrypts the Bundle into the sample link under `view-assets/`. The generated JSON and encrypted SHLink are build artifacts, not committed source files.
+The example is generated, not hand-authored, so it can't drift from the data model: `viewer-src/shared/dataset.mjs` (the deterministic synthetic case) → `scripts/gen-example.ts` emits the FHIR resources into the build's `input/resources/` directory → the IG Publisher validates and publishes the Bundle → `scripts/gen-shl.ts` encrypts the Bundle into the sample link under `view-assets/`. The generated JSON and encrypted SHLink are build artifacts, not committed source files.

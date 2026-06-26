@@ -4,7 +4,7 @@
 
 import { mkdirSync } from "node:fs";
 import { join, normalize } from "node:path";
-import { parseShlink, resolveShl } from "../viewer-src/shl.mjs";
+import { parseShlink, resolveShl } from "../viewer-src/shared/shl.mjs";
 import { viewerVariants } from "./viewer-variants.ts";
 
 const root = process.cwd();

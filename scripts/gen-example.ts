@@ -1,7 +1,7 @@
 /**
  * gen-example.ts (bun) — generate the longitudinal worked-example resources.
  *
- * Turns the deterministic copper-IUD case (viewer-src/dataset.mjs) into
+ * Turns the deterministic copper-IUD case (viewer-src/shared/dataset.mjs) into
  * new-model FHIR R4 resources, assembled into a PeriodTrackingBundle that
  * conforms to the IG's profiles. The encoding emits the Layer 0 boolean
  * bleeding core first, then Layer 1 structured facts. Use standard codes only where they match the
@@ -11,8 +11,8 @@
  *
  * Run ahead of the publisher:  bun scripts/gen-example.ts
  */
-import { buildDataset, IUD_DATE } from "../viewer-src/dataset.mjs";
-import { SYS, LOINC, SCT, FLOW_CODE_BY_LEVEL, SYMPTOM_DEFS, APP_SYMPTOM_DEFS } from "../viewer-src/codes.mjs";
+import { buildDataset, IUD_DATE } from "../viewer-src/shared/dataset.mjs";
+import { SYS, LOINC, SCT, FLOW_CODE_BY_LEVEL, SYMPTOM_DEFS, APP_SYMPTOM_DEFS } from "../viewer-src/shared/codes.mjs";
 import { mkdir } from "node:fs/promises";
 
 const BASE = "https://example.org/fhir";

@@ -2,9 +2,9 @@ import React, { useEffect, useState, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import jsQR from "jsqr";
 import MenstrualSummary from "./summary.jsx";
-import { transformBundle } from "./transform.mjs";
-import { prepare } from "./viewmodel.mjs";
-import { DEFAULT_RECIPIENT, extractShlinkURI, parseShlink, resolveShl, shlinkFromPayload } from "./shl.mjs";
+import { transformBundle } from "../shared/transform.mjs";
+import { prepare } from "../shared/viewmodel.mjs";
+import { DEFAULT_RECIPIENT, extractShlinkURI, parseShlink, resolveShl, shlinkFromPayload } from "../shared/shl.mjs";
 
 /* The viewer. A real SMART Health Link in the URL fragment (#shlink:/…)
    prepopulates the form. The recipient still chooses when to fetch/decrypt,

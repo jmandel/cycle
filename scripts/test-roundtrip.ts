@@ -1,6 +1,6 @@
 /** test-roundtrip.ts (bun) — transform the generated bundle and sanity-check it. */
-import { transformBundle } from "../viewer-src/transform.mjs";
-import { buildDataset, IUD_DATE } from "../viewer-src/dataset.mjs";
+import { transformBundle } from "../viewer-src/shared/transform.mjs";
+import { buildDataset, IUD_DATE } from "../viewer-src/shared/dataset.mjs";
 
 const bundlePath = Bun.env.BUNDLE_FILE || `${import.meta.dir}/../dist/examples/Bundle-period-tracking-longitudinal-example.json`;
 const bundle = await Bun.file(bundlePath).json();

@@ -1,15 +1,15 @@
 /**
- * app2.jsx — view2 entry point. Reuses the existing, unmodified data layer
+ * app.jsx — view2 entry point. Reuses the existing, unmodified data layer
  * (shl.mjs to resolve a SMART Health Link, transform.mjs to turn the decrypted
  * FHIR Bundle into daily records) and feeds it through view2's binary-first
- * derive() + Summary2 presentation. The original viewer is left untouched.
+ * derive() + Summary presentation. The original viewer is left untouched.
  */
 import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import Summary2 from "./summary2.jsx";
-import { transformBundle } from "../transform.mjs";
+import Summary2 from "./summary.jsx";
+import { transformBundle } from "../shared/transform.mjs";
 import { derive } from "./derive.mjs";
-import { DEFAULT_RECIPIENT, extractShlinkURI, parseShlink, resolveShl, shlinkFromPayload } from "../shl.mjs";
+import { DEFAULT_RECIPIENT, extractShlinkURI, parseShlink, resolveShl, shlinkFromPayload } from "../shared/shl.mjs";
 
 function assetUrl(name) {
   const script = [...document.scripts].reverse().find((s) => /\/app\.js($|\?)/.test(s.src || ""));

@@ -26,10 +26,10 @@ Receivers group facts by the local date portion of `effectiveDateTime` when they
 These profiles are the exchange surface. The descriptions below are read from the generated profile metadata.
 
 {% sql {
-  "query": "select Title as Profile, Web, sdType as Resource, Description as Role from Resources where Type = 'StructureDefinition' and Id in ('period-tracking-bundle','period-tracking-fact','menstrual-bleeding','menstrual-flow','symptom','numeric-pain-severity','basal-body-temperature') order by case Id when 'period-tracking-bundle' then 10 when 'period-tracking-fact' then 20 when 'menstrual-bleeding' then 30 when 'menstrual-flow' then 40 when 'symptom' then 50 when 'numeric-pain-severity' then 60 when 'basal-body-temperature' then 70 else 999 end",
+  "query": "select Title as Profile, Web, case Id when 'period-tracking-bundle' then 'Container' when 'period-tracking-fact' then 'Abstract fact' when 'menstrual-bleeding' then 'Layer 0' else 'Layer 1' end as Layer, Description as Role from Resources where Type = 'StructureDefinition' and Id in ('period-tracking-bundle','period-tracking-fact','menstrual-bleeding','menstrual-flow','symptom','numeric-pain-severity','basal-body-temperature') order by case Id when 'period-tracking-bundle' then 10 when 'period-tracking-fact' then 20 when 'menstrual-bleeding' then 30 when 'menstrual-flow' then 40 when 'symptom' then 50 when 'numeric-pain-severity' then 60 when 'basal-body-temperature' then 70 else 999 end",
   "columns": [
     { "source": "Profile", "type": "link", "target": "Web" },
-    { "source": "Resource" },
+    { "source": "Layer" },
     { "source": "Role" }
   ]
 } %}

@@ -11,7 +11,7 @@
  * Run after gen-example.ts:  bun scripts/gen-shl.ts
  */
 import { mkdir } from "node:fs/promises";
-import { encryptCompact, b64uFromBytes, bytesFromB64u } from "../viewer-src/jwe.mjs";
+import { encryptCompact, b64uFromBytes, bytesFromB64u } from "../viewer-src/shared/jwe.mjs";
 
 // A full shareable link is <viewer>#shlink:/<payload>. The default is the
 // local verifier's URL. Deploy workflows can override VIEWER_BASE.
