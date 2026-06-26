@@ -25,18 +25,14 @@ Description: "A self-contained FHIR R4 collection Bundle for transporting granul
 * entry ^short = "Resources included in the export"
 * entry ^definition = "The Bundle entries carrying the period-tracking Observations and any optional Patient, Device, or app-native CodeSystem resources included by the producer."
 * entry ^comment = "The Bundle must contain at least one Layer 0 menstrual bleeding Observation. Other resources are included only when they support the selected share."
-* entry.fullUrl MS
+* entry.fullUrl 1..1 MS
 * entry.fullUrl ^short = "Stable intra-Bundle reference URL"
-* entry.fullUrl ^definition = "A fullUrl that allows entries in this self-contained Bundle to reference each other consistently."
-* entry.fullUrl ^comment = ""
+* entry.fullUrl ^definition = "A fullUrl that allows entries in this self-contained Bundle to reference each other consistently. Producers that have no other persistent identity for an entry may use a urn:uuid value (for example, urn:uuid:6c2d3e4f-...)."
+* entry.fullUrl ^comment = "Each entry SHALL carry a fullUrl. A urn:uuid value is an acceptable fullUrl for self-contained collection Bundles."
 * entry.resource 1..1 MS
 * entry.resource ^short = "Included FHIR resource"
 * entry.resource ^definition = "The FHIR resource included in this Bundle entry."
 * entry.resource ^comment = ""
-* signature MS
-* signature ^short = "Optional FHIR Bundle signature"
-* signature ^definition = "An optional FHIR Bundle signature when the producing system signs the export. SHLink encryption is handled outside the Bundle."
-* signature ^comment = ""
 
 Profile: PeriodTrackingFact
 Parent: Observation
