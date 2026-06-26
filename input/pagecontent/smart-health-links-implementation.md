@@ -157,7 +157,7 @@ You deploy and operate it (no public hosted instance) — the right posture for 
 
 ## Implementing it yourself (no service)
 
-If you'd rather not run a service, the client side is small. Use shlep's reference client crypto — `src/crypto.ts` (compact JWE `dir`/A256GCM, WebCrypto only) and `src/client.ts` (encrypt + compose the `shlink:/`) in [github.com/jmandel/shlep](https://github.com/jmandel/shlep) — directly or translated. For direct-file mode you then host the `.jwe` and hand out a bare `shlink:/<payload>` or `<viewer>#shlink:/<payload>`.
+If you do not deploy shlep, you are implementing both the share-minting client path and the server/storage path yourself. The client-side crypto and link construction are small and reusable: use shlep's `src/crypto.ts` (compact JWE `dir`/A256GCM, WebCrypto only) and `src/client.ts` (encrypt + compose the `shlink:/`) in [github.com/jmandel/shlep](https://github.com/jmandel/shlep) directly or translated. For direct-file mode, your backend or object store then hosts the `.jwe`, and your app hands out either a bare `shlink:/<payload>` or `<viewer>#shlink:/<payload>`.
 
 The IG's own `viewer-src/jwe.mjs` is the viewer's **decrypt** path; `scripts/gen-shl.ts` is **editorial demo tooling** that pins a fixed key+IV only to keep the published example byte-stable — do not copy that pattern for real encryption.
 
