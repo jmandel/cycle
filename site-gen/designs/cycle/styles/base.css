@@ -532,13 +532,15 @@ img { max-width: 100%; }
 .machine-file { color: var(--code-str); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 130px; }
 
 details.el > summary {
-  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px;
+  display: block; position: relative;
   list-style: none; cursor: pointer;
 }
 details.el > summary::-webkit-details-marker { display: none; }
 .el-summary-main { min-width: 0; }
+details.el > summary .el-head { padding-right: 92px; }
 .el-detail-action {
-  align-self: start; min-height: 24px; padding: 3px 8px;
+  position: absolute; top: 0; right: 0;
+  min-height: 24px; padding: 3px 8px;
   border: var(--border-hair); border-radius: var(--radius-xs); background: var(--paper-sunken);
   font-family: var(--font-mono); font-size: var(--text-2xs); color: var(--ink-500);
 }
