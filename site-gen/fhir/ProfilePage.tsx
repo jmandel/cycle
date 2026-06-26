@@ -95,13 +95,14 @@ function ProfileExamples({ examples }: { examples: ProfileExampleUse[] }) {
 }
 
 export function ProfilePage({
-  r, data, resolve, requirements = [], examples = [],
+  r, data, resolve, requirements = [], examples = [], inheritedDifferentials = [],
 }: {
   r: ResourceRow;
   data: any;
   resolve: ResolveType;
   requirements?: ProfileRequirement[];
   examples?: ProfileExampleUse[];
+  inheritedDifferentials?: any[][];
 }) {
   const rootType = r.sdType || data.type;
   const baseName = r.base ? (r.base.split('/').pop() || r.base) : rootType;
@@ -127,7 +128,7 @@ export function ProfilePage({
         <SectionHeading id="elements">Formal definition</SectionHeading>
         <p className="section-lead">Start with Key elements for the constrained contract; Differential shows authored changes, and Snapshot shows the fully resolved FHIR structure.</p>
         {(() => {
-          const v = elementViews(data.snapshot?.element, data.differential?.element, rootType);
+          const v = elementViews(data.snapshot?.element, data.differential?.element, rootType, inheritedDifferentials);
           return (
             <Tabs id="elements" tabs={[
               { label: `Key elements (${v.key.length})`, content: <ElementTable elements={v.key} resolve={resolve} /> },

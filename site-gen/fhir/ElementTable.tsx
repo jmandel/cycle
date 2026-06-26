@@ -155,8 +155,9 @@ function ElementRow({ e, resolve }: { e: El; resolve: ResolveType }) {
 }
 
 /** Pre-compute the three element views from a StructureDefinition. */
-export function elementViews(snapshot: El[] = [], differential: El[] = [], rootType = '') {
+export function elementViews(snapshot: El[] = [], differential: El[] = [], rootType = '', inheritedDifferentials: El[][] = []) {
   const diffByPath = new Map(differential.map((e) => [e.path, e]));
+  const inheritedDiffsByPath = inheritedDifferentials.map((elements) => new Map(elements.map((e) => [e.path, e])));
   const diffPaths = new Set(diffByPath.keys());
   const all = snapshot.filter((e) => e.path !== rootType);
   const byPath = new Map(all.map((e) => [e.path, e]));
@@ -166,8 +167,11 @@ export function elementViews(snapshot: El[] = [], differential: El[] = [], rootT
   const isHidden = (e: El) => rootType === 'Observation' && hiddenObservationKeys.has(localName(e.path));
   const topLevel = (e: El) => depthFromRoot(e.path) === 1;
   const hasProjectBinding = (e: El) => e.binding?.valueSet?.startsWith('https://cycle.fhir.me/');
-  const constrainedInDifferential = (e: El) => {
-    const d = diffByPath.get(e.path);
+  const differentialSources = (path: string) => [
+    diffByPath.get(path),
+    ...inheritedDiffsByPath.map((m) => m.get(path)),
+  ].filter(Boolean) as El[];
+  const isDifferentialConstraint = (d?: El) => {
     if (!d) return false;
     return Boolean(
       d.mustSupport
@@ -180,6 +184,7 @@ export function elementViews(snapshot: El[] = [], differential: El[] = [], rootT
       || hasProjectBinding(d),
     );
   };
+  const constrainedInDifferential = (e: El) => differentialSources(e.path).some(isDifferentialConstraint);
 
   const addAncestors = (paths: Set<string>) => {
     for (const path of Array.from(paths)) {
@@ -193,16 +198,20 @@ export function elementViews(snapshot: El[] = [], differential: El[] = [], rootT
   };
 
   const localize = (e: El) => {
-    const d = diffByPath.get(e.path);
-    if (!d) return e;
+    const sources = differentialSources(e.path);
+    if (!sources.length) return e;
+    const text = (key: 'short' | 'definition') => sources.find((s) => s[key])?.[key] ?? e[key];
+    const commentSource = sources.find((s) => Object.prototype.hasOwnProperty.call(s, 'comment'));
+    const constraintSource = sources.find((s) => Object.prototype.hasOwnProperty.call(s, 'constraint'));
     return {
       ...e,
-      short: d.short ?? e.short,
-      definition: d.definition ?? e.definition,
+      short: text('short'),
+      definition: text('definition'),
       // Inherited FHIR comments are often broad background text. Treat comments
-      // as IG guidance only when the profile differential explicitly supplies one.
-      comment: d.comment,
-      constraint: d.constraint,
+      // as IG guidance only when this profile or an ancestor profile differential
+      // explicitly supplies one.
+      comment: commentSource?.comment,
+      constraint: constraintSource?.constraint,
     };
   };
 

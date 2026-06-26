@@ -104,6 +104,8 @@ function exampleResources(): db.ResourceRow[] {
   return artifactResources().filter(isExampleRow);
 }
 const structureDefinitions = artifactResources('StructureDefinition');
+const structureDefinitionDataByUrl = new Map<string, any>();
+for (const r of structureDefinitions) if (r.Url) structureDefinitionDataByUrl.set(r.Url, db.parse(r));
 const configuredProfileGroups = project.profileGroups || [];
 function profileGroupLabel(id: string): string | null {
   return configuredProfileGroups.find((g) => g.ids.includes(id))?.label || null;
@@ -147,10 +149,23 @@ function profileRootRequirements(data: any, rootType: string): ProfileRequiremen
 const derivedProfiles = new Map<string, string[]>();
 for (const r of structureDefinitions) {
   if (!r.Url) continue;
-  const data = db.parse(r);
+  const data = structureDefinitionDataByUrl.get(r.Url) || db.parse(r);
   const base = data.baseDefinition;
   if (!base || !byUrl.has(base)) continue;
   derivedProfiles.set(base, [...(derivedProfiles.get(base) || []), r.Url]);
+}
+function inheritedDifferentialElements(data: any): any[][] {
+  const out: any[][] = [];
+  const seen = new Set<string>();
+  let base = data.baseDefinition;
+  while (base && !seen.has(base)) {
+    seen.add(base);
+    const parent = structureDefinitionDataByUrl.get(base);
+    if (!parent) break;
+    out.push(parent.differential?.element || []);
+    base = parent.baseDefinition;
+  }
+  return out;
 }
 function profileAndDerivedUrls(url: string): Set<string> {
   const out = new Set<string>();
@@ -298,12 +313,12 @@ emit('artifacts.html', <ArtifactsPage resources={artifactResources()} page={page
 // ---- profile pages ----
 let nProfiles = 0;
 for (const r of artifactResources('StructureDefinition')) {
-  const data = db.parse(r);
+  const data = r.Url ? (structureDefinitionDataByUrl.get(r.Url) || db.parse(r)) : db.parse(r);
   const rootType = r.sdType || data.type;
   const requirements = profileRootRequirements(data, rootType);
   const examples = profileExamples(r.Url || '');
   const inlineExample = examples.some((e) => e.direct && e.preview);
-  emit(page(r), <ProfilePage r={r} data={data} resolve={resolve} requirements={requirements} examples={examples} />, {
+  emit(page(r), <ProfilePage r={r} data={data} resolve={resolve} requirements={requirements} examples={examples} inheritedDifferentials={inheritedDifferentialElements(data)} />, {
     title: r.Title || r.Name || r.Id,
     navActive: artifactsNav,
     crumbs: [{ label: 'Artifacts', href: 'artifacts.html' }, { label: 'Profiles', href: 'artifacts.html#profiles' }, { label: r.Title || r.Id }],
