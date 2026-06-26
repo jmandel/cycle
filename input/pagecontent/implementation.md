@@ -13,7 +13,7 @@ This restraint is the point: the data is sensitive, and a clinician must be able
 ## Workflow
 
 1. **Create the implementation checklist.** Before coding, record the app-specific answer for each required item:
-   - **User scope UI** — how the user selects the person/account, date range, and data categories, and where the app shows the plain-language preview.
+   - **Share review screen** — how the user selects the person/account, date range, and data categories, and where the app shows what will be included, what will be excluded, and how the live QR/link can be opened or stopped.
    - **Layer 0 source** — which stored field(s) become menstrual-bleeding `true` / `false`, and how the app distinguishes explicit "no bleeding" from missing data or untouched defaults.
    - **Layer 1 source** — which flow, symptom, pain, and basal-temperature facts are mapped, and which source fields are intentionally omitted.
    - **Live SHLink host** — app backend or deployable blind service such as [shlep](https://github.com/jmandel/shlep), plus the controls the host really enforces: revocation, expiry, use-limit, passcode, and access log visibility.
@@ -22,7 +22,7 @@ This restraint is the point: the data is sensitive, and a clinician must be able
    - **Receiver path** — reference viewer, app-hosted viewer, embedded viewer, or provider scanner.
    - **Privacy and validation evidence** — Bundle validation, QR scan/open, viewer rendering, host access without plaintext or key, and revoke/expiry/use-limit behavior when advertised.
 2. **Resolve only missing product values.** Ask for whatever is needed to fill the checklist above. Do not substitute a file download or ad hoc export for the QR-based live SHLink handoff.
-3. **Create one source snapshot.** Use one immutable, user-approved snapshot as the input to preview, normalization, encryption, and QR/copy/share. Apply the selected person, date range, and category scope before normalization so the preview and encrypted payload describe the same data.
+3. **Create one source snapshot.** Use one immutable, user-approved snapshot as the input to the share review screen, normalization, encryption, and QR/copy/share. Apply the selected person, date range, and category scope before normalization so the review screen and encrypted payload describe the same data.
 4. **Inventory the app.** Read the storage model, serializers, exports, UI, demo data, and tests before mapping. Identify stored bleeding states, flow, symptoms, pain, temperature, custom dictionaries, predictions, defaults, derived summaries, source application metadata, schema versions, and stable source identifiers.
 5. **Classify every candidate field.** Export `user-entered` data: selected, entered, verified, measured, or imported facts. Usually omit `derived` data; never export `prediction`, `default`, `configuration`, or `not-stored` data as observed facts.
 6. **Build the FHIR Bundle.** Use the [Period Tracking Bundle](StructureDefinition-period-tracking-bundle.html), include at least one Layer 0 [Menstrual Bleeding](StructureDefinition-menstrual-bleeding.html) fact, and add Layer 1 profiles only when the source has those facts.
@@ -133,7 +133,7 @@ Minimum verification:
 - Bundle validates against this IG.
 - Every exported Observation comes from user-entered, selected, verified, measured, or imported data.
 - No prediction or untouched default is exported as an observed fact.
-- The preview and encrypted Bundle are produced from the same user-approved snapshot and date/category scope.
+- The share review screen and encrypted Bundle are produced from the same user-approved snapshot and date/category scope.
 - The encrypted SHLink opens from QR and copy/share paths.
 - The host cannot see plaintext FHIR or the decryption key.
 - The viewer renders from the same granular facts in the Bundle.
