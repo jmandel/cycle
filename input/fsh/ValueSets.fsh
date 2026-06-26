@@ -22,11 +22,3 @@ Description: "A small, non-normative starter set of period-tracking symptoms tha
 * $SCT#55929007 "Feeling irritable"
 * $SCT#73595000 "Stress"
 * $SCT#71315007 "Dyspareunia"
-
-ValueSet: PtmvpFactCategoryVS
-Id: ptmvp-fact-category
-Title: "Period Tracking Fact Categories"
-Description: "Allowed Observation.category values for a Period Tracking Fact. Patient-reported facts use 'survey'; a fact carrying a FHIR vital-sign code (for example basal body temperature, LOINC 8310-5) instead uses 'vital-signs' so it conforms to the mandatory FHIR vital-signs profile."
-* ^experimental = false
-* $ObsCat#survey "Survey"
-* $ObsCat#vital-signs "Vital Signs"

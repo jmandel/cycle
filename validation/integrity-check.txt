@@ -6,5 +6,5 @@ PASS: Exactly seven MVP profiles were generated.
 PASS: Artifact sort metadata keeps the core profiles and terminology first.
 PASS: Worked Bundle: 566 recognized facts, boolean bleeding core, and flow consistency.
 PASS: Standalone profile examples are generated without inline profile stamps.
-PASS: All 12 generated JSON resources parse successfully.
+PASS: All 11 generated JSON resources parse successfully.
 

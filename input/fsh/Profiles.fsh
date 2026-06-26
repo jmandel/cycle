@@ -44,10 +44,6 @@ Description: "Abstract base profile for one independently meaningful fact entere
 * status ^short = "Only final facts are exported"
 * status ^definition = "Period Tracking exports include finalized facts. Producers omit draft, preliminary, entered-in-error, and amended records from the shared Bundle."
 * status ^comment = "If the source record is not ready to share as the user's current recorded fact, do not include it in the Bundle."
-* category from PtmvpFactCategoryVS (required)
-* category ^short = "Period-tracking fact category"
-* category ^definition = "Classifies the fact for FHIR consumers. Patient-reported period-tracking facts use 'survey'; basal body temperature uses 'vital-signs' because it carries a standard vital-sign code."
-* category ^comment = "Do not infer clinical workflow from this category. It is only the FHIR Observation category needed to make the fact interoperable."
 * code 1..1 MS
 * code ^short = "Period-tracking fact type"
 * code ^definition = "Identifies the kind of fact represented by this Observation, such as menstrual bleeding, menstrual flow, symptom, numeric pain severity, or basal body temperature."
@@ -152,11 +148,6 @@ Parent: PeriodTrackingFact
 Id: basal-body-temperature
 Title: "Basal Body Temperature"
 Description: "Layer 1 optional basal body temperature fact for a source temperature measurement identified by the producer as basal."
-* category 1..1
-* category = $ObsCat#vital-signs "Vital Signs"
-* category ^short = "Vital-signs category"
-* category ^definition = "Classifies this temperature fact as a FHIR vital-sign Observation because it uses the standard body temperature code."
-* category ^comment = ""
 * code = $LNC#8310-5 "Body temperature"
 * code ^short = "Basal body temperature fact"
 * code ^definition = "Identifies this Observation as a basal body temperature measurement represented with the standard FHIR body temperature code."

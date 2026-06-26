@@ -82,10 +82,6 @@ resources:
     extension:
       - url: http://hl7.org/fhir/tools/StructureDefinition/resource-sort
         valueInteger: 20
-  ValueSet/ptmvp-fact-category:
-    extension:
-      - url: http://hl7.org/fhir/tools/StructureDefinition/resource-sort
-        valueInteger: 30
   CodeSystem/cycle:
     extension:
       - url: http://hl7.org/fhir/tools/StructureDefinition/resource-sort

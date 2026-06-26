@@ -17,7 +17,6 @@ export const SYS = {
   loinc: "http://loinc.org",
   sct: "http://snomed.info/sct",
   ucum: "http://unitsofmeasure.org",
-  obsCat: "http://terminology.hl7.org/CodeSystem/observation-category",
   cycle: "https://cycle.fhir.me/CodeSystem/cycle",
   appExample: "https://example.org/fhir/CodeSystem/example-app-symptoms",
 };
