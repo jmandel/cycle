@@ -404,8 +404,12 @@ img { max-width: 100%; }
 }
 .copy-value--codeblock .copy-value-button {
   position: absolute;
-  top: 8px;
+  top: 0;
+  bottom: 0;
   right: 8px;
+  margin-block: auto;
+  width: 28px;
+  height: 28px;
   background: color-mix(in srgb, var(--paper-card) 92%, transparent);
   backdrop-filter: blur(2px);
 }
