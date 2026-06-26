@@ -16,6 +16,7 @@ const BUNDLE_FILE = Bun.env.BUNDLE_FILE || join(ROOT, "dist", "examples", "Bundl
 const CYCLE = "https://cycle.fhir.me/CodeSystem/cycle";
 const LOINC = "http://loinc.org";
 const UCUM = "http://unitsofmeasure.org";
+const OBSCAT = "http://terminology.hl7.org/CodeSystem/observation-category";
 const EXAMPLE_IDS = {
   bleeding: "menstrual-bleeding-example",
   flow: "menstrual-flow-example",
@@ -139,7 +140,6 @@ async function main() {
     for (const obs of kinds.get("Observation") || []) {
       assert(obs.status === "final", `${obs.id} status not final`);
       assert(!(obs.meta?.profile?.length), `${obs.id} should not stamp meta.profile`);
-      assert(!obs.category, `${obs.id} should not carry Observation.category`);
       assert("effectiveDateTime" in obs, `${obs.id} missing effectiveDateTime`);
       assert(factKind(obs), `Observation ${obs.id} is not a recognized MVP fact`);
       facts.push(obs);
@@ -171,6 +171,9 @@ async function main() {
       if (hasCoding(code, LOINC, "8310-5")) {
         const q = fact.valueQuantity || {};
         assert(q.system === UCUM && ["Cel", "[degF]"].includes(q.code), `${fact.id} bad temperature value`);
+        assert((fact.category || []).some((cat: any) => hasCoding({ coding: cat.coding || [] }, OBSCAT, "vital-signs")), `${fact.id} temperature must carry FHIR vital-signs category`);
+      } else {
+        assert(!fact.category, `${fact.id} should not carry Observation.category`);
       }
     }
     assert([...bleedingByDate.values()].some((v) => v === true), "expected at least one bleeding=true core fact");

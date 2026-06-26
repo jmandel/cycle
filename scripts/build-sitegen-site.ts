@@ -25,6 +25,7 @@ const exampleOut = `${root}/input/resources/Bundle-period-tracking-longitudinal-
 const publisherJar = `${root}/input-cache/publisher.jar`;
 const viewerBase = Bun.env.VIEWER_BASE || `https://${project.cname}/view`;
 const demoFiles = ['example.jwe', 'shlink.txt', '_shlink-local.txt', '_shlink-local-ig.txt'];
+const qaAssetExtensions = new Set(['.css', '.gif', '.ico', '.js', '.png', '.svg']);
 
 async function step(name: string, cmd: string[], env: Record<string, string> = {}) {
   console.log(`\n-- ${name} --`);
@@ -37,6 +38,32 @@ async function requireTool(name: string, cmd: string[], hint: string) {
 }
 async function mirrorDemoAssets(srcDir: string, destDirs: string[]) {
   for (const d of destDirs) for (const f of demoFiles) await cp(join(srcDir, f), join(d, f), { force: true });
+}
+function rootQaSupportAsset(ref: string) {
+  const path = ref.split(/[?#]/)[0];
+  if (!path || path.startsWith('#') || path.includes('/')) return undefined;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(path)) return undefined;
+  const dot = path.lastIndexOf('.');
+  if (dot < 0 || !qaAssetExtensions.has(path.slice(dot).toLowerCase())) return undefined;
+  return path;
+}
+async function copyPublisherQaArtifacts() {
+  const outputDir = join(root, 'output');
+  const entries = await readdir(outputDir, { withFileTypes: true });
+  const rootFiles = new Set(entries.filter((e) => e.isFile()).map((e) => e.name));
+  const names = new Set([...rootFiles].filter((name) => name.startsWith('qa') || name === 'fragment-usage-analysis.csv'));
+
+  for (const name of [...names]) {
+    if (!name.endsWith('.html')) continue;
+    const html = await readFile(join(outputDir, name), 'utf8');
+    for (const match of html.matchAll(/\b(?:href|src)=["']([^"']+)["']/g)) {
+      const asset = rootQaSupportAsset(match[1]);
+      if (asset && rootFiles.has(asset)) names.add(asset);
+    }
+  }
+
+  for (const name of [...names].sort()) await cp(join(outputDir, name), join(OUT, name), { force: true });
+  console.log(`Copied ${names.size} Publisher QA artifacts/support files -> ${relative(root, OUT)}/`);
 }
 async function writeSampleViewerInclude(shlinkFile: string) {
   const link = (await readFile(shlinkFile, 'utf8')).trim();
@@ -103,4 +130,5 @@ if (broken.length) {
   for (const b of [...new Set(broken)].slice(0, 40)) console.error('  ' + b);
   process.exit(1);
 }
-console.log(`\n✓ site build complete: ${relative(root, OUT)}/ (${files.length} pages, links OK)`);
+await copyPublisherQaArtifacts();
+console.log(`\n✓ site build complete: ${relative(root, OUT)}/ (${files.length} pages, links OK; Publisher QA at qa.html)`);

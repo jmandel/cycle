@@ -148,6 +148,11 @@ Parent: PeriodTrackingFact
 Id: basal-body-temperature
 Title: "Basal Body Temperature"
 Description: "Layer 1 optional basal body temperature fact for a source temperature measurement identified by the producer as basal."
+* category 1..1
+* category = $ObsCat#vital-signs "Vital Signs"
+* category ^short = "FHIR vital-signs category"
+* category ^definition = "Required for this profile because it uses the standard FHIR body temperature code."
+* category ^comment = "This category is only used for basal body temperature. Other period-tracking facts do not need Observation.category."
 * code = $LNC#8310-5 "Body temperature"
 * code ^short = "Basal body temperature fact"
 * code ^definition = "Identifies this Observation as a basal body temperature measurement represented with the standard FHIR body temperature code."

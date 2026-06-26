@@ -19,6 +19,7 @@ const BASE = "https://example.org/fhir";
 const ref = (t: string, id: string) => ({ reference: `${t}/${id}` });
 const PT = "pt-longitudinal";
 const DEV = "periodicity-app";
+const VITALS = { coding: [{ system: SYS.obsCat, code: "vital-signs", display: "Vital Signs" }] };
 
 type Res = any;
 const entries: Res[] = [];
@@ -53,7 +54,7 @@ function standaloneExample(kind: keyof typeof exampleIds, resource: Res) {
 function fact(kind: keyof typeof exampleIds, id: string, date: string, code: any, value: any, extra: any = {}) {
   const resource = add({
     resourceType: "Observation", id,
-    status: "final", code,
+    status: "final", ...(extra.category ? { category: [extra.category] } : {}), code,
     subject: ref("Patient", PT), effectiveDateTime: extra.effective || date,
     ...value, device: ref("Device", DEV),
   });
@@ -115,7 +116,7 @@ for (const d of daily) {
     });
   }
   if (d.bbt != null) mk("bbt", `bbt-${s}`, cc(SYS.loinc, LOINC.bodyTemp, "Body temperature"), qty(d.bbt, "Cel", "degree Celsius"),
-    { effective: `${d.date}T06:45:00-05:00` });
+    { category: VITALS, effective: `${d.date}T06:45:00-05:00` });
 
   // one additional app-native fact (the documented escape hatch), on the first IMB day
   if (!appNativeDay && d.intermenstrual) {
