@@ -154,8 +154,11 @@ function ElementRow({ e, resolve }: { e: El; resolve: ResolveType }) {
   );
 }
 
-/** Pre-compute the three element views from a StructureDefinition. */
-export function elementViews(snapshot: El[] = [], differential: El[] = [], rootType = '') {
+/** Pre-compute the three element views from a StructureDefinition.
+ *  `inheritedCommentPaths` lists element paths where an IG ancestor profile
+ *  authored a comment; only those inherit through to the snapshot text so generic
+ *  base-FHIR comments stay suppressed while IG guidance carries to derived profiles. */
+export function elementViews(snapshot: El[] = [], differential: El[] = [], rootType = '', inheritedCommentPaths: Set<string> = new Set()) {
   const diffByPath = new Map(differential.map((e) => [e.path, e]));
   const diffPaths = new Set(diffByPath.keys());
   const all = snapshot.filter((e) => e.path !== rootType);
@@ -199,9 +202,11 @@ export function elementViews(snapshot: El[] = [], differential: El[] = [], rootT
       ...e,
       short: d.short ?? e.short,
       definition: d.definition ?? e.definition,
-      // Inherited FHIR comments are often broad background text. Treat comments
-      // as IG guidance only when the profile differential explicitly supplies one.
-      comment: d.comment,
+      // Comments inherit selectively: show the differential comment when the
+      // profile restates one, otherwise fall back to the resolved snapshot comment
+      // only where an IG ancestor authored it. This carries IG guidance to derived
+      // profiles while suppressing generic base-FHIR background comments.
+      comment: d.comment ?? (inheritedCommentPaths.has(e.path) ? e.comment : undefined),
       constraint: d.constraint,
     };
   };
