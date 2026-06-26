@@ -1,10 +1,3 @@
 Period Tracking MVP integrity check
 
-PASS: Project CodeSystem contains exactly the expected eight concepts.
-PASS: Menstrual Flow ValueSet contains exactly the five ordinal result codes.
-PASS: Exactly seven MVP profiles were generated.
-PASS: Artifact sort metadata keeps the core profiles and terminology first.
-PASS: Worked Bundle: 566 recognized facts, boolean bleeding core, and flow consistency.
-PASS: Standalone profile examples are generated without inline profile stamps.
-PASS: All 12 generated JSON resources parse successfully.
-
+FAIL: Error: Missing resource: /home/runner/work/cycle/cycle/fsh-generated/resources/CodeSystem-cycle.json
