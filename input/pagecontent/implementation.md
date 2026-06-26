@@ -10,9 +10,9 @@ Map only what the app actually stores. Read the app's data model, storage, expor
 
 This restraint is the point: the data is sensitive, and a clinician must be able to trust that every fact reflects something the user actually entered, selected, measured, imported, or verified.
 
-## Recommended Share with SMART Link UX
+## Recommended "Share with SMART Link" UX
 
-Use **Share with SMART Link** as the working feature name when it fits the app. Other labels are fine, but the feature should make the user-facing task clear: create an encrypted link or QR code for selected cycle data.
+Use **"Share with SMART Link"** as the working feature name when it fits the app. Other labels are fine, but the feature should make the user-facing task clear: create an encrypted link or QR code for selected cycle data.
 
 A consistent share flow has four parts:
 
@@ -26,7 +26,7 @@ The preview can be brief. For example: "This SMART Link includes bleeding days, 
 ## Workflow
 
 1. **Create the implementation checklist.** Before coding, record the app-specific answer for each required item:
-   - **Feature entry point** — where the app offers **Share with SMART Link** or an equivalent label, and what supporting copy explains the encrypted link/QR.
+   - **Feature entry point** — where the app offers **"Share with SMART Link"** or an equivalent label, and what supporting copy explains the encrypted link/QR.
    - **Scope controls** — how the user selects the person/account, date range, and data categories.
    - **Plain-language preview** — where the app shows what will be included, what will be excluded, who can open the link, and when sharing stops.
    - **Layer 0 source** — which stored field(s) become menstrual-bleeding `true` / `false`, and how the app distinguishes explicit "no bleeding" from missing data or untouched defaults.
