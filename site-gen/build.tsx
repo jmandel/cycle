@@ -326,15 +326,13 @@ for (const r of artifactResources('StructureDefinition')) {
   const rootType = r.sdType || data.type;
   const requirements = profileRootRequirements(data, rootType);
   const examples = profileExamples(r.Url || '');
-  const inlineExample = examples.some((e) => e.direct && e.preview);
   emit(page(r), <ProfilePage r={r} data={data} resolve={resolve} requirements={requirements} examples={examples} authoredElementChain={localAuthoredElementChain(data)} />, {
     title: r.Title || r.Name || r.Id,
     navActive: artifactsNav,
     crumbs: [{ label: 'Artifacts', href: 'artifacts.html' }, { label: 'Profiles', href: 'artifacts.html#profiles' }, { label: r.Title || r.Id }],
     toc: [
       { id: 'overview', label: 'Overview' },
-      ...(inlineExample ? [{ id: 'example', label: 'Example' }] : []),
-      ...(examples.length ? [{ id: 'examples', label: 'All examples' }] : []),
+      ...(examples.length ? [{ id: 'examples', label: 'Examples' }] : []),
       { id: 'elements', label: 'Formal definition' },
     ],
     sidebar: <ArtifactSidebar current={page(r)} />,

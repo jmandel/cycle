@@ -45,12 +45,12 @@ function FormalConstraints({ requirements }: { requirements: ProfileRequirement[
   );
 }
 
-function ProfileInlineExample({ examples }: { examples: ProfileExampleUse[] }) {
+function ProfileInlineExampleDetail({ examples }: { examples: ProfileExampleUse[] }) {
   const example = examples.find((e) => e.direct && e.preview);
   if (!example?.preview) return null;
   return (
-    <section className="art-section profile-inline-example" id="example">
-      <SectionHeading id="example">Example</SectionHeading>
+    <div className="profile-inline-example">
+      <h3 className="profile-inline-heading">Standalone example</h3>
       <p className="section-lead">
         A minimal standalone resource showing this profile in use. It is generated from the same worked export as the sample SMART Health Link.
       </p>
@@ -68,15 +68,15 @@ function ProfileInlineExample({ examples }: { examples: ProfileExampleUse[] }) {
           </div>
         )}
       </div>
-    </section>
+    </div>
   );
 }
 
-function ProfileExamples({ examples }: { examples: ProfileExampleUse[] }) {
+function ProfileExamplesSection({ examples }: { examples: ProfileExampleUse[] }) {
   if (!examples.length) return null;
   return (
     <section className="art-section" id="examples">
-      <SectionHeading id="examples">Examples using this profile</SectionHeading>
+      <SectionHeading id="examples">Examples</SectionHeading>
       <div className="profile-example-list">
         {examples.map((e) => (
           <a className="profile-example" href={e.href} key={e.href}>
@@ -90,6 +90,7 @@ function ProfileExamples({ examples }: { examples: ProfileExampleUse[] }) {
           </a>
         ))}
       </div>
+      <ProfileInlineExampleDetail examples={examples} />
     </section>
   );
 }
@@ -120,8 +121,7 @@ export function ProfilePage({
           ['Base', <Tag tone="luteal" href={resolve(rootType!, r.base)}>{baseName}</Tag>],
         ]}
       />
-      <ProfileInlineExample examples={examples} />
-      <ProfileExamples examples={examples} />
+      <ProfileExamplesSection examples={examples} />
 
       <section className="art-section" id="elements">
         <div className="eyebrow" style={{ color: 'var(--ovulatory-deep)' }}>Formal content</div>

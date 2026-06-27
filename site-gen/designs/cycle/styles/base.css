@@ -486,6 +486,14 @@ img { max-width: 100%; }
   justify-self: end; padding: 4px 8px; border: var(--border-hair); border-radius: var(--radius-xs);
   background: var(--paper-sunken); color: var(--ink-800) !important; font-weight: 700;
 }
+.profile-inline-example { margin-top: 20px; }
+.profile-inline-heading {
+  margin: 0 0 10px;
+  color: var(--ink-900);
+  font-size: var(--text-md);
+  font-weight: 700;
+  line-height: var(--leading-tight);
+}
 .formal-constraints {
   margin-top: 14px; border-top: var(--border-hair); padding-top: 14px;
 }
