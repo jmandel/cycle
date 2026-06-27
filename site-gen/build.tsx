@@ -334,7 +334,7 @@ for (const r of artifactResources('StructureDefinition')) {
     toc: [
       { id: 'overview', label: 'Overview' },
       ...(inlineExample ? [{ id: 'example', label: 'Example' }] : []),
-      ...(examples.length ? [{ id: 'examples', label: 'Examples' }] : []),
+      ...(examples.length ? [{ id: 'examples', label: 'All examples' }] : []),
       { id: 'elements', label: 'Formal definition' },
     ],
     sidebar: <ArtifactSidebar current={page(r)} />,
