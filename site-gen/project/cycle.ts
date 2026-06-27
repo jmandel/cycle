@@ -23,6 +23,7 @@ export const project = {
 
   // ---- deploy (consumed by scripts/build-sitegen-site.ts, not by site-gen) ----
   cname: 'cycle.fhir.me',
+  packageList: 'site-gen/project/package-list.json',
 
   // ---- brand (falls back to IG metadata where a field is omitted) ----
   brand: {

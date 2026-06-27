@@ -138,6 +138,7 @@ const [primary, ...others] = viewerVariants.map((variant) => ({ variant, output:
 await mirrorDemoAssets(SAMPLE_SHL_DIR, [primary.output.assets]);
 await mirrorDemoAssets(primary.output.assets, others.map((v) => v.output.assets));
 await step('package agent assets (skill.zip)', ['bun', 'scripts/build-agent-assets.ts'], { AGENT_OUTDIR: OUT });
+await cp(join(root, project.packageList), join(OUT, 'package-list.json'), { force: true });
 const cname = Bun.env.PAGES_CNAME || project.cname;
 await writeFile(join(OUT, 'CNAME'), `${cname}\n`);
 await writeCompatibility404();

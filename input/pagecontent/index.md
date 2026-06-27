@@ -34,4 +34,4 @@ Inspect the data behind them: the [longitudinal example Bundle](Bundle-period-tr
 {% assign source_repo = site.data.fhir.ig.contact[0].telecom[0] %}
 Source repository: **[{{ source_repo | replace: 'https://', '' }}]({{ source_repo }})**.
 
-Version 0.1.0 is an implementation draft for prototyping and testing. It is not an HL7-balloted implementation guide and does not establish clinical decision rules.
+Version 0.2.0 is an implementation draft for prototyping and testing. It is not an HL7-balloted implementation guide and does not establish clinical decision rules.

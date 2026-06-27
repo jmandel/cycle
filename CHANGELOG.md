@@ -1,6 +1,6 @@
 # Change log
 
-## Unreleased
+## 0.2.0
 
 - Relaxed the Period Tracking Fact category to a required binding allowing `survey` or `vital-signs`, so basal body temperature (a FHIR vital-sign code) conforms; added `input/ignoreWarnings.txt`.
 - Reoriented the common core around an emitted boolean `cycle#menstrual-bleeding` fact and moved menstrual flow to an optional intensity layer.

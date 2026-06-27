@@ -69,4 +69,4 @@ bun scripts/verify-terminology.ts \
 
 ## Status
 
-Version 0.1.0 is an implementation draft for prototyping. It is not an HL7-balloted guide.
+Version 0.2.0 is an implementation draft for prototyping. It is not an HL7-balloted guide.
