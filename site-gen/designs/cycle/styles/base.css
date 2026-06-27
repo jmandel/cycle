@@ -764,6 +764,7 @@ h2.sec, .page-title { position: relative; }
    ============================================================ */
 .cycle-prose a,
 .el-deep a,
+.el-constraints dd a,
 .art-detail a,
 .lead a {
   text-decoration: underline;
@@ -773,5 +774,6 @@ h2.sec, .page-title { position: relative; }
 }
 .cycle-prose a:hover,
 .el-deep a:hover,
+.el-constraints dd a:hover,
 .art-detail a:hover,
 .lead a:hover { text-decoration-color: currentColor; }
