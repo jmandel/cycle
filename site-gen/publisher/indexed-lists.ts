@@ -7,6 +7,7 @@ import {
   type PublisherCanonicalIndexes,
 } from './canonical';
 import { fhirPublicationBaseForCorePackage } from './fhir-versions';
+import { resourceOidValues, type OidAssignments } from './oids';
 import { pageFor, resourceRef } from './rows';
 
 type Json = Record<string, any>;
@@ -183,12 +184,6 @@ export function mergeRefs(...groups: Array<ListRef[] | undefined>): ListRef[] {
     for (const ref of group || []) out.set(`${ref.type}/${ref.resource.id}`, ref);
   }
   return [...out.values()].sort((a, b) => `${a.type}/${a.resource.id}`.localeCompare(`${b.type}/${b.resource.id}`));
-}
-
-export function oidValues(resource: Json): string[] {
-  return (resource.identifier || [])
-    .filter((i: any) => i.system === 'urn:ietf:rfc:3986' && typeof i.value === 'string' && i.value.startsWith('urn:oid:'))
-    .map((i: any) => i.value.replace(/^urn:oid:/, ''));
 }
 
 function idFromCanonical(url: string): string {
@@ -379,6 +374,7 @@ export function deriveIndexedListRows(
   resources: Json[],
   keyByRef: Map<string, number>,
   indexes: PublisherCanonicalIndexes,
+  options: { oidAssignments?: OidAssignments } = {},
 ): IndexedListRows {
   const rows: IndexedListRows = {
     valueSetRows: [],
@@ -448,7 +444,7 @@ export function deriveIndexedListRows(
       title: vs.title ?? null,
       description: vs.description ?? null,
     });
-    for (const oid of oidValues(vs)) rows.valueSetOidRows.push({ valueSetListKey: key, oid });
+    for (const oid of resourceOidValues(vs, local ? options.oidAssignments : undefined)) rows.valueSetOidRows.push({ valueSetListKey: key, oid });
     for (const system of valueSetAllSystems(vs, findValueSet)) rows.valueSetSystemRows.push({ valueSetListKey: key, url: system });
     for (const system of valueSetDirectSystems(vs)) rows.valueSetSourceRows.push({ valueSetListKey: key, source: sourceLabelForSystem(system) });
     for (const ref of refs) {
@@ -537,7 +533,7 @@ export function deriveIndexedListRows(
       title: cs.title ?? null,
       description: cs.description ?? null,
     });
-    for (const oid of oidValues(cs)) rows.codeSystemOidRows.push({ codeSystemListKey: key, oid });
+    for (const oid of resourceOidValues(cs, local ? options.oidAssignments : undefined)) rows.codeSystemOidRows.push({ codeSystemListKey: key, oid });
     for (const ref of refs) {
       rows.codeSystemRefRows.push({
         codeSystemListKey: key,

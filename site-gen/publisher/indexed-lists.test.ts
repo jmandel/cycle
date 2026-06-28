@@ -297,6 +297,52 @@ describe('publisher list-index helpers', () => {
     ]);
   });
 
+  test('adds local oids.ini assignments to local list rows only', () => {
+    const localValueSet = {
+      resourceType: 'ValueSet',
+      id: 'local-values',
+      url: 'http://example.org/ValueSet/local-values',
+      compose: { include: [{ system: 'http://example.org/CodeSystem/local-codes' }] },
+    };
+    const localCodeSystem = {
+      resourceType: 'CodeSystem',
+      id: 'local-codes',
+      url: 'http://example.org/CodeSystem/local-codes',
+    };
+    const resources = [localCodeSystem, localValueSet];
+    const current = emptyIndex();
+    current.byCanonical.set('CodeSystem|http://example.org/CodeSystem/local-codes', {
+      key: { resourceType: 'CodeSystem', url: localCodeSystem.url },
+      sourcePath: 'current:CodeSystem/local-codes',
+      resource: localCodeSystem,
+    });
+    const oidAssignments = new Map([
+      ['CodeSystem', new Map([['local-codes', '1.2.3.16.1']])],
+      ['ValueSet', new Map([['local-values', '1.2.3.48.1']])],
+    ]);
+
+    const rows = deriveIndexedListRows(
+      resources,
+      new Map([
+        ['CodeSystem/local-codes', 1],
+        ['ValueSet/local-values', 2],
+      ]),
+      { current, core: emptyIndex(), dependencies: emptyIndex() },
+      { oidAssignments },
+    );
+
+    expect(rows.valueSetOidRows).toEqual([
+      { valueSetListKey: 1, oid: '1.2.3.48.1' },
+      { valueSetListKey: 2, oid: '1.2.3.48.1' },
+      { valueSetListKey: 3, oid: '1.2.3.48.1' },
+    ]);
+    expect(rows.codeSystemOidRows).toEqual([
+      { codeSystemListKey: 1, oid: '1.2.3.16.1' },
+      { codeSystemListKey: 2, oid: '1.2.3.16.1' },
+      { codeSystemListKey: 3, oid: '1.2.3.16.1' },
+    ]);
+  });
+
   test('derives ValueSet refs from Questionnaire answerValueSet fields', () => {
     const valueSet = {
       resourceType: 'ValueSet',

@@ -39,6 +39,7 @@ import {
   type PackageResolution,
   type ResolvedPackage,
 } from './packages';
+import { configuredAutoOidRoot, deriveAutoOidAssignments, parseOidsIni, type OidAssignments } from './oids';
 import {
   deriveConceptRows,
   deriveMetadataRows,
@@ -96,6 +97,7 @@ const txTimeoutMs = txTimeoutMsFromEnv();
 const validateExamples = process.env.PUBLISHER_VALIDATE_EXAMPLES !== '0';
 const validationReportPath = resolve(root, process.env.PUBLISHER_VALIDATION_REPORT || `${outDb}.validation.json`);
 const failOnValidationErrors = process.env.PUBLISHER_FAIL_ON_VALIDATION_ERRORS === '1';
+const oidsIniPath = resolve(root, process.env.PUBLISHER_OIDS || join(sushiProject, 'oids.ini'));
 
 function timed<T>(label: string, fn: () => T): T {
   const start = performance.now();
@@ -122,6 +124,10 @@ function readJson(path: string): Json {
 function readResource(path: string): Json {
   const content = readFileSync(path, 'utf8');
   return path.endsWith('.xml') ? parseFhirXmlResource(content) : JSON.parse(content.replace(/^\uFEFF/, ''));
+}
+
+function readOidAssignments(path: string): OidAssignments {
+  return existsSync(path) ? parseOidsIni(readFileSync(path, 'utf8')) : new Map();
 }
 
 function jsonFiles(dir: string): string[] {
@@ -246,6 +252,7 @@ function writeBuildManifest(
     },
     inputs: {
       config: configPath,
+      oidsIni: existsSync(oidsIniPath) ? oidsIniPath : null,
       fshCompilerInputs: fileSetManifest(args.fshInputFiles, sushiProject),
       generatedResources: fileSetManifest(args.generatedResourceFiles, fshResourceDir),
       inputResources: exampleDir,
@@ -400,6 +407,11 @@ async function main() {
   }
   const now = new Date();
   const loadedResources = timed('load resources', () => loadResources(cfg, now));
+  const oidAssignments = timed('read OID assignments', () => deriveAutoOidAssignments(
+    loadedResources,
+    configuredAutoOidRoot(cfg),
+    readOidAssignments(oidsIniPath),
+  ));
   const coreIndex = timed('index core package', () => buildCanonicalIndex([packageResolution.core], { labelRoot: packageCacheRoot, profile }));
   const dependencyIndex = timed('index dependency packages', () => buildCanonicalIndex(dependencyPackages, { labelRoot: packageCacheRoot, profile }));
   const resources = timed('complete local StructureDefinition snapshots', () => completeStructureDefinitionSnapshots(loadedResources, {
@@ -471,7 +483,7 @@ async function main() {
   const keyByRef = resourceRows.keyByRef;
   const conceptRows = timed('derive concept rows', () => deriveConceptRows(resources, keyByRef));
   const valueSetCodeRows = timed('derive value set expansion rows', () => deriveValueSetCodeRows(resources, keyByRef, valueSetExpansions));
-  const indexedListRows = timed('derive indexed terminology/resource list rows', () => deriveIndexedListRows(resources, keyByRef, indexesWithTerminology));
+  const indexedListRows = timed('derive indexed terminology/resource list rows', () => deriveIndexedListRows(resources, keyByRef, indexesWithTerminology, { oidAssignments }));
   writePackageDbFile(outDb, {
     metadataRows,
     resourceRows: resourceRows.rows,
