@@ -27,6 +27,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
       - uses: oven-sh/setup-bun@v2
       - name: Cache Bun install cache
         uses: actions/cache@v4
@@ -37,10 +44,18 @@ jobs:
             ${{ runner.os }}-bun-
       - name: Install deps
         run: bun install --frozen-lockfile
+      - name: Install native build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y graphviz
+      - name: Install Jekyll
+        run: gem install jekyll --no-document
       - name: Run publisher unit tests
         run: bun run test:publisher
       - name: Run blank-cache publisher smoke
         run: bun run test:publisher:blank-cache
+      - name: Run IPS publisher pilot
+        run: bun run test:publisher:ips
       - name: Upload publisher diagnostics
         if: always()
         uses: actions/upload-artifact@v4
@@ -50,6 +65,9 @@ jobs:
             temp/site-gen/**/*.manifest.json
             temp/site-gen/**/*.validation.json
             temp/site-gen/**/*.compare.md
+            temp/ips-ig/output/package.db
+            temp/ips-ig/output/qa.html
+            temp/ips-ig/output/qa.json
           if-no-files-found: ignore
 
   build:

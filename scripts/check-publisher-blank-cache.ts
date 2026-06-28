@@ -25,6 +25,10 @@ function run(label: string, args: string[], env: Record<string, string>) {
   if (!proc.success) throw new Error(`${label} failed with exit code ${proc.exitCode}`);
 }
 
+function optionalEnv(name: string, value: string | undefined): Record<string, string> {
+  return value ? { [name]: value } : {};
+}
+
 function readJson(path: string): Json {
   return JSON.parse(readFileSync(path, 'utf8'));
 }
@@ -60,6 +64,8 @@ try {
     PUBLISHER_VALIDATION_REPORT: `${firstDb}.validation.json`,
     PUBLISHER_PACKAGE_DOWNLOADS: 'allow',
     PUBLISHER_RUN_SUSHI: '1',
+    ...optionalEnv('PUBLISHER_TX', Bun.env.PUBLISHER_FIRST_TX),
+    ...optionalEnv('PUBLISHER_TX_METADATA', Bun.env.PUBLISHER_FIRST_TX_METADATA),
   });
   const first = checkManifest(firstManifest, new Set(['cache', 'download']));
   const firstDownloads = first.packages.filter((pkg: Json) => pkg.source === 'download').map((pkg: Json) => `${pkg.name}#${pkg.version}`);
@@ -75,6 +81,8 @@ try {
     PUBLISHER_PACKAGE_DOWNLOADS: 'off',
     PUBLISHER_RUN_SUSHI: '0',
     PUBLISHER_VALIDATION_REPORT: `${offlineDb}.validation.json`,
+    ...optionalEnv('PUBLISHER_TX', Bun.env.PUBLISHER_OFFLINE_TX),
+    ...optionalEnv('PUBLISHER_TX_METADATA', Bun.env.PUBLISHER_OFFLINE_TX_METADATA),
   });
   checkManifest(offlineManifest, new Set(['cache']));
 

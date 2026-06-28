@@ -160,11 +160,18 @@ Known useful state:
   `EXPECTED_DB`, and `PUBLISHER_SMOKE_LABEL`, so the same harness can be run
   against Cycle or a local IPS checkout instead of proving only this repository
   layout.
+- The blank-cache smoke also supports separate first-pass and offline-pass
+  terminology modes, for example online CodeSystem metadata lookup followed by
+  cache-only replay for IPS.
+- `bun run test:publisher:ips` now makes the IPS pilot explicit: use or clone
+  the IPS IG, ensure Java Publisher `output/package.db` exists when comparison
+  is required, then run the blank-cache Bun publisher smoke against that
+  checkout.
 - The Pages workflow now runs publisher unit tests in the normal build, caches
-  Bun install data and FHIR packages for warm deploy builds, and runs the
-  blank-cache publisher smoke on a weekly/manual non-deploying safety job in
-  the same workflow. The scheduled safety job uses a separate concurrency group
-  so it cannot cancel a Pages deploy.
+  Bun install data and FHIR packages for warm deploy builds, and runs both the
+  Cycle blank-cache smoke and IPS pilot on a weekly/manual non-deploying safety
+  job in the same workflow. The scheduled safety job uses a separate
+  concurrency group so it cannot cancel a Pages deploy.
 - Package registry fetches are bounded by
   `PUBLISHER_PACKAGE_DOWNLOAD_TIMEOUT_MS` so a stalled registry cannot hang the
   publisher indefinitely.
@@ -966,6 +973,9 @@ Work:
   `temp/site-gen/publisher/package.db.compare.md` for Cycle and
   `temp/site-gen/ips/package.db.compare.md` for IPS. CI should upload these as
   artifacts.
+- Keep the IPS pilot runnable from one command (`bun run test:publisher:ips`)
+  so local and CI checks exercise the same clone/build/compare path instead of
+  relying on an accidental local checkout.
 
 Acceptance criteria:
 
