@@ -581,6 +581,68 @@ describe('publisher example validation', () => {
     ).toContain('max-cardinality');
   });
 
+  test('matches Extension slices whose type profile fixes Extension.url', () => {
+    const extensionProfile = {
+      resourceType: 'StructureDefinition',
+      url: 'https://example.org/StructureDefinition/example-extension',
+      type: 'Extension',
+      snapshot: {
+        element: [
+          { id: 'Extension', path: 'Extension', min: 0, max: '1' },
+          {
+            id: 'Extension.url',
+            path: 'Extension.url',
+            min: 1,
+            max: '1',
+            fixedUri: 'https://example.org/StructureDefinition/example-extension',
+          },
+        ],
+      },
+    };
+    const profile = {
+      resourceType: 'StructureDefinition',
+      url: 'https://example.org/StructureDefinition/sliced-questionnaire',
+      type: 'Questionnaire',
+      snapshot: {
+        element: [
+          { id: 'Questionnaire', path: 'Questionnaire', min: 0, max: '*' },
+          {
+            id: 'Questionnaire.extension',
+            path: 'Questionnaire.extension',
+            min: 0,
+            max: '*',
+            slicing: { discriminator: [{ type: 'value', path: 'url' }], rules: 'open' },
+          },
+          {
+            id: 'Questionnaire.extension:example',
+            path: 'Questionnaire.extension',
+            sliceName: 'example',
+            min: 1,
+            max: '1',
+            type: [{ code: 'Extension', profile: [extensionProfile.url] }],
+          },
+        ],
+      },
+    };
+    const questionnaire = {
+      resourceType: 'Questionnaire',
+      id: 'q',
+      extension: [
+        { url: 'https://example.org/StructureDefinition/other-extension', valueString: 'ignored' },
+        { url: extensionProfile.url, valueCode: 'present' },
+        { url: 'https://example.org/StructureDefinition/another-extension', valueString: 'ignored' },
+      ],
+    };
+
+    expect(validateResourceAgainstProfile(questionnaire, profile, [profile, extensionProfile, questionnaire])).toEqual([]);
+
+    const duplicate = {
+      ...questionnaire,
+      extension: [...questionnaire.extension, { url: extensionProfile.url, valueCode: 'duplicate' }],
+    };
+    expect(validateResourceAgainstProfile(duplicate, profile, [profile, extensionProfile, duplicate]).map((i) => i.code)).toContain('max-cardinality');
+  });
+
   test('applies resource-type slice cardinality only to matching Bundle entries', () => {
     const profile = {
       resourceType: 'StructureDefinition',

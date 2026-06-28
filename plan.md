@@ -171,9 +171,11 @@ Known useful state:
   (`bun run test:publisher:sdc` and `bun run test:publisher:crd`). They are the
   next pilot targets after Cycle and IPS; keep their failures concrete and
   categorized until they can be promoted to gates.
-- A no-Java/no-compare SDC pilot run reached package DB generation from a blank
-  package cache and produced matching first/offline validation output. Current
-  SDC triage input is 20 errors and 71 warnings, not yet classified.
+- A no-Java/no-compare SDC pilot run reaches package DB generation from a blank
+  package cache and produces matching first/offline validation output. Extension
+  slices whose type profile fixes `Extension.url` are now matched without
+  flooding CI logs from FHIRPath `trace()`. Current SDC triage input is 18
+  errors and 71 warnings, not yet fully classified.
 - The Pages workflow now runs publisher unit tests in the normal build, caches
   Bun install data and FHIR packages for warm deploy builds, and runs both the
   Cycle blank-cache smoke and IPS pilot on a weekly/manual non-deploying safety

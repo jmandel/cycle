@@ -67,6 +67,7 @@ type SliceInfo = {
 
 type ValidationRuntime = {
   resourcesByRef: Map<string, Json>;
+  profilesByUrl: Map<string, Json>;
   fhirPathModel?: Json;
 };
 
@@ -200,6 +201,16 @@ function sliceElement(profile: Json, id: string): Json | undefined {
   return profileElements(profile).find((e) => e.id === id);
 }
 
+function profileUrlIndex(resources: Json[]): Map<string, Json> {
+  const out = new Map<string, Json>();
+  for (const resource of resources) {
+    if (resource.resourceType !== 'StructureDefinition' || typeof resource.url !== 'string') continue;
+    out.set(canonicalNoVersion(resource.url), resource);
+    if (typeof resource.version === 'string') out.set(`${canonicalNoVersion(resource.url)}|${resource.version}`, resource);
+  }
+  return out;
+}
+
 function unslicedElementForSlice(profile: Json, slice: Json): Json | undefined {
   return profileElements(profile).find((e) => e.path === slice.path && !e.sliceName && e.slicing);
 }
@@ -277,20 +288,53 @@ function valueMatchesTypeConstraint(value: any, element: Json, discriminatorPath
   });
 }
 
+function extensionProfileUrlConstraint(profile: Json, discriminatorPath: string): { kind: 'pattern' | 'fixed'; value: any } | null {
+  if (discriminatorPath !== 'url') return null;
+  const urlElement = profileElements(profile).find((e) => e.id === 'Extension.url' || e.path === 'Extension.url');
+  return urlElement ? patternField(urlElement) : null;
+}
+
+function valueMatchesProfileConstrainedDiscriminator(slice: Json, candidate: PathValue, discriminatorPath: string, runtime: ValidationRuntime): boolean | null {
+  const profileUrls = (Array.isArray(slice.type) ? slice.type : [])
+    .filter((type: Json) => type.code === 'Extension')
+    .flatMap((type: Json) => Array.isArray(type.profile) ? type.profile : []);
+  if (!profileUrls.length) return null;
+
+  const candidateValues = valuesAtRelativePath(candidate.value, discriminatorPath);
+  if (!candidateValues.length) return false;
+
+  let checked = false;
+  for (const profileUrl of profileUrls) {
+    const profile = runtime.profilesByUrl.get(canonicalNoVersion(profileUrl)) || runtime.profilesByUrl.get(String(profileUrl));
+    if (!profile) continue;
+    const requiredValue = extensionProfileUrlConstraint(profile, discriminatorPath);
+    if (!requiredValue) continue;
+    checked = true;
+    if (candidateValues.some((v) => requiredValue.kind === 'fixed'
+      ? matchesFixed(requiredValue.value, v.value)
+      : matchesPattern(requiredValue.value, v.value))) {
+      return true;
+    }
+  }
+  return checked ? false : null;
+}
+
 function matchesSlice(profile: Json, slice: Json, candidate: PathValue, runtime: ValidationRuntime): boolean {
   const slicing = unslicedElementForSlice(profile, slice)?.slicing;
   const discriminators = Array.isArray(slicing?.discriminator) ? slicing.discriminator : [];
   let evaluatedDiscriminators = 0;
   for (const discriminator of discriminators) {
     const child = childElementForDiscriminator(profile, slice, discriminator.path);
-    if (!child) continue;
     if (discriminator.type === 'value') {
+      const matched = child
+        ? valuesAtRelativePath(candidate.value, relativePathFromSlice(slice.path, child.path) || undefined)
+          .some((v) => valueMatchesElementConstraint(v.value, child))
+        : valueMatchesProfileConstrainedDiscriminator(slice, candidate, discriminator.path, runtime);
+      if (matched === null) return false;
       evaluatedDiscriminators++;
-      const relative = relativePathFromSlice(slice.path, child.path);
-      const candidateValues = valuesAtRelativePath(candidate.value, relative || undefined);
-      const matched = candidateValues.some((v) => valueMatchesElementConstraint(v.value, child));
       if (!matched) return false;
     } else if (discriminator.type === 'type' || discriminator.type === 'profile') {
+      if (!child) continue;
       evaluatedDiscriminators++;
       const matched = valueMatchesTypeConstraint(candidate.value, child, discriminator.path, discriminator.type, slice, runtime);
       if (matched === false) return false;
@@ -420,6 +464,7 @@ function fhirPathModelForVersion(fhirVersion: string | null): Json | undefined {
 function validationRuntime(resources: Json[], profile: Json): ValidationRuntime {
   return {
     resourcesByRef: buildResourceLookup(resources),
+    profilesByUrl: profileUrlIndex([...resources, profile]),
     fhirPathModel: fhirPathModelForVersion(fhirVersionFromResources(resources, profile)),
   };
 }
@@ -473,7 +518,7 @@ function evaluateKnownConstraint(resource: Json, constraint: Json): boolean | nu
 function evaluateFhirPathConstraint(resource: Json, element: Json, context: PathValue, constraint: Json, runtime: ValidationRuntime): unknown {
   const known = evaluateKnownConstraint(resource, constraint);
   if (known !== null) return [known];
-  return fhirpath.evaluate(context.value, { base: element.path, expression: constraint.expression }, { resource }, runtime.fhirPathModel);
+  return fhirpath.evaluate(context.value, { base: element.path, expression: constraint.expression }, { resource }, runtime.fhirPathModel, { traceFn: () => {} });
 }
 
 function fhirPathSelectorForElement(elementPath: string | undefined): string | null {
@@ -509,7 +554,7 @@ function checkFhirPathConstraints(args: {
       try {
         const known = evaluateKnownConstraint(resource, constraint);
         const result = known === null
-          ? fhirpath.evaluate(resource, expression, { resource }, runtime.fhirPathModel)
+          ? fhirpath.evaluate(resource, expression, { resource }, runtime.fhirPathModel, { traceFn: () => {} })
           : [known];
         if (fhirPathPasses(result)) continue;
         issues.push({
