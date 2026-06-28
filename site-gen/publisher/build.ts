@@ -30,6 +30,7 @@ import {
   structureDefinitionBindingValueSetUrls,
   valueSetDirectSystems,
 } from './indexed-lists';
+import { parseFhirXmlResource } from './fhir-xml';
 import {
   describePackage,
   packageDownloadPolicyFromEnv,
@@ -118,9 +119,22 @@ function readJson(path: string): Json {
   return JSON.parse(readFileSync(path, 'utf8').replace(/^\uFEFF/, ''));
 }
 
+function readResource(path: string): Json {
+  const content = readFileSync(path, 'utf8');
+  return path.endsWith('.xml') ? parseFhirXmlResource(content) : JSON.parse(content.replace(/^\uFEFF/, ''));
+}
+
 function jsonFiles(dir: string): string[] {
   if (!existsSync(dir)) return [];
   return readdirSync(dir).filter((f) => f.endsWith('.json')).map((f) => join(dir, f)).sort();
+}
+
+function resourceFiles(dir: string): string[] {
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir)
+    .filter((f) => f.endsWith('.json') || f.endsWith('.xml'))
+    .map((f) => join(dir, f))
+    .sort();
 }
 
 function scalarString(v: unknown): string | null {
@@ -270,8 +284,8 @@ function writeValidationReport(path: string, issues: ValidationIssue[]) {
 }
 
 function loadResources(cfg: Json, now: Date): Json[] {
-  const generated = jsonFiles(fshResourceDir).map(readJson);
-  const examples = jsonFiles(exampleDir).map(readJson);
+  const generated = resourceFiles(fshResourceDir).map(readResource);
+  const examples = resourceFiles(exampleDir).map(readResource);
   const byRef = new Map<string, Json>();
   for (const r of [...generated, ...examples]) {
     if (!r.resourceType || !r.id) continue;
