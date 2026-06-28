@@ -10,6 +10,7 @@ import {
   defaultTerminologyServerForFhirVersion,
   expandValueSet,
   fetchCodeSystemMetadata,
+  isOptionalCodeSystemMetadataMiss,
   prepareValueSetExpansions,
   terminologyResourceContext,
   validateCodeResultFromParameters,
@@ -71,6 +72,25 @@ describe('ValueSet terminology classification', () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+
+  test('recognizes optional CodeSystem metadata misses without matching unrelated terminology failures', () => {
+    expect(isOptionalCodeSystemMetadataMiss(
+      new Error('Terminology server https://tx.fhir.org/r4/CodeSystem?url=https%3A%2F%2Fcodesystem.x12.org%2F005010%2F1365 returned an uncacheable response: Refusing to cache terminology response for CodeSystem?url: expected at least one matching CodeSystem entry, got 0'),
+      'online',
+    )).toBe(true);
+    expect(isOptionalCodeSystemMetadataMiss(
+      new Error('Missing terminology cache entry: input/tx-cache/CodeSystem?url/sha256-example.json'),
+      'cache',
+    )).toBe(true);
+    expect(isOptionalCodeSystemMetadataMiss(
+      new Error('Terminology server https://tx.fhir.org/r4/ValueSet/$expand failed: HTTP 500'),
+      'online',
+    )).toBe(false);
+    expect(isOptionalCodeSystemMetadataMiss(
+      new Error('Missing terminology cache entry: input/tx-cache/CodeSystem?url/sha256-example.json'),
+      'online',
+    )).toBe(false);
   });
 
   test('classifies local explicit concepts as locally expandable', () => {

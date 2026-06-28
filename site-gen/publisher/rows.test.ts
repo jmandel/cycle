@@ -8,6 +8,7 @@ describe('package DB row derivation', () => {
         fhirVersion: '4.0.1',
         canonical: 'https://example.org/ig',
         id: 'example.ig',
+        packageId: 'example.package',
         name: 'ExampleIG',
         version: '1.2.3',
         releaseLabel: 'test-build',
@@ -44,6 +45,8 @@ describe('package DB row derivation', () => {
     const byName = new Map(rows.map((row) => [row.name, row.value]));
     expect(byName.get('path')).toBe('http://hl7.org/fhir/R4/');
     expect(byName.get('canonical')).toBe('https://example.org/ig');
+    expect(byName.get('igId')).toBe('example.package');
+    expect(byName.get('packageId')).toBe('example.package');
     expect(byName.get('versionFull')).toBe('4.0.1-abc123def0');
     expect(byName.get('gitstatus')).toBe('main');
   });
@@ -139,6 +142,8 @@ describe('package DB row derivation', () => {
       {
         resourceType: 'ImplementationGuide',
         id: 'demo',
+        url: 'http://current.example/ImplementationGuide/demo',
+        packageId: 'example.package',
         name: 'DemoIG',
       },
       {
@@ -152,30 +157,62 @@ describe('package DB row derivation', () => {
         experimental: false,
         kind: 'resource',
         type: 'Observation',
-        baseDefinition: 'http://hl7.org/fhir/StructureDefinition/Observation',
+        baseDefinition: 'http://example.org/base/StructureDefinition/BaseObservation',
         derivation: 'constraint',
+      },
+      {
+        resourceType: 'Observation',
+        id: 'example',
+        description: 'Resource description',
+      },
+      {
+        resourceType: 'StructureDefinition',
+        id: 'package-profile',
+        url: 'http://current.example/StructureDefinition/package-profile',
+        name: 'PackageProfile',
+        kind: 'resource',
+        type: 'Task',
+        baseDefinition: 'http://package.example/StructureDefinition/BaseTask',
       },
     ];
     const metadata = new Map([
       ['StructureDefinition/demo-profile', { description: 'Profile from IG manifest' }],
+      ['Observation/example', { name: 'Manifest Example', description: 'Manifest description' }],
     ]);
 
     const result = deriveResourceRows(resources, metadata, {
+      canonical: 'http://current.example',
+      packageId: 'example.package',
       fhirVersion: ['4.0.1'],
       parameters: { 'pin-canonicals': 'pin-all' },
+      dependencies: [
+        {
+          uri: 'http://example.org/base/ImplementationGuide/base',
+          version: '2.0.0',
+        },
+      ],
+      __publisherPackageCanonicalVersions: [
+        {
+          canonical: 'http://package.example',
+          version: '3.0.0',
+          candidate: true,
+        },
+      ],
     });
 
     expect([...result.keyByRef.entries()]).toEqual([
       ['ImplementationGuide/demo', 1],
       ['StructureDefinition/demo-profile', 2],
+      ['Observation/example', 3],
+      ['StructureDefinition/package-profile', 4],
     ]);
     expect(result.rows).toEqual([
       expect.objectContaining({
         key: 1,
         type: 'ImplementationGuide',
-        id: 'demo',
+        id: 'example.package',
         web: 'index.html',
-        url: null,
+        url: 'http://current.example/ImplementationGuide/example.package',
         name: 'DemoIG',
         json: JSON.stringify(resources[0]),
       }),
@@ -194,10 +231,67 @@ describe('package DB row derivation', () => {
         derivation: 'constraint',
         kind: 'resource',
         sdType: 'Observation',
-        base: 'http://hl7.org/fhir/StructureDefinition/Observation|4.0.1',
+        base: 'http://example.org/base/StructureDefinition/BaseObservation|2.0.0',
         json: JSON.stringify(resources[1]),
       }),
+      expect.objectContaining({
+        key: 3,
+        type: 'Observation',
+        id: 'example',
+        web: 'Observation-example.html',
+        name: 'Manifest Example',
+        description: 'Manifest description',
+        json: JSON.stringify(resources[2]),
+      }),
+      expect.objectContaining({
+        key: 4,
+        type: 'StructureDefinition',
+        id: 'package-profile',
+        base: 'http://package.example/StructureDefinition/BaseTask|3.0.0',
+        json: JSON.stringify(resources[3]),
+      }),
     ]);
+  });
+
+  test('pins dependency bases for pin-multiples only when multiple choices are known', () => {
+    const resources = [
+      {
+        resourceType: 'StructureDefinition',
+        id: 'multiple',
+        url: 'http://current.example/StructureDefinition/multiple',
+        name: 'Multiple',
+        baseDefinition: 'http://family.example/StructureDefinition/Base',
+      },
+      {
+        resourceType: 'StructureDefinition',
+        id: 'single',
+        url: 'http://current.example/StructureDefinition/single',
+        name: 'Single',
+        baseDefinition: 'http://single.example/StructureDefinition/Base',
+      },
+      {
+        resourceType: 'StructureDefinition',
+        id: 'core',
+        url: 'http://current.example/StructureDefinition/core',
+        name: 'Core',
+        baseDefinition: 'http://hl7.org/fhir/StructureDefinition/Observation',
+      },
+    ];
+
+    const rows = deriveResourceRows(resources, new Map(), {
+      fhirVersion: ['4.0.1'],
+      parameters: { 'pin-canonicals': 'pin-multiples' },
+      __publisherPackageCanonicalVersions: [
+        { canonical: 'http://family.example', version: '2.0.0', candidate: true },
+        { canonical: 'http://family.example/v1', version: '1.0.0', candidate: false },
+        { canonical: 'http://single.example', version: '1.0.0', candidate: true },
+      ],
+    }).rows;
+    const byId = new Map(rows.map((row) => [row.id, row]));
+
+    expect(byId.get('multiple')?.base).toBe('http://family.example/StructureDefinition/Base|2.0.0');
+    expect(byId.get('single')?.base).toBe('http://single.example/StructureDefinition/Base');
+    expect(byId.get('core')?.base).toBe('http://hl7.org/fhir/StructureDefinition/Observation');
   });
 
   test('propagates IG standards status to non-example canonical resources', () => {

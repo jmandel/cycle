@@ -93,6 +93,18 @@ export type ValueSetExpansionLike = {
   }>;
 };
 
+type DependencyCanonicalVersion = {
+  canonical: string;
+  version: string;
+  pinWhenMultiple: boolean;
+};
+
+type CandidateCanonicalVersion = {
+  canonical: string;
+  version: string;
+  candidate: boolean;
+};
+
 function scalarString(v: unknown): string | null {
   if (v === undefined || v === null) return null;
   if (typeof v === 'string') return v;
@@ -186,11 +198,72 @@ function propagatedStandardStatus(resource: Json, meta: Json | undefined, igStan
 
 function baseDefinitionForDb(resource: Json, cfg: Json): string | null {
   const base = scalarString(resource.baseDefinition);
-  if (!base || base.includes('|') || cfg.parameters?.['pin-canonicals'] !== 'pin-all') return base;
+  const pinMode = canonicalPinningMode(cfg);
+  if (!base || base.includes('|') || !pinMode) return base;
   const fhirVersion = Array.isArray(cfg.fhirVersion) ? cfg.fhirVersion[0] : cfg.fhirVersion;
-  if (cfg.canonical && base.startsWith(`${cfg.canonical}/`)) return `${base}|${cfg.version}`;
-  if (base.startsWith('http://hl7.org/fhir/StructureDefinition/') && fhirVersion) return `${base}|${fhirVersion}`;
+  if (pinMode === 'pin-all' && cfg.canonical && base.startsWith(`${cfg.canonical}/`)) return `${base}|${cfg.version}`;
+  for (const dep of dependencyCanonicalVersions(cfg)) {
+    if (base.startsWith(`${dep.canonical}/`) && (pinMode === 'pin-all' || dep.pinWhenMultiple)) return `${base}|${dep.version}`;
+  }
+  if (pinMode === 'pin-all' && base.startsWith('http://hl7.org/fhir/StructureDefinition/') && fhirVersion) return `${base}|${fhirVersion}`;
   return base;
+}
+
+function canonicalPinningMode(cfg: Json): 'pin-all' | 'pin-multiples' | null {
+  const mode = cfg.parameters?.['pin-canonicals'];
+  return mode === 'pin-all' || mode === 'pin-multiples' ? mode : null;
+}
+
+function configuredPackageId(cfg: Json, ig?: Json): string {
+  return scalarString(cfg.packageId)
+    || scalarString(ig?.packageId)
+    || scalarString(cfg.id)
+    || scalarString(ig?.id)
+    || '';
+}
+
+function isMultipleChoiceCanonical(canonical: string, entries: Array<{ canonical: string; version: string }>): boolean {
+  const exactVersions = new Set(entries.filter((entry) => entry.canonical === canonical).map((entry) => entry.version));
+  if (exactVersions.size > 1) return true;
+  return entries.some((entry) => entry.canonical !== canonical && entry.canonical.startsWith(`${canonical}/v`));
+}
+
+function dependencyCanonicalVersions(cfg: Json): DependencyCanonicalVersion[] {
+  const rawDependencies = cfg.dependencies;
+  const dependencies = Array.isArray(rawDependencies)
+    ? rawDependencies
+    : Object.values(rawDependencies || {});
+  const fromConfig = dependencies.flatMap((dep: any) => {
+    const uri = scalarString(dep?.uri);
+    const version = scalarString(dep?.version);
+    if (!uri || !version) return [];
+    const canonical = uri.replace(/\/ImplementationGuide\/[^/]+$/, '');
+    return canonical !== uri ? [{ canonical, version, candidate: true }] : [];
+  });
+  const fromResolvedPackages = (Array.isArray(cfg.__publisherPackageCanonicalVersions) ? cfg.__publisherPackageCanonicalVersions : []).flatMap((dep: any) => {
+    const canonical = scalarString(dep?.canonical);
+    const version = scalarString(dep?.version);
+    return canonical && version ? [{ canonical, version, candidate: dep?.candidate === true }] : [];
+  });
+  const entries: CandidateCanonicalVersion[] = [...fromConfig, ...fromResolvedPackages]
+    .filter((dep, index, all) => index === all.findIndex((other) => other.canonical === dep.canonical && other.version === dep.version && other.candidate === dep.candidate))
+    .sort((a, b) => b.canonical.length - a.canonical.length || a.canonical.localeCompare(b.canonical));
+  return entries.filter((entry) => entry.candidate).map((entry) => ({
+    ...entry,
+    pinWhenMultiple: isMultipleChoiceCanonical(entry.canonical, entries),
+  }));
+}
+
+function resourceRowId(resource: Json, cfg: Json): string {
+  if (resource.resourceType === 'ImplementationGuide') return configuredPackageId(cfg, resource) || resource.id;
+  return resource.id;
+}
+
+function resourceRowUrl(resource: Json, cfg: Json, id: string): string | null {
+  if (resource.resourceType === 'ImplementationGuide' && cfg.canonical && id) {
+    return `${String(cfg.canonical).replace(/\/+$/, '')}/ImplementationGuide/${id}`;
+  }
+  return hasCanonicalUrl(resource) ? resource.url ?? null : null;
 }
 
 export function deriveMetadataRows(args: {
@@ -202,12 +275,13 @@ export function deriveMetadataRows(args: {
 }): MetadataRow[] {
   const { cfg, ig, now, branch, revision } = args;
   const fhirVersion = Array.isArray(cfg.fhirVersion) ? cfg.fhirVersion[0] : cfg.fhirVersion;
+  const packageId = configuredPackageId(cfg, ig);
   const values = [
     ['path', fhirVersion ? fhirPublicationBaseForVersion(fhirVersion) : ''],
     ['canonical', cfg.canonical || ig.url?.replace(/\/ImplementationGuide\/.+$/, '') || ''],
-    ['igId', cfg.id || ig.id || ''],
+    ['igId', packageId],
     ['igName', cfg.name || ig.name || ''],
-    ['packageId', cfg.id || ig.packageId || ig.id || ''],
+    ['packageId', packageId],
     ['igVer', cfg.version || ig.version || ''],
     ['errorCount', '0'],
     ['version', fhirVersion || ''],
@@ -235,13 +309,14 @@ export function deriveResourceRows(resources: Json[], resourceMeta: Map<string, 
     keyByRef.set(resourceRef(r), key);
     const meta = resourceMeta.get(resourceRef(r));
     const canonicalResource = hasCanonicalUrl(r);
+    const rowId = resourceRowId(r, cfg);
     rows.push({
       key,
       type: r.resourceType,
       custom: 0,
-      id: r.id,
-      web: pageFor(r.resourceType, r.id),
-      url: canonicalResource ? r.url ?? null : null,
+      id: rowId,
+      web: pageFor(r.resourceType, rowId),
+      url: resourceRowUrl(r, cfg, rowId),
       version: canonicalResource ? r.version ?? null : null,
       status: r.status ?? null,
       date: canonicalResource ? r.date ?? null : null,
@@ -249,7 +324,7 @@ export function deriveResourceRows(resources: Json[], resourceMeta: Map<string, 
       title: scalarString(r.title),
       experimental: boolString(r.experimental),
       realm: null,
-      description: canonicalResource ? scalarString(r.description) : scalarString(r.description) || scalarString(meta?.description),
+      description: canonicalResource ? scalarString(r.description) : scalarString(meta?.description) || scalarString(r.description),
       purpose: scalarString(r.purpose),
       copyright: scalarString(r.copyright),
       copyrightLabel: scalarString(r.copyrightLabel),

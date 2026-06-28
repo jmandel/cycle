@@ -762,6 +762,17 @@ export async function fetchCodeSystemMetadata(
   return { codeSystem, source: source === 'cache' ? 'tx-cache' : 'tx-online', cachePath };
 }
 
+export function isOptionalCodeSystemMetadataMiss(error: unknown, mode: TerminologyMetadataMode): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  if (
+    message.includes('expected at least one matching CodeSystem entry')
+    || message.includes('terminology server returned 0 matching CodeSystems')
+  ) {
+    return true;
+  }
+  return mode === 'cache' && message.includes('Missing terminology cache entry:');
+}
+
 async function validateCodeWithRequest(
   request: TxRequest,
   options: TerminologyOptions | TerminologyMetadataOptions,

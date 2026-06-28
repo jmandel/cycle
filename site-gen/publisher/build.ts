@@ -31,6 +31,7 @@ import {
   valueSetDirectSystems,
 } from './indexed-lists';
 import { parseFhirXmlResource } from './fhir-xml';
+import { binaryResourceFromManifestReference } from './manifest-binary';
 import {
   describePackage,
   packageDownloadPolicyFromEnv,
@@ -60,6 +61,7 @@ import { getSushiVersion, runSushiBuild, type SushiBuildResult } from './sushi';
 import {
   fetchCodeSystemMetadata,
   defaultTerminologyServerForFhirVersion,
+  isOptionalCodeSystemMetadataMiss,
   maxExpansionCodesFromEnv,
   prepareValueSetExpansions,
   summarizeValueSetStrategies,
@@ -200,6 +202,18 @@ function packageManifestEntry(pkg: ResolvedPackage): Json {
   };
 }
 
+function packageCanonicalVersions(packageResolution: PackageResolution): Json[] {
+  return packageResolution.packages.flatMap((pkg) => {
+    const canonical = scalarString(pkg.manifest.canonical);
+    const version = scalarString(pkg.manifest.version) || pkg.version;
+    return canonical && version ? [{
+      canonical,
+      version,
+      candidate: pkg.resolution.role === 'declared',
+    }] : [];
+  });
+}
+
 function fileSetManifest(files: string[], dir: string): Json {
   return summarizeTimestampedFiles(timestampedFiles(files), dir);
 }
@@ -292,8 +306,10 @@ function writeValidationReport(path: string, issues: ValidationIssue[]) {
 }
 
 function loadResources(cfg: Json, now: Date): Json[] {
-  const generated = resourceFiles(fshResourceDir).map(readResource);
-  const examples = resourceFiles(exampleDir).map(readResource);
+  const generatedResourceFiles = resourceFiles(fshResourceDir);
+  const inputResourceFiles = resourceFiles(exampleDir);
+  const generated = generatedResourceFiles.map(readResource);
+  const examples = inputResourceFiles.map(readResource);
   const byRef = new Map<string, Json>();
   for (const r of [...generated, ...examples]) {
     if (!r.resourceType || !r.id) continue;
@@ -301,6 +317,7 @@ function loadResources(cfg: Json, now: Date): Json[] {
   }
   const ig = generated.find((r) => r.resourceType === 'ImplementationGuide');
   if (!ig) throw new Error(`No ImplementationGuide JSON found in ${relative(root, fshResourceDir)}. The integrated SUSHI stage did not produce IG resources.`);
+  const resourceMeta = igResourceMetadata(ig);
 
   const ordered: Json[] = [];
   const seen = new Set<string>();
@@ -314,7 +331,12 @@ function loadResources(cfg: Json, now: Date): Json[] {
 
   push(ig);
   for (const ref of (ig.definition?.resource || []).map((r: any) => r.reference?.reference).filter(Boolean)) {
-    push(byRef.get(ref));
+    let resource = byRef.get(ref);
+    if (!resource) {
+      resource = binaryResourceFromManifestReference(ref, resourceMeta.get(ref), inputResourceFiles) ?? undefined;
+      if (resource) byRef.set(ref, resource);
+    }
+    push(resource);
   }
   for (const r of [...byRef.values()].sort((a, b) => typeRank(a.resourceType) - typeRank(b.resourceType) || a.id.localeCompare(b.id))) {
     push(r);
@@ -364,8 +386,13 @@ async function fetchMissingCodeSystemMetadata(
     .sort((a, b) => a.localeCompare(b));
 
   for (const system of missingSystems) {
-    const { codeSystem } = await fetchCodeSystemMetadata(system, options);
-    out.set(system, codeSystem);
+    try {
+      const { codeSystem } = await fetchCodeSystemMetadata(system, options);
+      out.set(system, codeSystem);
+    } catch (error) {
+      if (!isOptionalCodeSystemMetadataMiss(error, options.mode)) throw error;
+      console.warn(`CodeSystem metadata unavailable for ${system}; continuing without optional CodeSystemList metadata.`);
+    }
   }
   return out;
 }
@@ -449,8 +476,9 @@ async function main() {
   const ig = resources.find((r) => r.resourceType === 'ImplementationGuide');
   if (!ig) throw new Error('No ImplementationGuide resource loaded');
   const resourceMeta = timed('ig resource metadata', () => igResourceMetadata(ig));
+  const rowConfig = { ...cfg, __publisherPackageCanonicalVersions: packageCanonicalVersions(packageResolution) };
   const metadataRows = timed('derive metadata rows', () => deriveMetadataRows({
-    cfg,
+    cfg: rowConfig,
     ig,
     now,
     branch: git(['branch', '--show-current']),
@@ -480,7 +508,7 @@ async function main() {
     if (errors.length) console.warn(`Example validation reported ${errors.length} error${errors.length === 1 ? '' : 's'}; see ${relative(root, validationReportPath)}`);
   }
 
-  const resourceRows = timed('derive resource rows', () => deriveResourceRows(resources, resourceMeta, cfg));
+  const resourceRows = timed('derive resource rows', () => deriveResourceRows(resources, resourceMeta, rowConfig));
   const keyByRef = resourceRows.keyByRef;
   const conceptRows = timed('derive concept rows', () => deriveConceptRows(resources, keyByRef));
   const codeSystemPropertyRows = timed('derive code system property rows', () => deriveCodeSystemPropertyRows(resources, keyByRef));
