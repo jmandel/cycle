@@ -87,16 +87,83 @@ function generatedSnapshotElements(sd: Json, indexes: PublisherCanonicalIndexes)
   return overlayDifferential(baseElements, differential);
 }
 
+function elementKey(element: Json): string | null {
+  return typeof element.id === 'string' ? element.id : typeof element.path === 'string' ? element.path : null;
+}
+
+function choiceSliceRootPath(element: Json): string | null {
+  const id = typeof element.id === 'string' ? element.id : '';
+  if (!id.includes('[x]:')) return null;
+  const path = typeof element.path === 'string' ? element.path : id.split(':')[0];
+  return path.includes('[x]') ? path : null;
+}
+
+function bindableType(element: Json): boolean {
+  return (element.type || []).some((type: Json) => {
+    const code = type?.code;
+    return code === 'code'
+      || code === 'Coding'
+      || code === 'CodeableConcept'
+      || code === 'CodeableReference'
+      || code === 'Quantity';
+  });
+}
+
+function reconcileChoiceSliceBindings(sd: Json, indexes: PublisherCanonicalIndexes): Json {
+  if (!hasSnapshot(sd)) return sd;
+  const baseElements = baseSnapshotFor(sd, indexes);
+  if (!baseElements) return sd;
+
+  const baseByPath = new Map<string, Json>();
+  for (const base of baseElements) {
+    if (typeof base.path === 'string' && !baseByPath.has(base.path)) baseByPath.set(base.path, base);
+  }
+
+  const differentialByKey = new Map<string, Json>();
+  for (const differential of sd.differential?.element || []) {
+    const key = elementKey(differential);
+    if (key) differentialByKey.set(key, differential);
+  }
+
+  let changed = false;
+  const snapshotElements = sd.snapshot.element.map((element: Json) => {
+    const rootPath = choiceSliceRootPath(element);
+    if (!rootPath) return element;
+    const diff = elementKey(element) ? differentialByKey.get(elementKey(element)!) : undefined;
+    if (diff?.binding) return element;
+
+    const base = baseByPath.get(rootPath);
+    if (!base?.binding) return element;
+
+    const next = clone(element);
+    if (bindableType(element)) {
+      if (JSON.stringify(next.binding) === JSON.stringify(base.binding)) return element;
+      next.binding = clone(base.binding);
+      changed = true;
+      return next;
+    }
+    if (next.binding) {
+      delete next.binding;
+      changed = true;
+      return next;
+    }
+    return element;
+  });
+
+  return changed ? { ...sd, snapshot: { ...sd.snapshot, element: snapshotElements } } : sd;
+}
+
 export function completeStructureDefinitionSnapshots(resources: Json[], indexes: PublisherCanonicalIndexes): Json[] {
   return resources.map((resource) => {
-    if (resource.resourceType !== 'StructureDefinition' || hasSnapshot(resource)) return resource;
+    if (resource.resourceType !== 'StructureDefinition') return resource;
+    if (hasSnapshot(resource)) return reconcileChoiceSliceBindings(resource, indexes);
     const snapshotElements = generatedSnapshotElements(resource, indexes);
     if (!snapshotElements.length) return resource;
-    return {
+    return reconcileChoiceSliceBindings({
       ...resource,
       snapshot: {
         element: snapshotElements,
       },
-    };
+    }, indexes);
   });
 }

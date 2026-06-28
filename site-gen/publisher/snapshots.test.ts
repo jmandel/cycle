@@ -92,4 +92,94 @@ describe('StructureDefinition snapshot contract', () => {
       { path: 'LogicalRoot.value', min: 1, max: '1', type: [{ code: 'integer' }], id: 'LogicalRoot.value', base: { path: 'LogicalRoot.value', min: 1, max: '1' } },
     ]);
   });
+
+  test('reconciles choice slice bindings against the base choice binding', () => {
+    const base = {
+      resourceType: 'StructureDefinition',
+      id: 'base-request',
+      url: 'http://example.org/StructureDefinition/base-request',
+      snapshot: {
+        element: [
+          { id: 'Request', path: 'Request', min: 0, max: '*' },
+          {
+            id: 'Request.code[x]',
+            path: 'Request.code[x]',
+            min: 1,
+            max: '1',
+            type: [{ code: 'Reference' }, { code: 'CodeableConcept' }],
+            binding: { strength: 'example', valueSet: 'http://example.org/ValueSet/base-device-kind' },
+          },
+        ],
+      },
+    };
+    const derived = {
+      resourceType: 'StructureDefinition',
+      id: 'derived-request',
+      url: 'http://example.org/StructureDefinition/derived-request',
+      baseDefinition: base.url,
+      differential: {
+        element: [
+          {
+            id: 'Request.code[x]',
+            path: 'Request.code[x]',
+            min: 1,
+            max: '1',
+            type: [{ code: 'Reference' }, { code: 'CodeableConcept' }],
+            binding: { strength: 'extensible', valueSet: 'http://example.org/ValueSet/profile-request-code' },
+          },
+          {
+            id: 'Request.code[x]:codeCodeableConcept',
+            path: 'Request.code[x]',
+            sliceName: 'codeCodeableConcept',
+            type: [{ code: 'CodeableConcept' }],
+          },
+          {
+            id: 'Request.code[x]:codeReference',
+            path: 'Request.code[x]',
+            sliceName: 'codeReference',
+            type: [{ code: 'Reference' }],
+          },
+        ],
+      },
+      snapshot: {
+        element: [
+          { id: 'Request', path: 'Request', min: 0, max: '*' },
+          {
+            id: 'Request.code[x]',
+            path: 'Request.code[x]',
+            min: 1,
+            max: '1',
+            type: [{ code: 'Reference' }, { code: 'CodeableConcept' }],
+            binding: { strength: 'extensible', valueSet: 'http://example.org/ValueSet/profile-request-code' },
+          },
+          {
+            id: 'Request.code[x]:codeCodeableConcept',
+            path: 'Request.code[x]',
+            sliceName: 'codeCodeableConcept',
+            type: [{ code: 'CodeableConcept' }],
+            binding: { strength: 'extensible', valueSet: 'http://example.org/ValueSet/profile-request-code' },
+          },
+          {
+            id: 'Request.code[x]:codeReference',
+            path: 'Request.code[x]',
+            sliceName: 'codeReference',
+            type: [{ code: 'Reference' }],
+            binding: { strength: 'extensible', valueSet: 'http://example.org/ValueSet/profile-request-code' },
+          },
+        ],
+      },
+    };
+    const resources = [base, derived];
+    const indexes = { current: buildCurrentCanonicalIndex(resources), core: buildCurrentCanonicalIndex([]), dependencies: buildCurrentCanonicalIndex([]) };
+
+    const completed = completeStructureDefinitionSnapshots(resources, indexes);
+    const fixed = completed.find((r) => r.id === 'derived-request')!;
+    const parent = fixed.snapshot.element.find((e: any) => e.id === 'Request.code[x]');
+    const codeSlice = fixed.snapshot.element.find((e: any) => e.id === 'Request.code[x]:codeCodeableConcept');
+    const referenceSlice = fixed.snapshot.element.find((e: any) => e.id === 'Request.code[x]:codeReference');
+
+    expect(parent.binding.valueSet).toBe('http://example.org/ValueSet/profile-request-code');
+    expect(codeSlice.binding.valueSet).toBe('http://example.org/ValueSet/base-device-kind');
+    expect(referenceSlice.binding).toBeUndefined();
+  });
 });
