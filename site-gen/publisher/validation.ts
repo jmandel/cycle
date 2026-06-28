@@ -467,13 +467,17 @@ function buildResourceLookup(resources: Json[]): Map<string, Json> {
   return out;
 }
 
+function firstFhirVersion(value: unknown): string | null {
+  if (typeof value === 'string') return value;
+  if (Array.isArray(value)) return value.find((v): v is string => typeof v === 'string') || null;
+  return null;
+}
+
 function fhirVersionFromResources(resources: Json[], profile: Json): string | null {
-  const profileVersion = typeof profile.fhirVersion === 'string' ? profile.fhirVersion : null;
+  const profileVersion = firstFhirVersion(profile.fhirVersion);
   if (profileVersion) return profileVersion;
   for (const resource of resources) {
-    if (resource.resourceType === 'ImplementationGuide' && typeof resource.fhirVersion === 'string') {
-      return resource.fhirVersion;
-    }
+    if (resource.resourceType === 'ImplementationGuide') return firstFhirVersion(resource.fhirVersion);
   }
   return null;
 }
@@ -506,42 +510,88 @@ function constraintLabel(constraint: Json): string {
   return constraint.key || constraint.human || constraint.expression || '(constraint)';
 }
 
-function collectNamedPrimitiveDescendants(value: any, names: Set<string>, out: string[] = []): string[] {
+function fhirPathType(model: Json | undefined, path: string | undefined): string | undefined {
+  return path ? model?.path2Type?.[path] : undefined;
+}
+
+function childFhirPath(model: Json | undefined, parentPath: string | undefined, key: string): string | undefined {
+  if (!parentPath) return key;
+
+  const direct = `${parentPath}.${key}`;
+  const directMapped = model?.pathsDefinedElsewhere?.[direct] || direct;
+  if (!model || model.path2Type?.[directMapped]) return directMapped;
+
+  const parentType = fhirPathType(model, parentPath);
+  if (parentType) {
+    const typed = `${parentType}.${key}`;
+    const typedMapped = model.pathsDefinedElsewhere?.[typed] || typed;
+    if (model.path2Type?.[typedMapped]) return typedMapped;
+  }
+
+  return directMapped;
+}
+
+function collectDom3ReferenceValues(value: any, model: Json | undefined, path: string | undefined, out: string[] = []): string[] {
   if (!value || typeof value !== 'object') return out;
   if (Array.isArray(value)) {
-    for (const item of value) collectNamedPrimitiveDescendants(item, names, out);
+    for (const item of value) collectDom3ReferenceValues(item, model, path, out);
     return out;
   }
+  const objectPath = typeof value.resourceType === 'string' ? value.resourceType : path;
   for (const [key, child] of Object.entries(value)) {
-    if (names.has(key) && typeof child === 'string') out.push(child);
-    collectNamedPrimitiveDescendants(child, names, out);
+    const childPath = childFhirPath(model, objectPath, key.startsWith('_') ? key.slice(1) : key);
+    const childType = fhirPathType(model, childPath);
+    if (
+      typeof child === 'string' &&
+      (childPath === 'Reference.reference' || childType === 'canonical' || childType === 'uri' || childType === 'url')
+    ) {
+      out.push(child);
+    }
+    collectDom3ReferenceValues(child, model, childPath, out);
   }
   return out;
 }
 
-function containedResourcesAreReferenced(resource: Json): boolean {
+function containedResourcesAreReferenced(resource: Json, model: Json | undefined): boolean {
   const contained = Array.isArray(resource.contained) ? resource.contained : [];
   if (!contained.length) return true;
-  const descendantRefs = new Set(collectNamedPrimitiveDescendants(resource, new Set(['reference', 'canonical', 'uri', 'url'])));
+  const descendantRefs = new Set(collectDom3ReferenceValues(resource, model, resource.resourceType));
   return contained.every((child: Json) => {
     const id = typeof child?.id === 'string' ? child.id : '';
     if (id && descendantRefs.has(`#${id}`)) return true;
-    const childRefs = collectNamedPrimitiveDescendants(child, new Set(['reference', 'canonical']));
+    const childRefs = collectDom3ReferenceValues(child, model, child?.resourceType);
     return childRefs.includes('#');
   });
 }
 
-function evaluateKnownConstraint(resource: Json, constraint: Json): boolean | null {
+function ele1Passes(value: any): boolean {
+  if (!hasValue(value)) return false;
+  if (typeof value !== 'object') return true;
+  if (Array.isArray(value)) return value.length > 0;
+
+  const presentChildKeys = Object.entries(value)
+    .filter(([, child]) => hasValue(child))
+    .map(([key]) => key);
+  const idCount = hasValue(value.id) ? 1 : 0;
+  return presentChildKeys.length > idCount;
+}
+
+function evaluateKnownConstraint(resource: Json, constraint: Json, runtime: ValidationRuntime, context?: PathValue): boolean | null {
   // fhirpath.js evaluates most other standard invariants when called with the
   // element base path. The R4 dom-3 expression currently throws on
-  // descendants().as(...) over heterogeneous collections, so keep this one
-  // compatibility shim narrow.
-  if (constraint.key === 'dom-3') return containedResourcesAreReferenced(resource);
+  // descendants().as(...) over heterogeneous collections, so mirror the
+  // invariant's reference/canonical/uri/url descendant checks using the
+  // fhirpath model metadata.
+  if (constraint.key === 'dom-3') return containedResourcesAreReferenced(resource, runtime.fhirPathModel);
+  // fhirpath.js evaluates hasValue() as false when the context is a raw JS
+  // primitive such as true/false. For sliced primitive elements we already have
+  // the concrete JSON value, so evaluate Element.ele-1 directly.
+  if (constraint.key === 'ele-1' && context) return ele1Passes(context.value);
   return null;
 }
 
 function evaluateFhirPathConstraint(resource: Json, element: Json, context: PathValue, constraint: Json, runtime: ValidationRuntime): unknown {
-  const known = evaluateKnownConstraint(resource, constraint);
+  const known = evaluateKnownConstraint(resource, constraint, runtime, context);
   if (known !== null) return [known];
   return fhirpath.evaluate(context.value, { base: fhirPathBaseForContext(element), expression: constraint.expression }, { resource }, runtime.fhirPathModel, { traceFn: () => {} });
 }
@@ -586,7 +636,7 @@ function checkFhirPathConstraints(args: {
       const expression = fhirPathElementExpression(element, constraint);
       if (!expression) continue;
       try {
-        const known = evaluateKnownConstraint(resource, constraint);
+        const known = evaluateKnownConstraint(resource, constraint, runtime);
         const result = known === null
           ? fhirpath.evaluate(resource, expression, { resource }, runtime.fhirPathModel, { traceFn: () => {} })
           : [known];

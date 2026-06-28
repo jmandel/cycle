@@ -243,6 +243,192 @@ describe('publisher example validation', () => {
     expect(validateResourceAgainstProfile(trueObservation, profile, [profile, trueObservation])).toEqual([]);
   });
 
+  test('evaluates ele-1 correctly for sliced primitive values', () => {
+    const profile = {
+      resourceType: 'StructureDefinition',
+      url: 'https://example.org/StructureDefinition/parameters-sliced-boolean-ele-1',
+      type: 'Parameters',
+      fhirVersion: '4.0.1',
+      snapshot: {
+        element: [
+          { id: 'Parameters', path: 'Parameters', min: 0, max: '*' },
+          { id: 'Parameters.parameter', path: 'Parameters.parameter', min: 0, max: '*', slicing: { discriminator: [{ type: 'value', path: 'name' }], rules: 'open' } },
+          { id: 'Parameters.parameter:local', path: 'Parameters.parameter', sliceName: 'local', min: 1, max: '1' },
+          { id: 'Parameters.parameter:local.name', path: 'Parameters.parameter.name', min: 1, max: '1', fixedCode: 'local' },
+          {
+            id: 'Parameters.parameter:local.value[x]',
+            path: 'Parameters.parameter.value[x]',
+            min: 1,
+            max: '1',
+            type: [{ code: 'boolean' }],
+            constraint: [
+              { key: 'ele-1', severity: 'error', human: 'All FHIR elements must have a @value or children', expression: 'hasValue() or (children().count() > id.count())' },
+            ],
+          },
+        ],
+      },
+    };
+
+    const parameters = { resourceType: 'Parameters', id: 'p', parameter: [{ name: 'local', valueBoolean: true }] };
+
+    expect(validateResourceAgainstProfile(parameters, profile, [profile, parameters])).toEqual([]);
+  });
+
+  test('evaluates dom-3 for contained resources referenced by canonical descendants', () => {
+    const profile = {
+      resourceType: 'StructureDefinition',
+      url: 'https://example.org/StructureDefinition/questionnaire-dom-3',
+      type: 'Questionnaire',
+      fhirVersion: '4.0.1',
+      snapshot: {
+        element: [
+          {
+            id: 'Questionnaire',
+            path: 'Questionnaire',
+            min: 0,
+            max: '*',
+            constraint: [
+              {
+                key: 'dom-3',
+                severity: 'error',
+                human: 'contained resources must be referenced',
+                expression: "contained.where((('#'+id in (%resource.descendants().reference | %resource.descendants().as(canonical) | %resource.descendants().as(uri) | %resource.descendants().as(url))) or descendants().where(reference = '#').exists() or descendants().where(as(canonical) = '#').exists()).not()).empty()",
+              },
+            ],
+          },
+        ],
+      },
+    };
+
+    const questionnaire = {
+      resourceType: 'Questionnaire',
+      id: 'q',
+      contained: [{ resourceType: 'ValueSet', id: 'answers', status: 'active' }],
+      item: [{ linkId: 'a', type: 'choice', answerValueSet: '#answers' }],
+    };
+    const invalid = {
+      resourceType: 'Questionnaire',
+      id: 'q-bad',
+      contained: [{ resourceType: 'ValueSet', id: 'answers', status: 'active' }],
+      item: [{ linkId: 'a', type: 'choice' }],
+    };
+    const primitiveExtensionReference = {
+      resourceType: 'Questionnaire',
+      id: 'q-image',
+      contained: [{ resourceType: 'Binary', id: 'okImage', contentType: 'image/png', data: 'AA==' }],
+      item: [{
+        linkId: 'a',
+        type: 'choice',
+        answerOption: [{
+          valueCoding: {
+            code: 'ok',
+            display: 'OK',
+            _display: {
+              extension: [{
+                url: 'https://example.org/display-image',
+                valueReference: { reference: '#okImage' },
+              }],
+            },
+          },
+        }],
+      }],
+    };
+
+    expect(validateResourceAgainstProfile(questionnaire, profile, [profile, questionnaire])).toEqual([]);
+    expect(validateResourceAgainstProfile(primitiveExtensionReference, profile, [profile, primitiveExtensionReference])).toEqual([]);
+    expect(validateResourceAgainstProfile(invalid, profile, [profile, invalid]).map((i) => i.code)).toEqual(['fhirpath-constraint']);
+  });
+
+  test('uses ImplementationGuide fhirVersion arrays when selecting the FHIRPath model', () => {
+    const ig = { resourceType: 'ImplementationGuide', id: 'ig', fhirVersion: ['4.0.1'] };
+    const profile = {
+      resourceType: 'StructureDefinition',
+      url: 'https://example.org/StructureDefinition/questionnaire-dom-3-no-version',
+      type: 'Questionnaire',
+      snapshot: {
+        element: [
+          {
+            id: 'Questionnaire',
+            path: 'Questionnaire',
+            min: 0,
+            max: '*',
+            constraint: [
+              {
+                key: 'dom-3',
+                severity: 'error',
+                human: 'contained resources must be referenced',
+                expression: "contained.where((('#'+id in (%resource.descendants().reference | %resource.descendants().as(canonical) | %resource.descendants().as(uri) | %resource.descendants().as(url))) or descendants().where(reference = '#').exists()).not()).empty()",
+              },
+            ],
+          },
+        ],
+      },
+    };
+    const questionnaire = {
+      resourceType: 'Questionnaire',
+      id: 'q',
+      contained: [{ resourceType: 'ValueSet', id: 'answers', status: 'active' }],
+      item: [{ linkId: 'a', type: 'choice', answerValueSet: '#answers' }],
+    };
+
+    expect(validateResourceAgainstProfile(questionnaire, profile, [ig, profile, questionnaire])).toEqual([]);
+  });
+
+  test('evaluates dom-3 when contained resources refer to the container', () => {
+    const profile = {
+      resourceType: 'StructureDefinition',
+      url: 'https://example.org/StructureDefinition/questionnaire-response-dom-3',
+      type: 'QuestionnaireResponse',
+      fhirVersion: '4.0.1',
+      snapshot: {
+        element: [
+          {
+            id: 'QuestionnaireResponse',
+            path: 'QuestionnaireResponse',
+            min: 0,
+            max: '*',
+            constraint: [
+              {
+                key: 'dom-3',
+                severity: 'error',
+                human: 'contained resources must be referenced',
+                expression: "contained.where((('#'+id in (%resource.descendants().reference | %resource.descendants().as(canonical) | %resource.descendants().as(uri) | %resource.descendants().as(url))) or descendants().where(reference = '#').exists() or descendants().where(as(canonical) = '#').exists()).not()).empty()",
+              },
+            ],
+          },
+        ],
+      },
+    };
+
+    const questionnaireResponse = {
+      resourceType: 'QuestionnaireResponse',
+      id: 'qr',
+      contained: [{
+        resourceType: 'Observation',
+        id: 'obs',
+        status: 'final',
+        subject: { reference: '#' },
+        code: { text: 'contained' },
+      }],
+    };
+    const adaptiveQuestionnaireResponse = {
+      resourceType: 'QuestionnaireResponse',
+      id: 'adaptive',
+      questionnaire: '#contained-questionnaire',
+      contained: [
+        {
+          resourceType: 'Questionnaire',
+          id: 'contained-questionnaire',
+          item: [{ linkId: 'a', type: 'choice', answerValueSet: '#answers' }],
+        },
+        { resourceType: 'ValueSet', id: 'answers', status: 'active' },
+      ],
+    };
+
+    expect(validateResourceAgainstProfile(questionnaireResponse, profile, [profile, questionnaireResponse])).toEqual([]);
+    expect(validateResourceAgainstProfile(adaptiveQuestionnaireResponse, profile, [profile, adaptiveQuestionnaireResponse])).toEqual([]);
+  });
+
   test('evaluates FHIRPath constraints with choice types and resource variables', () => {
     const profile = {
       resourceType: 'StructureDefinition',
