@@ -14,7 +14,7 @@ export const project = {
   projectCss: 'site-gen/project/cycle.css', // shipped as out/assets/project.css
   contentDir: process.env.SITE_CONTENT_DIR || 'input/pagecontent',
   imageDir: process.env.SITE_IMAGE_DIR || 'input/images',
-  publisherIncludeDirs: process.env.SITE_PUBLISHER_INCLUDE_DIRS?.split(',').filter(Boolean) || ['temp/pages/_includes', 'input/includes'],
+  liquidAssetDirs: process.env.SITE_LIQUID_ASSET_DIRS?.split(',').filter(Boolean) || ['input/includes'],
 
   // ---- links to artifacts the SURROUNDING build script injects (viewers, SHL,
   //      skill.zip) — site-gen does not produce these, so the link checker treats

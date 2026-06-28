@@ -94,10 +94,9 @@ The bleeding fact is the universal core. A flow-capable app emits both the Layer
 
 ### Bundle contents
 
-{% capture model_diagram %}{% include model.svg %}{% endcapture %}
-<div class="ptmvp-diagram">
-{{ model_diagram | remove_first: '<?xml version="1.0" encoding="us-ascii" standalone="no"?>' }}
-</div>
+The Bundle is a FHIR `collection` scoped to one person. It contains at least one
+Layer 0 Menstrual Bleeding Observation, may contain Layer 1 Observations, and
+may include optional Patient or Device resources when useful for the share.
 
 ### Terminology
 

@@ -178,11 +178,12 @@ function parseIncludeArgs(args: string): { name: string; params: IncludeParams }
   return { name, params };
 }
 
-export function renderLiquid(src: string, opts: { includes: IncludeRegistry; ig: any; assetInclude?: (name: string) => string | null; sql?: SqlExecutor }): string {
+export function renderLiquid(src: string, opts: { includes: IncludeRegistry; ig: any; siteData?: Record<string, any>; assetInclude?: (name: string) => string | null; sql?: SqlExecutor; fragment?: (args: string) => string }): string {
   const sqlData: Record<string, any> = {};
   let withSql = renderSqlToData(src, opts.sql, sqlData);
   withSql = withSql.replace(/{%-?\s*sql\s+([\s\S]*?)\s*-?%\}/gi, (_m, args) => runSqlDirective(args, opts.sql));
   const engine = new Liquid({ strictFilters: true, strictVariables: false, extname: '' });
+  const renderContext = { ...sqlData, site: { data: opts.siteData || { fhir: { ig: opts.ig } } } };
   const registerNamedFragmentTag = (tagName: string) => engine.registerTag(tagName, {
     parse(token: any) {
       const parsed = parseIncludeArgs(token.args);
@@ -193,11 +194,20 @@ export function renderLiquid(src: string, opts: { includes: IncludeRegistry; ig:
       const gen = opts.includes[this.name];
       if (gen) return gen(opts.ig, this.params || {});
       const asset = opts.assetInclude?.(this.name);
-      if (asset != null) return asset;
+      if (asset != null) return engine.parseAndRenderSync(asset, { ...renderContext, include: this.params || {} });
       throw new Error(`Unknown include '${this.name}' — register it in project/includes.ts or ingest a same-named asset before use.`);
     },
   });
   registerNamedFragmentTag('include');
   registerNamedFragmentTag('lang-fragment');
-  return engine.parseAndRenderSync(withSql, { ...sqlData, site: { data: { fhir: { ig: opts.ig } } } });
+  engine.registerTag('fragment', {
+    parse(token: any) {
+      this.args = token.args || '';
+    },
+    *render() {
+      if (!opts.fragment) throw new Error('fragment tag used, but no fragment renderer was provided');
+      return opts.fragment(this.args);
+    },
+  });
+  return engine.parseAndRenderSync(withSql, renderContext);
 }

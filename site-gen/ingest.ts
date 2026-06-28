@@ -17,6 +17,8 @@
  */
 import { Database } from 'bun:sqlite';
 import { copyFileSync, readFileSync, existsSync, readdirSync, statSync, mkdirSync, rmSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { homedir } from 'node:os';
 import { dirname, isAbsolute, join, normalize, relative } from 'node:path';
 import YAML from 'yaml';
 import { project } from './project';
@@ -66,9 +68,9 @@ const ig = JSON.parse(typeof igRow.Json === 'string' ? igRow.Json : new TextDeco
 let ord = 0;
 const pageIncludeNames = new Set<string>();
 const insPage = db.prepare('INSERT OR REPLACE INTO Pages (Slug, NameUrl, Title, Generation, Ord, Depth, Body) VALUES (?,?,?,?,?,?,?)');
-function liquidIncludeNames(body: string): string[] {
+function liquidAssetNames(body: string): string[] {
   const out: string[] = [];
-  const re = /{%-?\s*include\s+("[^"]+"|'[^']+'|[^\s%]+)[^%]*-?%}/g;
+  const re = /{%-?\s*(?:include|lang-fragment)\s+("[^"]+"|'[^']+'|[^\s%]+)[^%]*-?%}/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(body))) out.push(m[1].replace(/^(['"])([\s\S]*)\1$/, '$2'));
   return out;
@@ -83,7 +85,7 @@ function walkPages(node: any, depth: number) {
       const xmlPath = `${PAGEDIR}/${slug}.xml`;
       const body = existsSync(mdPath) ? readFileSync(mdPath, 'utf8')
         : existsSync(xmlPath) ? readFileSync(xmlPath, 'utf8') : null;
-      if (body) for (const name of liquidIncludeNames(body)) pageIncludeNames.add(name);
+      if (body) for (const name of liquidAssetNames(body)) pageIncludeNames.add(name);
       // Prefer the page's own first H1 (correctly cased) over the auto-titled definition.page.
       const h1 = body && body.match(/^#\s+(.+?)\s*$/m);
       const title = (h1 ? h1[1] : (p.title || slug)).trim();
@@ -139,10 +141,14 @@ const mimeOf = (f: string) => {
     : lower.endsWith('.webp') ? 'image/webp' : lower.endsWith('.xhtml') || lower.endsWith('.html') ? 'text/html'
     : lower.endsWith('.md') ? 'text/markdown' : lower.endsWith('.txt') ? 'text/plain' : 'application/octet-stream';
 };
+const textLikeMime = (mime: string) => mime.startsWith('text/') || mime === 'image/svg+xml' || mime === 'application/xml' || mime === 'application/xhtml+xml';
 let imageAssets = 0;
 let includeAssets = 0;
 function ingestAsset(name: string, path: string) {
   insAsset.run(safeAssetName(name), mimeOf(name), readFileSync(path));
+}
+function ingestGeneratedAsset(name: string, mime: string, content: string | Uint8Array) {
+  insAsset.run(safeAssetName(name), mime, content);
 }
 function ingestImageDir(root: string, rel = '') {
   if (!existsSync(root)) return;
@@ -157,18 +163,76 @@ function ingestImageDir(root: string, rel = '') {
   }
 }
 
-// Publisher-generated include outputs are copied only when authored markdown
-// actually references the include. This keeps generic ingest free of project
-// filenames such as "model.svg".
-const publisherIncludeDirs = project.publisherIncludeDirs || [];
+// Text assets are copied only when authored markdown references the include.
+// Source-only publisher runs should use source dirs such as input/includes or
+// template/includes. Java Publisher _includes are generated output and are not
+// part of the source-only input contract.
+const liquidAssetDirs = project.liquidAssetDirs || [];
+const PLANTUML_VERSION = '1.2026.1';
+const PLANTUML_MAVEN_URL = `https://repo1.maven.org/maven2/net/sourceforge/plantuml/plantuml-mit/${PLANTUML_VERSION}/plantuml-mit-${PLANTUML_VERSION}.jar`;
+async function ensurePlantumlJar(): Promise<string | null> {
+  const configured = process.env.PLANTUML_JAR;
+  if (configured && existsSync(configured)) return configured;
+  const m2 = join(homedir(), '.m2/repository/net/sourceforge/plantuml/plantuml-mit', PLANTUML_VERSION, `plantuml-mit-${PLANTUML_VERSION}.jar`);
+  if (existsSync(m2)) return m2;
+  const cached = join('temp/site-gen/tools', `plantuml-mit-${PLANTUML_VERSION}.jar`);
+  if (existsSync(cached)) return cached;
+  try {
+    mkdirSync(dirname(cached), { recursive: true });
+    const response = await fetch(PLANTUML_MAVEN_URL);
+    if (!response.ok) return null;
+    await Bun.write(cached, await response.arrayBuffer());
+    return cached;
+  } catch {
+    return null;
+  }
+}
+async function renderPlantumlSvg(sourcePath: string): Promise<Uint8Array> {
+  const jar = await ensurePlantumlJar();
+  if (!jar) throw new Error(`PlantUML source ${sourcePath} is referenced but no PlantUML renderer is available. Set PLANTUML_JAR or allow ${PLANTUML_MAVEN_URL} to be cached.`);
+  const result = spawnSync('java', ['-jar', jar, '-tsvg', '-pipe'], {
+    input: readFileSync(sourcePath),
+    maxBuffer: 20 * 1024 * 1024,
+  });
+  if (result.status !== 0) {
+    throw new Error(`PlantUML failed for ${sourcePath}: ${result.stderr.toString() || result.stdout.toString()}`);
+  }
+  return result.stdout;
+}
+function plantumlSourceForSvg(safeName: string): string | null {
+  if (!safeName.toLowerCase().endsWith('.svg')) return null;
+  const plantumlName = safeName.replace(/\.svg$/i, '.plantuml');
+  for (const dir of liquidAssetDirs) {
+    const sourceRoot = normalize(join(dirname(dir), 'images-source'));
+    const candidate = safePathUnder(sourceRoot, plantumlName);
+    if (existsSync(candidate) && statSync(candidate).isFile()) return candidate;
+  }
+  const imageCandidate = safePathUnder(project.imageDir, plantumlName);
+  if (existsSync(imageCandidate) && statSync(imageCandidate).isFile()) return imageCandidate;
+  return null;
+}
 for (const includeName of pageIncludeNames) {
   const safeName = safeAssetName(includeName);
-  for (const dir of publisherIncludeDirs) {
+  let found = false;
+  for (const dir of liquidAssetDirs) {
     const p = safePathUnder(dir, safeName);
     if (existsSync(p) && statSync(p).isFile()) {
-      ingestAsset(safeName, p);
+      const mime = mimeOf(safeName);
+      const content = readFileSync(p);
+      insAsset.run(safeName, mime, content);
+      if (textLikeMime(mime)) {
+        for (const nestedName of liquidAssetNames(content.toString('utf8'))) pageIncludeNames.add(nestedName);
+      }
       includeAssets++;
+      found = true;
       break;
+    }
+  }
+  if (!found) {
+    const plantuml = plantumlSourceForSvg(safeName);
+    if (plantuml) {
+      ingestGeneratedAsset(safeName, 'image/svg+xml', await renderPlantumlSvg(plantuml));
+      includeAssets++;
     }
   }
 }

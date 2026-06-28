@@ -64,7 +64,7 @@ accounted for.
 - **Accept:** JS-off shows all panes/details inline (no loss); JS-on toggles them; verified in chrome.
 
 ### Phase 4 — Narrative & machine-facing completeness
-- [ ] Liquid shortcodes finalized (DB-derived dependency/globals/IP, inline `model.svg`); all 14 narrative pages render correctly, anchors match menu.
+- [ ] Liquid shortcodes finalized (DB-derived dependency/globals/IP, source-ingested includes, source-rendered PlantUML SVGs, and resource fragments); all narrative pages render correctly, anchors match menu.
 - [ ] `MachineFormats` panel (json/xml/ttl) on artifact pages; **`llms.txt`** index generated.
 - **Accept:** all menu items resolve to a real page/anchor; narrative diagrams render; `llms.txt` present and lists every page.
 

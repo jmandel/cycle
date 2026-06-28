@@ -124,7 +124,11 @@ await rm(`${root}/output`, { recursive: true, force: true });
 await rm(`${root}/temp/pages`, { recursive: true, force: true });
 await step('run IG Publisher', ['./_genonce.sh']);
 
-await step('ingest package.db', ['bun', 'site-gen/ingest.ts'], { PKG_DB: `${root}/output/package.db`, SITE_DB });
+await step('ingest package.db', ['bun', 'site-gen/ingest.ts'], {
+  PKG_DB: `${root}/output/package.db`,
+  SITE_DB,
+  SITE_LIQUID_ASSET_DIRS: `${root}/input/includes`,
+});
 await step('render site-gen site', ['bun', 'site-gen/build.tsx'], { SITE_DB, OUT_DIR: OUT });
 
 // 8–11. inject project-specific artifacts into the completed site (IG-specific)

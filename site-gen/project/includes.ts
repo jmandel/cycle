@@ -19,6 +19,24 @@ const safeCssSize = (s: unknown) => {
   return /^(\d+(\.\d+)?(px|em|rem|%)?|auto)$/i.test(value) ? value : '';
 };
 
+function dependencyTable(ig: any, mode: 'full' | 'short' | 'nontech' = 'full'): string {
+  const deps = ig.dependsOn || [];
+  if (!deps.length) return '<p class="muted">No package dependencies.</p>';
+  if (mode === 'nontech') {
+    const names = deps.map((d: any) => esc(d.packageId || d.uri || '')).filter(Boolean);
+    return `<p>This guide depends on ${names.length ? names.map((n) => `<code>${n}</code>`).join(', ') : 'no other FHIR packages'}.</p>`;
+  }
+  const rows = deps.map((d: any) => {
+    const pkg = esc(d.packageId || d.uri || '');
+    const version = esc(d.version || '');
+    return mode === 'short'
+      ? `<tr><td><code>${pkg}</code></td><td><code>${version}</code></td></tr>`
+      : `<tr><td><code>${pkg}</code></td><td><code>${version}</code></td><td>${esc(d.uri || '')}</td></tr>`;
+  }).join('');
+  const extra = mode === 'short' ? '' : '<th>Canonical</th>';
+  return `<div class="table-scroll"><table class="cycle-table"><thead><tr><th>Package</th><th>Version</th>${extra}</tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
 export const includes: IncludeRegistry = {
   // Common Publisher-style image include used by many IGs:
   // {% include img.html img="diagram.png" caption="Figure 1" width="70%" %}
@@ -31,14 +49,13 @@ export const includes: IncludeRegistry = {
     return `<figure class="ig-figure"><img src="${attr(img)}" alt="${attr(caption)}"${style}>${caption ? `<figcaption>${esc(caption)}</figcaption>` : ''}</figure>`;
   },
 
-  // dependency table: derived from the IG resource's dependsOn (in the DB).
-  'dependency-table.xhtml': (ig) => {
-    const deps = ig.dependsOn || [];
-    if (!deps.length) return '<p class="muted">No package dependencies.</p>';
-    const rows = deps.map((d: any) =>
-      `<tr><td><code>${esc(d.packageId || d.uri || '')}</code></td><td><code>${esc(d.version || '')}</code></td></tr>`).join('');
-    return `<div class="table-scroll"><table class="cycle-table"><thead><tr><th>Package</th><th>Version</th></tr></thead><tbody>${rows}</tbody></table></div>`;
-  },
+  // Dependency tables: derived from the IG resource's dependsOn (in the DB).
+  'dependency-table.xhtml': (ig) => dependencyTable(ig),
+  'dependency-table-en.xhtml': (ig) => dependencyTable(ig),
+  'dependency-table-short.xhtml': (ig) => dependencyTable(ig, 'short'),
+  'dependency-table-short-en.xhtml': (ig) => dependencyTable(ig, 'short'),
+  'dependency-table-nontech.xhtml': (ig) => dependencyTable(ig, 'nontech'),
+  'dependency-table-nontech-en.xhtml': (ig) => dependencyTable(ig, 'nontech'),
 
   // globals: derived from IG.global.
   'globals-table.xhtml': (ig) => {
@@ -53,7 +70,10 @@ export const includes: IncludeRegistry = {
     const bits = [ig.copyright, ig.publisher && `Publisher: ${ig.publisher}`].filter(Boolean).map(esc);
     return `<p class="muted">${bits.join(' · ') || 'CC0-1.0.'}</p>`;
   },
+  'ip-statements-en.xhtml': (ig) => includes['ip-statements.xhtml'](ig, {}),
 
   // The one genuine non-DB-derivable fragment (publisher-computed). Omitted.
   'cross-version-analysis.xhtml': () => '<!-- cross-version-analysis: omitted (not derivable from package.db) -->',
+  'cross-version-analysis-inline.xhtml': () => '<!-- cross-version-analysis-inline: omitted (not derivable from package.db) -->',
+  'cross-version-analysis-inline-en.xhtml': () => '<!-- cross-version-analysis-inline: omitted (not derivable from package.db) -->',
 };

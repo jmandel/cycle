@@ -9,8 +9,9 @@ import { posix as path } from 'node:path';
 
 /** Candidate internal refs from href / src / srcset. */
 export function collectLocalRefs(html: string): string[] {
-  const refs = [...html.matchAll(/\b(?:href|src)=["']([^"']+)["']/g)].map((m) => m[1]);
-  for (const m of html.matchAll(/\bsrcset=["']([^"']+)["']/g)) {
+  const searchable = html.replace(/<!--[\s\S]*?-->/g, '');
+  const refs = [...searchable.matchAll(/\b(?:href|src)=["']([^"']+)["']/g)].map((m) => m[1]);
+  for (const m of searchable.matchAll(/\bsrcset=["']([^"']+)["']/g)) {
     for (const candidate of m[1].split(',')) {
       const url = candidate.trim().split(/\s+/)[0];
       if (url) refs.push(url);

@@ -5,26 +5,28 @@ no Jekyll. But the authored content uses a little Liquid. This doc defines the
 **minimal subset we support, where it runs in the pipeline, and how includes resolve**.
 
 Design stance: support the *small, bounded* dialect our content actually uses; map
-`{% include %}` to **our own data-driven generators** (not arbitrary file includes);
-hard-cut everything advanced. The Liquid we keep is a thin authoring convenience over
-data we already have in `package.db`.
+`{% include %}` to **data-driven generators** or **trusted source assets ingested
+into the site DB**; hard-cut everything advanced. The Liquid we keep is a thin
+authoring convenience over data we already have in the package/site DB.
 
 ---
 
 ## 1 · What our content actually uses (the whole inventory)
 
-3 of 14 pages, ~7 sites:
+Current cycle content uses:
 
 | Construct | Site(s) | Category |
 | --- | --- | --- |
 | `{% include dependency-table.xhtml %}` etc. (×4) | `ig-details.md` | **generated artifact** include |
 | `{% sql select … %}` | `specification.md` | read-only table/query over `site.db` |
-| `{% capture x %}{% include model.svg %}{% endcapture %}` + `{{ x \| remove_first: … }}` | `specification.md` | capture + include + filter |
 | `{% assign source_repo = site.data.fhir.ig.contact[0].telecom[0] %}` | `index.md` | assign from data |
 | `{{ source_repo \| replace: 'https://','' }}` | `index.md` | output + filter |
+| `{% include sample-viewer-links.md %}` | `index.md` | checked-in source include asset |
 
 So we need exactly: **`assign`, `capture`, `include`, object/path interpolation, a few
-filters** — plus a **data context** (`site.data.fhir.ig.*`). Nothing else appears.
+filters** — plus a **data context** (`site.data.fhir.ig.*`). Other IGs also use
+Publisher-style `{% fragment Type/id JSON|XML ... %}`; the site-gen publisher supports
+that from resources in the package DB so it does not need Java Publisher fragments.
 
 ---
 
@@ -52,9 +54,11 @@ HTML tables/SVG survive [2] untouched.
 | `{% assign v = expr %}` | ✅ | RHS = path lookup, string/number literal, or filtered expr |
 | `{% capture v %}…{% endcapture %}` | ✅ | captures rendered inner block into `v` |
 | `{% include NAME %}` | ✅ **remapped** | NAME resolves against our **shortcode registry** (§5), *not* the filesystem |
+| `{% lang-fragment NAME %}` | ✅ **remapped** | same resolution as `include`; used by some IGs for localized fragments |
 | `{% sql SELECT … %}` | ✅ | documented IG Guidance-style read-only table/query over `site.db` |
 | `{% sql { "query": "…", "columns": […] } %}` | ✅ partial | documented IG Guidance-style JSON-control form; basic column selection/link/coding rendering |
 | `{% sqlToData name SELECT … %}` | ✅ | stores result rows in the Liquid context as `name` |
+| `{% fragment Type/id JSON|XML ... %}` | ✅ partial | Publisher-style resource fragment rendered from package DB resources (§5.2) |
 | `{% comment %}…{% endcomment %}` | ✅ | dropped |
 | `{% if %}` / `{% unless %}` / `{% else %}` | ⚠️ minimal | truthiness + `==`/`!=` only; no `and/or` chains initially |
 | `{% for %}` | ❌ (phase 2) | not used by our content; add only if needed |
@@ -78,25 +82,28 @@ A single read-only object assembled from `package.db` + the IG resource, exposin
 Jekyll-ish paths FHIR content expects:
 
 ```
-site.data.fhir.ig          → the ImplementationGuide resource (Resources.Json where Type='ImplementationGuide')
-site.data.fhir.ig.version  → Metadata.igVer
-site.data.fhir.path        → Metadata.path  (core FHIR spec base)
-site.data.info.canonical   → Metadata.canonical
-site.data.metadata.*       → all Metadata key/values
-page.*                     → per-page front matter (title, etc.)
+site.data.fhir.ig            → the ImplementationGuide resource (Resources.Json where Type='ImplementationGuide')
+site.data.fhir.ig.version    → Metadata.igVer
+site.data.fhir.path          → Metadata.path  (core FHIR spec base)
+site.data.fhir.canonical     → Metadata.canonical
+site.data.fhir.packageId     → package id
+site.data.fhir.ver.*         → dependency aliases mapped to their canonical bases
+page.*                       → per-page front matter (title, etc.)
 ```
 
 Only this curated surface is exposed — **not** Jekyll's full `site`/`site.data`
-(no collections, no `_data/*` sprawl). New paths are added deliberately as content needs them.
+(no collections, no `_data/*` sprawl). New paths are added deliberately as content
+needs them and should be backed by package metadata, not local Publisher output.
 
 ---
 
 ## 5 · `include` → shortcode registry (the important part)
 
-`{% include NAME args %}` does **not** read a file at render time. NAME first maps
-to a registered generator `(args, ctx) => htmlString`, fed by `package.db`; if no
-generator exists, it may resolve to a same-named text asset that `ingest.ts`
-already copied into the DB from trusted project/Publisher outputs. Two kinds:
+`{% include NAME args %}` does **not** read the filesystem at render time. NAME first
+maps to a registered generator `(args, ctx) => htmlString`, fed by the IG resource
+or package DB; if no generator exists, it may resolve to a same-named text/SVG asset
+that `ingest.ts` already copied or generated into the DB from trusted source dirs
+such as `input/includes` and `template/includes`.
 
 **A. Publisher-artifact replacements** (what `ig-details.md` / `specification.md` need):
 | include NAME | Generated from |
@@ -105,7 +112,7 @@ already copied into the DB from trusted project/Publisher outputs. Two kinds:
 | `cross-version-analysis` | (stub/optional) |
 | `globals-table` | IG resource `global[]` |
 | `ip-statements` | package copyright/license metadata |
-| `model.svg` | same-named Publisher include output, copied into the DB because authored markdown references it |
+| `*.svg` backed by `images-source/*.plantuml` | generated by PlantUML during ingest, then stored in DB assets |
 
 **B. Authoring shortcodes** (our components, React SSR → HTML):
 | include NAME | Renders |
@@ -118,8 +125,10 @@ Rules:
 - **Unknown NAME → build error** (fail loud; never emit a broken `{% include %}`).
 - Args are simple `key=value` (quoted strings / refs), parsed to an object.
 - Generators are pure: `(args, ctx) → string`; they may pull from `package.db`.
-- File-like includes are data, not registry code: referenced Publisher include
-  outputs are ingested into `Assets` and then inlined from the DB.
+- File-like includes are data, not registry code: referenced source include assets
+  are ingested into `Assets` and then inlined from the DB.
+- Text include assets are rendered recursively through the same Liquid context, so
+  nested includes work without filesystem access at render time.
 
 ---
 
@@ -161,10 +170,27 @@ The SQL surface is deliberately read-only: the query must begin with `select` or
 This is an authoring convenience over trusted `site.db`; it is not an end-user
 query feature.
 
+## 5.2 · Resource fragments
+
+Publisher-style fragments are supported for common source IG authoring patterns:
+
+```liquid
+{% fragment Questionnaire/example JSON BASE:descendants().select(item).where(linkId='x') %}
+{% fragment Binary/Services XML EXCEPT:services.where(hook='appointment-book') %}
+```
+
+The fragment renderer resolves `Type/id` from the package DB, optionally decodes a
+JSON `Binary.data` payload, applies `BASE:`, `EXCEPT:`, and `ELIDE:` selectors with
+FHIRPath, and emits escaped JSON or FHIR-like XML in a code block. Unsupported syntax
+or a missing resource fails the build.
+
+This is deliberately resource-based. It does not read Java Publisher `_includes`,
+and it does not use pre-rendered Publisher HTML as an input.
+
 ---
 
 ## 6 · Explicitly out of scope (cut features)
-Arbitrary file/`_includes/*` resolution · full `site`/`site.data`/collections ·
+Arbitrary runtime file/`_includes/*` resolution · full `site`/`site.data`/collections ·
 `for`/`tablerow`/`cycle` (phase 1) · custom Jekyll plugins · layouts & multi-layout
 inheritance · liquid inside data files · whitespace-control nuance parity. If content
 needs one of these, we add it deliberately, not by importing all of Jekyll.
@@ -201,5 +227,6 @@ subset above. Revisit B only if the dependency or surface area becomes a problem
   md render) or HTML-only? Leaning HTML-only for generated tables; Markdown for prose includes.
 - Strict variables: throw on missing path, or empty-string? Propose **warn + empty** in
   dev, **throw** in CI.
-- Diagrams (`model.svg`): Publisher renders the diagram; ingest copies the
-  referenced include output into `Assets`; render inlines it from the DB.
+- Diagrams: if markdown references an SVG include and a matching
+  `images-source/*.plantuml` file exists, ingest renders it to SVG and stores it in
+  `Assets`; render inlines it from the DB.

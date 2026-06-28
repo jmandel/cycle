@@ -136,9 +136,14 @@ md.use(anchor, {
   permalink: anchor.permalink.linkInsideHeader({ symbol: '', class: 'heading-anchor', placement: 'after', ariaHidden: true }),
 });
 
+export function sanitizeMarkdownSource(src: string): string {
+  return src.replace(/<script\b[\s\S]*?<\/script\s*>/gi, '');
+}
+
 /** Render markdown → { html, toc } (h2/h3 headings for the On-this-page rail). */
 export function renderMarkdown(src: string): { html: string; toc: TocItem[] } {
-  const tokens = md.parse(src, {});
+  const sanitized = sanitizeMarkdownSource(src);
+  const tokens = md.parse(sanitized, {});
   const toc: TocItem[] = [];
   for (let i = 0; i < tokens.length; i++) {
     const t = tokens[i];
@@ -148,5 +153,5 @@ export function renderMarkdown(src: string): { html: string; toc: TocItem[] } {
       if (id) toc.push({ id, label, level: Number(t.tag[1]) });
     }
   }
-  return { html: md.render(src), toc };
+  return { html: md.render(sanitized), toc };
 }

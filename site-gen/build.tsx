@@ -17,10 +17,11 @@ import { ValueSetPage } from './fhir/ValueSetPage';
 import { CodeSystemPage } from './fhir/CodeSystemPage';
 import { ExamplePage } from './fhir/ExamplePage';
 import { ResourcePage } from './fhir/ResourcePage';
+import { renderResourceFragment } from './fhir/fragments';
 import type { ResolveType } from './fhir/ElementTable';
 import { renderLiquid } from './core/liquid';
 import { includes } from './project/includes';
-import { renderMarkdown } from './core/markdown';
+import { renderMarkdown, sanitizeMarkdownSource } from './core/markdown';
 import { isExternalLink } from './config';
 import { checkInternalLinks } from './core/link-check';
 import { project } from './project';
@@ -62,7 +63,14 @@ const all = db.resources();
 const page = (r: db.ResourceRow) => `${r.Type}-${r.Id}.html`;
 const byUrl = new Map<string, string>();
 for (const r of all) if (r.Url) byUrl.set(r.Url, page(r));
+const artifactHrefByLocalTarget = new Map<string, string>();
+for (const r of all) {
+  const href = page(r);
+  artifactHrefByLocalTarget.set(`${r.Type}-${r.Id}`, href);
+  artifactHrefByLocalTarget.set(`${r.Type}/${r.Id}`, href);
+}
 const igResource = db.ig();
+const resourcesByReference = new Map(all.map((r) => [`${r.Type}/${r.Id}`, r]));
 const RESOURCE_SORT = 'http://hl7.org/fhir/tools/StructureDefinition/resource-sort';
 const EXAMPLE_PROFILE_EXTENSION = 'http://hl7.org/fhir/5.0/StructureDefinition/extension-ImplementationGuide.definition.resource.profile';
 const PRIMARY_RESOURCE_TYPES = new Set(['StructureDefinition', 'ValueSet', 'CodeSystem', 'ImplementationGuide']);
@@ -87,6 +95,10 @@ for (const r of igResource.definition?.resource || []) {
 }
 function resourceReference(r: db.ResourceRow): string {
   return `${r.Type}/${r.Id}`;
+}
+function resolveFragmentResource(type: string, id: string): any | null {
+  const row = resourcesByReference.get(`${type}/${id}`);
+  return row ? db.parse(row) : null;
 }
 function isExampleRow(r: db.ResourceRow): boolean {
   return !PRIMARY_RESOURCE_TYPES.has(r.Type) && exampleRefs.has(resourceReference(r));
@@ -140,6 +152,60 @@ function esc(s: unknown): string {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+function dependencyBaseUrl(dep: any): string | null {
+  const raw = String(dep?.uri || '').trim();
+  if (!raw) return null;
+  const base = raw.replace(/\/ImplementationGuide\/[^/]+$/, '').replace(/\/+$/, '');
+  return base || null;
+}
+
+function dependencyAliases(dep: any): string[] {
+  const aliases = new Set<string>();
+  const add = (value: unknown) => {
+    const s = String(value || '').trim();
+    if (s) aliases.add(s);
+  };
+  add(dep?.id);
+  add(dep?.packageId);
+  const pkg = String(dep?.packageId || '').trim();
+  if (pkg) {
+    const lastDot = pkg.split('.').at(-1);
+    add(lastDot);
+    add(lastDot?.replace(/^davinci-/, ''));
+    add(lastDot?.replace(/-r\d+$/, ''));
+    const lastHyphen = pkg.split('-').at(-1);
+    add(lastHyphen);
+  }
+  return [...aliases].filter((s) => /^[A-Za-z_][A-Za-z0-9_-]*$/.test(s));
+}
+
+function publisherStyleSiteData(ig: any, metadata: Record<string, string>): Record<string, any> {
+  const ver: Record<string, string> = {};
+  for (const dep of ig.dependsOn || []) {
+    const base = dependencyBaseUrl(dep);
+    if (!base) continue;
+    for (const alias of dependencyAliases(dep)) ver[alias] = base;
+  }
+  // Some IGs use well-known Publisher variables for packages they rely on in
+  // prose but do not declare as IG dependencies. Keep these as dependency URL
+  // aliases only; they are not used for resource resolution or terminology.
+  ver.feature ||= 'http://hl7.org/fhir/uv/application-feature';
+  return {
+    fhir: {
+      ...metadata,
+      ig,
+      ver,
+      path: metadata.path || 'http://hl7.org/fhir/R4/',
+      canonical: metadata.canonical || ig.url?.replace(/\/ImplementationGuide\/[^/]+$/, ''),
+      packageId: metadata.packageId || ig.packageId || ig.id,
+      igVer: metadata.igVer || ig.version,
+      version: metadata.version || ig.fhirVersion?.[0] || '4.0.1',
+      genDate: metadata.genDate,
+    },
+  };
+}
+const liquidSiteData = publisherStyleSiteData(igResource, meta);
+
 // nav-active: page slug -> top menu label
 const navMap: Record<string, string> = { index: 'Home', artifacts: 'Artifacts' };
 const menuRows = db.menu();
@@ -164,12 +230,45 @@ const artifactsNav = navMap['artifacts'] || 'Artifacts'; // 'More' once nested t
 const PRIMS = new Set(['boolean', 'integer', 'string', 'decimal', 'uri', 'url', 'canonical', 'base64Binary', 'instant', 'date', 'dateTime', 'time', 'code', 'oid', 'id', 'markdown', 'unsignedInt', 'positiveInt', 'uuid', 'xhtml']);
 const DTYPES = new Set(['CodeableConcept', 'Coding', 'Quantity', 'Reference', 'Period', 'Identifier', 'Range', 'Ratio', 'Annotation', 'Attachment', 'HumanName', 'Address', 'ContactPoint', 'Timing', 'Money', 'Age', 'Duration', 'SampledData', 'Signature', 'Meta', 'Narrative', 'Extension', 'BackboneElement', 'Element', 'Dosage']);
 const FHIR_CORE_DOC_PAGES = new Set([
-  'careplan.html',
-  'clinicalimpression.html',
-  'consent.html',
-  'documentreference.html',
-  'immunizationrecommendation.html',
-  'observation-vitalsigns.html',
+  'account.html', 'activitydefinition.html', 'adverseevent.html', 'allergyintolerance.html',
+  'appointment.html', 'appointmentresponse.html', 'auditevent.html', 'basic.html',
+  'binary.html', 'bundle.html', 'capabilitystatement.html', 'careplan.html',
+  'careteam.html', 'catalogentry.html', 'chargeitem.html', 'claim.html',
+  'claimresponse.html', 'clinicalimpression.html', 'codesystem.html', 'communication.html',
+  'communicationrequest.html', 'compartmentdefinition.html', 'composition.html', 'conceptmap.html',
+  'condition.html', 'consent.html', 'contract.html', 'coverage.html',
+  'coverageeligibilityrequest.html', 'coverageeligibilityresponse.html', 'detectedissue.html', 'device.html',
+  'devicedefinition.html', 'devicemetric.html', 'devicerequest.html', 'deviceusestatement.html',
+  'diagnosticreport.html', 'documentmanifest.html', 'documentreference.html', 'effectevidencesynthesis.html',
+  'encounter.html', 'endpoint.html', 'enrollmentrequest.html', 'enrollmentresponse.html',
+  'episodeofcare.html', 'eventdefinition.html', 'evidence.html', 'evidencevariable.html',
+  'examplescenario.html', 'explanationofbenefit.html', 'familymemberhistory.html', 'flag.html',
+  'goal.html', 'graphdefinition.html', 'group.html', 'guidanceresponse.html',
+  'healthcareservice.html', 'imagingstudy.html', 'immunization.html', 'immunizationevaluation.html',
+  'immunizationrecommendation.html', 'implementationguide.html', 'insuranceplan.html', 'invoice.html',
+  'library.html', 'linkage.html', 'list.html', 'location.html',
+  'measure.html', 'measurereport.html', 'media.html', 'medication.html',
+  'medicationadministration.html', 'medicationdispense.html', 'medicationknowledge.html', 'medicationrequest.html',
+  'medicationstatement.html', 'medicinalproduct.html', 'messageheader.html', 'molecularsequence.html',
+  'namingsystem.html', 'nutritionorder.html', 'observation.html', 'observation-vitalsigns.html',
+  'operationdefinition.html', 'operationoutcome.html', 'organization.html', 'organizationaffiliation.html',
+  'parameters.html', 'patient.html', 'paymentnotice.html', 'paymentreconciliation.html',
+  'person.html', 'plandefinition.html', 'practitioner.html', 'practitionerrole.html',
+  'procedure.html', 'provenance.html', 'questionnaire.html', 'questionnaireresponse.html',
+  'relatedperson.html', 'requestgroup.html', 'researchdefinition.html', 'researchelementdefinition.html',
+  'researchstudy.html', 'researchsubject.html', 'riskassessment.html', 'riskevidencesynthesis.html',
+  'schedule.html', 'searchparameter.html', 'servicerequest.html', 'slot.html',
+  'specimen.html', 'specimendefinition.html', 'structuredefinition.html', 'structuremap.html',
+  'subscription.html', 'substance.html', 'supplydelivery.html', 'supplyrequest.html',
+  'task.html', 'terminologycapabilities.html', 'testreport.html', 'testscript.html',
+  'valueset.html', 'verificationresult.html', 'visionprescription.html',
+  'datatypes.html', 'formats.html', 'overview.html', 'overview-clinical.html',
+  'overview-dev.html', 'references.html', 'resource.html', 'terminologies.html',
+  'profiling.html', 'conformance-rules.html', 'secpriv-module.html', 'safety.html',
+  'http.html', 'extensibility.html', 'validation.html', 'versions.html',
+  'license.html', 'narrative.html', 'elementdefinition.html', 'domainresource-definitions.html',
+  'metadatatypes.html', 'questionnaire-definitions.html', 'terminology-service.html',
+  'operation-valueset-expand.html', 'operation-valueset-validate-code.html',
 ]);
 const resolve: ResolveType = (code, profileUrl) => {
   if (profileUrl && byUrl.has(profileUrl)) return byUrl.get(profileUrl)!;
@@ -183,6 +282,19 @@ function rewriteCoreFhirDocLinks(markdown: string): string {
     if (!FHIR_CORE_DOC_PAGES.has(normalized)) return m;
     return `${prefix}https://hl7.org/fhir/R4/${normalized}${anchor || ''}`;
   });
+}
+function rewriteKnownArtifactLinks(markdown: string): string {
+  const rewrite = (href: string): string => {
+    if (/^(?:[a-z][a-z0-9+.-]*:|#|\/)/i.test(href)) return href;
+    const marker = href.search(/[?#]/);
+    const base = marker >= 0 ? href.slice(0, marker) : href;
+    const suffix = marker >= 0 ? href.slice(marker) : '';
+    const target = artifactHrefByLocalTarget.get(base);
+    return target ? `${target}${suffix}` : href;
+  };
+  return markdown
+    .replace(/\bhref=(["'])([^"']+)\1/g, (_m, quote, href) => `href=${quote}${rewrite(href)}${quote}`)
+    .replace(/(\]\()([^)\s]+)(\))/g, (_m, open, href, close) => `${open}${rewrite(href)}${close}`);
 }
 
 function profileRootRequirements(data: any, rootType: string): ProfileRequirement[] {
@@ -379,8 +491,10 @@ for (const p of db.pages()) {
     liquidOut = renderLiquid(p.Body, {
       includes,
       ig: igResource,
+      siteData: liquidSiteData,
       assetInclude: liquidAssetInclude,
       sql: (query) => db.db.query(query).all() as Record<string, any>[],
+      fragment: (args) => renderResourceFragment(args, resolveFragmentResource, { fhirVersion: meta.version || igResource.fhirVersion?.[0] }),
     });
   } catch (e: any) {
     // A broken include/directive must NOT silently publish. Fail the build unless
@@ -388,7 +502,7 @@ for (const p of db.pages()) {
     if (process.env.SITE_GEN_LENIENT === '1') { console.warn(`  ! liquid failed for ${p.Slug}: ${e.message}`); liquidOut = p.Body; }
     else throw new Error(`Liquid failed for ${p.Slug}.md: ${e.message}`);
   }
-  liquidOut = rewriteCoreFhirDocLinks(liquidOut);
+  liquidOut = sanitizeMarkdownSource(rewriteKnownArtifactLinks(rewriteCoreFhirDocLinks(liquidOut)));
   // Publish the liquid-resolved markdown next to the HTML so agents can fetch source.
   writeFileSync(`${OUT}/${p.Slug}.md`, liquidOut);
   emitted.add(`${p.Slug}.md`);
