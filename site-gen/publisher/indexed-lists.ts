@@ -86,7 +86,7 @@ export function packageSourceLabel(indexes: { core: CanonicalIndex; dependencies
   const entry = preferredSourceLabelEntry(entries, preferredTerminologyFamily(indexes.core));
   const packageName = entry?.package?.name;
   if (!packageName) return null;
-  if (entry?.package?.dir && !hasPublishedPackagePath(entry)) return 'Internal';
+  if (entry?.package?.dir && !isFhirCorePackageName(packageName) && !hasPublishedPackagePath(entry)) return 'Internal';
   const terminologyMatch = packageName.match(/^hl7\.terminology\.r[3456]/);
   if (terminologyMatch) return terminologyMatch[0];
   if (packageName.startsWith('hl7.fhir.r3')) return 'hl7.fhir.r3.core';
@@ -112,11 +112,15 @@ function preferredTerminologyFamily(coreIndex: CanonicalIndex): string | null {
   return 'hl7.terminology.r4';
 }
 
+function isFhirCorePackageName(name: string | undefined): boolean {
+  return /^hl7\.fhir\.r(3|4|4b|5|6)\.core$/.test(name || '');
+}
+
 function preferredSourceLabelEntry(entries: IndexedResource[], terminologyFamily: string | null): IndexedResource | undefined {
   const candidates = entries.filter((entry) => !(isRetiredNotPresentCodeSystem(entry.resource) && isTerminologyPackageResource(entry)));
   if (!candidates.length) return undefined;
 
-  const internal = candidates.find((entry) => entry.package?.dir && !hasPublishedPackagePath(entry));
+  const internal = candidates.find((entry) => entry.package?.dir && !isFhirCorePackageName(entry.package.name) && !hasPublishedPackagePath(entry));
   if (internal) return internal;
 
   const nonTerminology = candidates.filter((entry) => !entry.package?.name?.startsWith('hl7.terminology.'));

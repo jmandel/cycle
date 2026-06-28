@@ -203,6 +203,19 @@ describe('publisher list-index helpers', () => {
     }
   });
 
+  test('keeps FHIR core package labels even in minimal fixture packages without spec.internals', () => {
+    const core = emptyIndex();
+    const dependencies = emptyIndex();
+    const system = 'http://hl7.org/fhir/CodeSystem/observation-status';
+    addCodeSystem(core, indexedCodeSystem(system, 'hl7.fhir.r5.core', {
+      version: '5.0.0',
+      dir: '/packages/hl7.fhir.r5.core#5.0.0/package',
+      manifest: { name: 'hl7.fhir.r5.core', version: '5.0.0', url: 'http://hl7.org/fhir/R5' },
+    }));
+
+    expect(packageSourceLabel({ core, dependencies }, system)).toBe('hl7.fhir.r5.core');
+  });
+
   test('extracts primary and additional binding ValueSet URLs', () => {
     const additionalBinding = {
       url: 'http://hl7.org/fhir/tools/StructureDefinition/additional-binding',
