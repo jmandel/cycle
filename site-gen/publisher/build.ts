@@ -45,7 +45,7 @@ import {
   deriveValueSetCodeRows,
   resourceRef,
 } from './rows';
-import { assertStructureDefinitionSnapshots } from './snapshots';
+import { assertStructureDefinitionSnapshots, completeStructureDefinitionSnapshots } from './snapshots';
 import {
   assertFreshGeneratedResources,
   fshCompilerInputFiles,
@@ -426,12 +426,19 @@ async function main() {
     for (const pkg of packageResolution.packages) console.error(`[publisher-profile]   ${describePackage(pkg)}`);
   }
   const now = new Date();
-  const resources = timed('load resources', () => loadResources(cfg, now));
+  const loadedResources = timed('load resources', () => loadResources(cfg, now));
+  const coreIndex = timed('index core package', () => buildCanonicalIndex([packageResolution.core], { labelRoot: packageCacheRoot, profile }));
+  const dependencyIndex = timed('index dependency packages', () => buildCanonicalIndex(dependencyPackages, { labelRoot: packageCacheRoot, profile }));
+  const resources = timed('complete local StructureDefinition snapshots', () => completeStructureDefinitionSnapshots(loadedResources, {
+    current: buildCurrentCanonicalIndex(loadedResources),
+    core: coreIndex,
+    dependencies: dependencyIndex,
+  }));
   timed('require profile snapshots', () => assertStructureDefinitionSnapshots(resources));
   const indexes = {
     current: timed('index current resources', () => buildCurrentCanonicalIndex(resources)),
-    core: timed('index core package', () => buildCanonicalIndex([packageResolution.core], { labelRoot: packageCacheRoot, profile })),
-    dependencies: timed('index dependency packages', () => buildCanonicalIndex(dependencyPackages, { labelRoot: packageCacheRoot, profile })),
+    core: coreIndex,
+    dependencies: dependencyIndex,
   };
   const terminologyContextResources = timed('collect terminology context resources', () => [
     ...resources,

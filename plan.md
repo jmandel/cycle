@@ -176,6 +176,14 @@ Known useful state:
   slices whose type profile fixes `Extension.url` are now matched without
   flooding CI logs from FHIRPath `trace()`. Current SDC triage input is 18
   errors and 71 warnings, not yet fully classified.
+- A no-Java/no-compare Da Vinci CRD pilot run now reaches package DB generation
+  from a blank package cache and replays offline without downloads. CRD includes
+  authored JSON StructureDefinitions outside SUSHI's generated output; the Bun
+  publisher now completes missing local snapshots from a base snapshot plus the
+  differential, or from the normalized differential for logical specializations
+  whose base is FHIR `Base`. Current CRD triage input is 8 errors and 1 warning:
+  2 missing `Appointment.participant` values, 6 `ext-1` extension-shape errors,
+  and one async `resolve()` FHIRPath warning.
 - The Pages workflow now runs publisher unit tests in the normal build, caches
   Bun install data and FHIR packages for warm deploy builds, and runs both the
   Cycle blank-cache smoke and IPS pilot on a weekly/manual non-deploying safety
