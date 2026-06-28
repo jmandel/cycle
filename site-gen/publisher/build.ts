@@ -28,9 +28,12 @@ import {
 } from './canonical';
 import {
   deriveIndexedListRows,
+  isPublisherBuiltinExternalCodeSystem,
+  isPublisherNamespaceValueSetSystem,
   resolveValueSetForList,
   structureDefinitionBindingValueSetUrls,
   valueSetDirectSystems,
+  valueSetFilterSystems,
 } from './indexed-lists';
 import { parseFhirXmlResource } from './fhir-xml';
 import { binaryResourceFromManifestReference } from './manifest-binary';
@@ -382,11 +385,14 @@ async function fetchMissingCodeSystemMetadata(
   }
 
   const out = new Map<string, Json>();
+  const filterSystems = new Set([...valueSets.values()].flatMap(valueSetFilterSystems));
   const missingSystems = [...new Set([...valueSets.values()].flatMap(valueSetDirectSystems))]
     .filter((system) => !system.includes('|'))
     .filter((system) => {
+      if (isPublisherNamespaceValueSetSystem(system)) return false;
       const entry = resolvePublisherEntry(indexes, { resourceType: 'CodeSystem', url: system });
-      return !entry || (shouldReplaceTerminologyStubWithTxMetadata(entry.resource) && isTerminologyPackageResource(entry));
+      if (entry) return shouldReplaceTerminologyStubWithTxMetadata(entry.resource) && isTerminologyPackageResource(entry);
+      return isPublisherBuiltinExternalCodeSystem(system) || filterSystems.has(system);
     })
     .sort((a, b) => a.localeCompare(b));
 

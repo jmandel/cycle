@@ -8,11 +8,14 @@ import {
   deriveIndexedListRows,
   externalValueSetWeb,
   implicitValueSetForUrl,
+  isPublisherBuiltinExternalCodeSystem,
+  isPublisherNamespaceValueSetSystem,
   packageSourceLabel,
   questionnaireAnswerValueSetUrlOccurrences,
   questionnaireAnswerValueSetUrls,
   sourceForSystem,
   structureDefinitionBindingValueSetUrls,
+  valueSetFilterSystems,
   valueSetSystemSource,
 } from './indexed-lists';
 
@@ -92,6 +95,45 @@ describe('publisher list-index helpers', () => {
     expect(valueSetSystemSource('https://example.org/CodeSystem/local', new Set(['https://example.org/CodeSystem/local']))).toBe('Internal');
     expect(valueSetSystemSource('http://snomed.info/sct', new Set(['http://snomed.info/sct']), 'example.package')).toBe('Internal');
     expect(valueSetSystemSource('http://terminology.hl7.org/CodeSystem/v3-ActCode', new Set(), 'example.package')).toBe('THO (V3)');
+  });
+
+  test('limits Publisher built-in external CodeSystem metadata fetches to worker-resolvable systems', () => {
+    expect(isPublisherBuiltinExternalCodeSystem('http://snomed.info/sct')).toBe(true);
+    expect(isPublisherBuiltinExternalCodeSystem('http://loinc.org')).toBe(true);
+    expect(isPublisherBuiltinExternalCodeSystem('http://unitsofmeasure.org')).toBe(true);
+    expect(isPublisherBuiltinExternalCodeSystem('http://www.nlm.nih.gov/research/umls/rxnorm')).toBe(true);
+    expect(isPublisherBuiltinExternalCodeSystem('http://dicom.nema.org/resources/ontology/DCM')).toBe(true);
+    expect(isPublisherBuiltinExternalCodeSystem('urn:ietf:bcp:13')).toBe(false);
+    expect(isPublisherBuiltinExternalCodeSystem('urn:iso:std:iso:3166')).toBe(false);
+    expect(isPublisherBuiltinExternalCodeSystem('http://unstats.un.org/unsd/methods/m49/m49.htm')).toBe(false);
+  });
+
+  test('recognizes namespace systems that Publisher lists through ValueSets but not CodeSystemList metadata', () => {
+    expect(isPublisherNamespaceValueSetSystem('urn:ietf:bcp:13')).toBe(true);
+    expect(isPublisherNamespaceValueSetSystem('urn:ietf:bcp:47')).toBe(true);
+    expect(isPublisherNamespaceValueSetSystem('urn:iso:std:iso:3166')).toBe(true);
+    expect(isPublisherNamespaceValueSetSystem('urn:iso:std:iso:3166:-2')).toBe(true);
+    expect(isPublisherNamespaceValueSetSystem('http://unstats.un.org/unsd/methods/m49/m49.htm')).toBe(true);
+    expect(isPublisherNamespaceValueSetSystem('http://standardterms.edqm.eu')).toBe(false);
+    expect(isPublisherNamespaceValueSetSystem('urn:oid:2.16.840.1.113883.2.9.6.2.7')).toBe(false);
+  });
+
+  test('identifies CodeSystems used by ValueSet filters', () => {
+    expect(valueSetFilterSystems({
+      resourceType: 'ValueSet',
+      compose: {
+        include: [
+          { system: 'http://standardterms.edqm.eu', filter: [{ property: 'parent', op: '=', value: 'PDF' }] },
+          { system: 'urn:ietf:bcp:13', concept: [{ code: 'text/plain' }] },
+        ],
+        exclude: [
+          { system: 'urn:oid:2.16.840.1.113883.2.9.6.2.7', filter: [{ property: 'regex', op: '=', value: '.*' }] },
+        ],
+      },
+    })).toEqual([
+      'http://standardterms.edqm.eu',
+      'urn:oid:2.16.840.1.113883.2.9.6.2.7',
+    ]);
   });
 
   test('derives package source labels from CodeSystems but not NamingSystem URI aliases', () => {

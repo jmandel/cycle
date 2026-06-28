@@ -180,6 +180,20 @@ export function valueSetSystemSource(system: string, localCodeSystemUrls = new S
   return 'Other';
 }
 
+export function isPublisherBuiltinExternalCodeSystem(system: string): boolean {
+  return system === 'http://snomed.info/sct'
+    || system === 'http://loinc.org'
+    || system === 'http://dicom.nema.org/resources/ontology/DCM'
+    || system === 'http://unitsofmeasure.org'
+    || system === 'http://www.nlm.nih.gov/research/umls/rxnorm';
+}
+
+export function isPublisherNamespaceValueSetSystem(system: string): boolean {
+  return system.startsWith('urn:ietf:bcp:')
+    || system.startsWith('urn:iso:std:iso:')
+    || system === 'http://unstats.un.org/unsd/methods/m49/m49.htm';
+}
+
 export function sourceForSystem(
   indexes: { core: CanonicalIndex; dependencies: CanonicalIndex },
   localCodeSystemUrls: Set<string>,
@@ -414,6 +428,12 @@ export function implicitValueSetForUrl(url: string): Json | undefined {
 
 export function valueSetDirectSystems(vs: Json): string[] {
   return [...new Set((vs.compose?.include || []).map((inc: any) => inc.system).filter(Boolean))] as string[];
+}
+
+export function valueSetFilterSystems(vs: Json): string[] {
+  return [...new Set([...(vs.compose?.include || []), ...(vs.compose?.exclude || [])]
+    .filter((component: any) => component.system && Array.isArray(component.filter) && component.filter.length > 0)
+    .map((component: any) => component.system))] as string[];
 }
 
 function valueSetAllSystems(vs: Json, findValueSet: (url: string) => Json | undefined, seen = new Set<string>()): string[] {
