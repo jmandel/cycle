@@ -209,5 +209,13 @@ export function renderLiquid(src: string, opts: { includes: IncludeRegistry; ig:
       return opts.fragment(this.args);
     },
   });
-  return engine.parseAndRenderSync(withSql, renderContext);
+  const rendered = engine.parseAndRenderSync(withSql, renderContext);
+  // The Java Publisher evaluates {% fragment %} even when authors wrap it in
+  // {% raw %} to protect literal handlebars inside the generated JSON. LiquidJS
+  // correctly preserves raw blocks, so run one final fragment pass over the
+  // rendered text to match the Publisher authoring pattern.
+  return rendered.replace(/{%-?\s*fragment\s+([\s\S]*?)\s*-?%\}/g, (_m, args) => {
+    if (!opts.fragment) throw new Error('fragment tag used, but no fragment renderer was provided');
+    return opts.fragment(args);
+  });
 }
