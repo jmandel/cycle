@@ -69,6 +69,7 @@ import {
   type PreparedValueSetExpansion,
 } from './terminology';
 import { validateAssignedExamplesWithTerminology, type ValidationIssue } from './validation';
+import { buildValidationReport } from './validation-report';
 import { writePackageDbFile } from './writer';
 import { txTimeoutMsFromEnv } from './tx-cache';
 
@@ -263,21 +264,9 @@ function writeBuildManifest(
   writeFileSync(path, `${JSON.stringify(manifest, null, 2)}\n`);
 }
 
-function validationIssueCounts(issues: ValidationIssue[]): Record<string, number> {
-  return issues.reduce<Record<string, number>>((counts, issue) => {
-    counts[issue.severity] = (counts[issue.severity] || 0) + 1;
-    return counts;
-  }, {});
-}
-
 function writeValidationReport(path: string, issues: ValidationIssue[]) {
   mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, `${JSON.stringify({
-    schema: 'site-gen.publisher.validation-report.v1',
-    generatedAt: new Date().toISOString(),
-    issueCounts: validationIssueCounts(issues),
-    issues,
-  }, null, 2)}\n`);
+  writeFileSync(path, `${JSON.stringify(buildValidationReport(issues), null, 2)}\n`);
 }
 
 function loadResources(cfg: Json, now: Date): Json[] {

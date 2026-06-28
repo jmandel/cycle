@@ -182,15 +182,17 @@ Known useful state:
   validation now treats raw JSON primitive values as present. Ordinary
   FHIRPath constraints now resolve local references through the in-memory
   resource index, so SDC's `Task.focus.resolve()` invariants evaluate without
-  async/network warnings. Current SDC triage input is warning-only: 60 `dom-6`
-  narrative warnings plus three authored warning-level constraints.
+  async/network warnings. Current SDC triage input has three ordinary
+  warning-level authored constraints plus 60 separately reported generated
+  narrative warnings from `dom-6`.
 - A no-Java/no-compare Da Vinci CRD pilot run now reaches package DB generation
   from a blank package cache and replays offline without downloads. CRD includes
   authored JSON StructureDefinitions outside SUSHI's generated output; the Bun
   publisher now completes missing local snapshots from a base snapshot plus the
   differential, or from the normalized differential for logical specializations
-  whose base is FHIR `Base`. CRD is now warning-only in the no-Java/no-compare
-  smoke: 18 `dom-6` narrative warnings and no FHIRPath evaluation warnings.
+  whose base is FHIR `Base`. CRD now has no ordinary validation issues in the
+  no-Java/no-compare smoke, with 18 separately reported generated narrative
+  warnings from `dom-6` and no FHIRPath evaluation warnings.
   The previous 6 false `ext-1` errors, 2 false
   `Appointment.participant` slice errors were fixed by type-aware Extension
   FHIRPath evaluation and relative `resolve()` profile-discriminator matching;
@@ -727,6 +729,10 @@ Work:
 - Use `$validate-code` for coded elements when needed.
 - Produce a QA report that site-gen can publish.
 - Keep best-practice warnings separate from errors.
+- Keep generated narrative warnings separate from ordinary validation issues:
+  Bun does not generate FHIR narrative today, so `dom-6` should remain visible
+  in the report without making Cycle, IPS, SDC, or CRD look like they have
+  authored profile warnings.
 
 Acceptance criteria:
 
@@ -735,12 +741,12 @@ Acceptance criteria:
 - A code outside a required local ValueSet fails.
 - A code outside a required external/intensional ValueSet fails when tx support
   or tx cache is available.
-- Cycle writes only expected narrative best-practice warnings unless examples
-  add generated narrative.
+- Cycle writes no ordinary validation issues and reports expected generated
+  narrative warnings separately unless examples add generated narrative.
 - IPS does not report false missing-cardinality errors for primitive companion
   data-absent-reason fields such as `_performedDateTime`; its current local run
-  writes only expected narrative best-practice warnings while the DB compare
-  remains exact.
+  writes no ordinary validation issues, reports expected generated narrative
+  warnings separately, and keeps the DB compare exact.
 
 ## Phase 10: SUSHI Orchestration, Not Reimplementation
 
