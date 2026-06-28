@@ -13,6 +13,8 @@
     "test:publisher": "bun test site-gen/publisher/*.test.ts",
     "test:publisher:blank-cache": "bun scripts/check-publisher-blank-cache.ts",
     "test:publisher:ips": "bun scripts/check-publisher-ips.ts",
+    "test:publisher:sdc": "bun scripts/check-publisher-sdc.ts",
+    "test:publisher:crd": "bun scripts/check-publisher-crd.ts",
     "experiment:package-db": "bun site-gen/publisher/build.ts",
     "experiment:package-db:compare": "bun site-gen/publisher/compare.ts"
   },

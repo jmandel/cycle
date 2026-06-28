@@ -167,6 +167,13 @@ Known useful state:
   the IPS IG, ensure Java Publisher `output/package.db` exists when comparison
   is required, then run the blank-cache Bun publisher smoke against that
   checkout.
+- The same external-IG harness now has SDC and Da Vinci CRD wrappers
+  (`bun run test:publisher:sdc` and `bun run test:publisher:crd`). They are the
+  next pilot targets after Cycle and IPS; keep their failures concrete and
+  categorized until they can be promoted to gates.
+- A no-Java/no-compare SDC pilot run reached package DB generation from a blank
+  package cache and produced matching first/offline validation output. Current
+  SDC triage input is 20 errors and 71 warnings, not yet classified.
 - The Pages workflow now runs publisher unit tests in the normal build, caches
   Bun install data and FHIR packages for warm deploy builds, and runs both the
   Cycle blank-cache smoke and IPS pilot on a weekly/manual non-deploying safety
@@ -944,6 +951,9 @@ Work:
 - Define a small pilot matrix:
   - cycle.fhir.me as the home IG and regression baseline;
   - IPS as the first realistic external IG;
+  - SDC (`HL7/sdc`) as a forms/questionnaire-heavy external IG;
+  - Da Vinci CRD (`HL7/davinci-crd`) as a CDS Hooks / payer workflow external
+    IG;
   - at least one small synthetic IG fixture designed to exercise edge cases.
 - For each pilot IG, run both paths when practical:
   - Java Publisher output;

@@ -209,20 +209,25 @@ bun scripts/check-publisher-blank-cache.ts
 If the expected Java Publisher DB is present, the smoke compares the warm-cache
 DB against it.
 
-The IPS pilot wraps that setup:
+The external IG pilot wraps that setup:
 
 ```sh
 bun run test:publisher:ips
+bun run test:publisher:sdc
+bun run test:publisher:crd
 ```
 
-It uses `temp/ips-ig` when present, otherwise clones
-`https://github.com/HL7/fhir-ips.git`, ensures Java Publisher output exists
+Each wrapper uses a checkout under `temp/<label>-ig` when present, otherwise
+clones the configured upstream repository, ensures Java Publisher output exists
 (`output/package.db`), and then runs the blank-cache Bun publisher smoke against
 that checkout. By default the first Bun pass may fetch missing CodeSystem
-metadata and the second pass must replay it from cache. Override with
-`PUBLISHER_IPS_DIR`, `PUBLISHER_IPS_REPO`, `PUBLISHER_IPS_REF`,
-`PUBLISHER_IPS_RUN_JAVA`, `PUBLISHER_FIRST_TX_METADATA`, or
-`PUBLISHER_OFFLINE_TX_METADATA` as needed.
+metadata and the second pass must replay it from cache. The generic entry point
+is `scripts/check-publisher-external-ig.ts`; wrappers supply defaults for IPS
+(`HL7/fhir-ips`), SDC (`HL7/sdc`), and Da Vinci CRD (`HL7/davinci-crd`).
+Override with `PUBLISHER_IG_DIR`, `PUBLISHER_IG_REPO`, `PUBLISHER_IG_REF`,
+`PUBLISHER_IG_RUN_JAVA`, `PUBLISHER_FIRST_TX_METADATA`, or
+`PUBLISHER_OFFLINE_TX_METADATA` as needed. The legacy `PUBLISHER_IPS_*`
+variables still work for the IPS wrapper.
 
 Publisher package context is explicit and reproducible. These are compatibility
 context packages, not IG-authored dependencies and not Cycle- or IPS-specific
