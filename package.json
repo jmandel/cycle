@@ -20,6 +20,7 @@
     "experiment:package-db:compare": "bun site-gen/publisher/compare.ts"
   },
   "devDependencies": {
+    "@types/node": "22.15.3",
     "@types/react": "18.3.12",
     "@types/react-dom": "18.3.1",
     "esbuild": "^0.24.0",
