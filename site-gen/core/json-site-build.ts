@@ -45,10 +45,16 @@ export interface SiteDbRows {
   assets: JsonAssetRow[];
 }
 
-/** Current WASM transport: the manifest and its one addressed CAS object. */
+/**
+ * WASM transport during the v1 -> v2 transition. New producers use the generic
+ * digest map. `siteDbJson` remains optional solely for an old cycle-site/v1
+ * producer that returned its one object beside the manifest.
+ */
 export interface CycleSiteBuildPayload {
+  transportVersion?: 'site-build-cas/v1';
   siteBuild: ClosedSiteBuild;
-  siteDbJson: string;
+  objects?: Record<string, string>;
+  siteDbJson?: string;
 }
 
 function decodeBase64(value: string): Uint8Array {

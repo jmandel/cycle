@@ -14,14 +14,18 @@ Liquid.
 - `ContentStore` is read-only byte transport, not a semantic callback. After
   opening, reads come from immutable verified copies held by the handle.
 - Only artifacts reachable from the declared render plan are exposed.
-- `JsonSiteBuildView.fromClosedBuild` checks `cycle-site/v1`, reads the one
-  `compat.site_db/rows.json` artifact, and supplies the same `SiteBuildView` to
-  `CycleSiteRenderer` in every host.
+- `openCycleSiteBuild` dispatches by the exact target. `cycle-site/v2` preloads
+  four strict `cycle.semantic/v1` data artifacts and every raw authored asset;
+  `cycle-site/v1` remains readable through the aggregate row adapter.
+- The v2 payload contains parsed FHIR resources, terminology products, recursive
+  navigation, and parsed config. SQLite surrogate keys, `Json` strings, and
+  base64 asset bodies do not cross this boundary.
 
-The browser implements the store with the canonical row bytes returned beside
-the WASM manifest. Native Cycle uses `core/filesystem-closed-build.ts` to read the
-same contract from Fig's filesystem CAS. That module is imported only by the
-native build entry point, so browser bundles never acquire Node built-ins.
+The browser calls `openCycleSiteBuildPayload` over the generic
+`site-build-cas/v1` digest-to-base64 transport returned beside the WASM manifest.
+Native Cycle uses `core/filesystem-closed-build.ts` to read the same artifact
+contract from Fig's filesystem CAS. That module is imported only by the native
+build entry point, so browser bundles never acquire Node built-ins.
 
 ## Native command
 
@@ -35,7 +39,7 @@ EXAMPLE_OUT=input/resources/Bundle-period-tracking-longitudinal-example.json \
   bun scripts/gen-example.ts
 SOURCE_DATE_EPOCH=1783555200 \
 fig prepare . \
-  --target cycle-site/v1 \
+  --target cycle-site/v2 \
   --sushi-out temp/fig-sushi \
   --cache /path/to/fhir-package-cache \
   --out temp/cycle.fig-build
@@ -62,7 +66,8 @@ objects/sha256/<digest>
 `fig prepare` captures authored inputs and the resolved package closure once,
 hashes every source and normalized package payload, and reconstructs a private,
 read-only IG tree and package cache from those captured objects. Its single
-native compile reads only that staged view. It then closes `cycle-site/v1`,
+native compile reads only that staged view. It then closes the requested Cycle
+target (`cycle-site/v2` is preferred),
 verifies every addressed object, and publishes the new directory atomically.
 This prevents even an A→B→A live-tree mutation from influencing compilation
 while retaining A's identity. It refuses an existing output directory; final
@@ -141,7 +146,7 @@ The explicitly selected legacy SQLite adapter records
 `legacy-site-db-sha256:<digest>` instead, making the compatibility input honest
 without pretending it is a SiteBuild.
 
-That binding is intentional: v1 and a future typed v2 SiteBuild can render
+That binding is intentional: v1 and the typed v2 SiteBuild can render
 byte-identical generator files but still have different receipt identities
 because their exact semantic inputs have different build ids. Renderer parity
 tests should compare the declared output files (or their per-file hashes), not
@@ -180,8 +185,10 @@ a fresh destination).
 
 ## Later model improvements
 
-Keep `compat.site_db/rows.json` for v1 migration. If profiling justifies it, a v2
-plan can address resources, authored pages/assets, terminology products, and
-selected Publisher fragments separately. Cycle may opt into Rust-produced
-fragments that are genuinely useful, but they must be declared and materialized
-before closure; Cycle remains on its shared LiquidJS renderer.
+Keep the `cycle-site/v1` reader during migration. V2 splits the monolithic row
+artifact into independently addressed semantic groups and raw assets while
+retaining an aggregate resources object for efficient synchronous preload. If
+profiling justifies it, a future contract can address resources individually.
+Cycle may opt into Rust-produced fragments that are genuinely useful, but they
+must be declared and materialized before closure; Cycle remains on its shared
+LiquidJS renderer.

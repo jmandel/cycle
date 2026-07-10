@@ -13,7 +13,8 @@ export SITE_DB="${SITE_DB:-temp/site-gen/site.db}"
 # renderer itself refuses an existing destination unless this policy is named.
 export SITE_GEN_REPLACE_OUTPUT="${SITE_GEN_REPLACE_OUTPUT:-1}"
 bun site-gen/ingest.ts >/dev/null 2>&1 || { echo "INGEST FAILED"; exit 1; }
-bun test site-gen/core/renderer.test.tsx || { echo "RENDERER TESTS FAILED"; exit 1; }
+bun test site-gen/core/semantic-site-build.test.ts site-gen/core/renderer.test.tsx \
+  || { echo "RENDERER/SEMANTIC TESTS FAILED"; exit 1; }
 # A caller may supply a real portable Fig bundle for the native end-to-end
 # build while the renderer hash tests above continue using the small SQLite
 # fixture. The build accepts exactly one input transport.

@@ -18,9 +18,10 @@ source for the published site lives under `site-gen/designs/`,
 
 ```text
 authored IG + exact package cache
-   → fig prepare --target cycle-site/v1
+   → fig prepare --target cycle-site/v2
    → site-build.json + objects/sha256/<digest>
-   → ClosedBuildHandle + JsonSiteBuildView
+   → ClosedBuildHandle + openCycleSiteBuild
+   → SemanticSiteBuildView (four typed data roots + raw asset roots)
    → CycleSiteRenderer   (pure page manifest + SSR + auxiliary outputs)
    → site-gen/build.tsx  (writes outputs/assets, bundles client, checks links)
    → cycle-output-receipt.json + atomic publication
@@ -35,7 +36,7 @@ mkdir -p input/resources
 EXAMPLE_OUT=input/resources/Bundle-period-tracking-longitudinal-example.json \
   bun scripts/gen-example.ts
 SOURCE_DATE_EPOCH=1783555200 fig prepare . \
-  --target cycle-site/v1 \
+  --target cycle-site/v2 \
   --sushi-out temp/fig-sushi \
   --cache /path/to/fhir-package-cache \
   --out temp/cycle.fig-build
@@ -98,7 +99,9 @@ it never silently selects a stale database.
 
 - **`core/`** — shared static-site mechanics: `closed-build` (verified manifest +
   read-only object-store handle), `site-build` (callback-free view contract),
-  `json-site-build` (portable canonical-row view), `renderer` (the one
+  `semantic-site-build` (strict v2 decoder/preloaded view), `json-site-build`
+  (v1 canonical-row adapter), `open-site-build` (exact contract dispatch and
+  generic WASM CAS transport), `renderer` (the one
   CLI/browser semantic preparation + page/SSR implementation), `content` (the
   one CLI/browser closed narrative policy), `db` (legacy native SQLite adapter),
   `filesystem-closed-build` (Node/Bun-only Fig CAS reader), `markdown`,
@@ -129,8 +132,11 @@ it never silently selects a stale database.
 | `createCycleRendererOutputReceipt` | browser convenience that consumes `listOutputs()` / `renderOutput()`; optional host materials allow it to reproduce a native complete-tree receipt |
 | `sealCycleOutputTree` / `verifyCycleOutputTree` | Node/Bun-only regular-file traversal and receipt adapter used by atomic publication |
 | `SiteBuildView` | synchronous, callback-free semantic and asset queries for one closed Cycle build |
-| `CYCLE_RENDER_PLAN` | names the `cycle-site/v1` contract and its one required `compat.site_db/rows.json` artifact |
-| `JsonSiteBuildView` | shared view over the verified canonical row artifact; decodes asset bytes for portable consumers |
+| `CYCLE_RENDER_PLAN_V2` | names `cycle-site/v2`: four `cycle.semantic/v1` JSON roots plus every raw authored asset root |
+| `openCycleSiteBuild` | dispatches only by the exact target; malformed v2 inputs never fall back to v1 by artifact presence |
+| `openCycleSiteBuildPayload` | strictly decodes the generic digest-to-base64 WASM CAS transport, verifies the build, and dispatches its view |
+| `SemanticSiteBuildView` | preloads strict resource/terminology/navigation/config payloads and raw assets; legacy numeric row keys exist only in memory |
+| `CYCLE_RENDER_PLAN_V1` / `JsonSiteBuildView` | readable v1 fallback over the one verified `compat.site_db/rows.json` artifact |
 | `CycleContentRenderer` | injected narrative transformation over one explicit content context |
 | `createCycleContentRenderer` | shared LiquidJS/include/fragment/site-data policy used by CLI and browser |
 | `CycleSiteRenderer.listPages()` | deterministic page manifest |
@@ -145,12 +151,14 @@ do not need a receipt. Its `publish()` permits an unsealed tree; if
 Cycle builder unconditionally calls `sealOutputReceipt()` after link checking,
 so its publication path cannot skip receipt verification.
 
-Both browser and native portable hosts construct `JsonSiteBuildView` only
-through a `ClosedBuildHandle`, after the required artifact closure and all of
-its ready artifact bodies have been verified. Source/package read references are
-validated against the manifest but are not downloaded again by a renderer. The
-browser-only base64 asset transport is exposed separately as `encodedAssets()`;
-ordinary `SiteBuildView.assets()` always returns bytes.
+Both browser and native portable hosts call `openCycleSiteBuild` only through a
+`ClosedBuildHandle`, after the required artifact closure and every ready body
+has been verified. The v2 view reads parsed FHIR JSON rather than a `Json`
+column, derives concept/menu/page surrogate keys only in memory, and exposes raw
+asset bytes. Source/package read references are validated against the manifest
+but are not downloaded again by a renderer. `JsonSiteBuildView.encodedAssets()`
+exists only for the v1 browser compatibility transport; ordinary
+`SiteBuildView.assets()` always returns bytes.
 
 The portable verified handle and native Fig handoff are documented in
 [`FIG-INTEGRATION.md`](FIG-INTEGRATION.md).

@@ -21,7 +21,12 @@ export interface ResourceRow {
   Date?: string | null;
   Name?: string | null;
   Title?: string | null;
+  Experimental?: string | null;
+  Realm?: string | null;
   Description?: string | null;
+  Purpose?: string | null;
+  Copyright?: string | null;
+  CopyrightLabel?: string | null;
   derivation?: string | null;
   standardStatus?: string | null;
   kind?: string | null;
@@ -88,11 +93,53 @@ export const CYCLE_SITE_DB_ARTIFACT = Object.freeze({
   name: 'rows.json',
 } as const);
 
-export const CYCLE_RENDER_PLAN = Object.freeze({
+export const CYCLE_RENDER_PLAN_V1 = Object.freeze({
   id: 'cycle-site/v1',
   // The compatibility projection is deliberately one aggregate artifact. Its
   // manifest read-set points to the exact authored sources and package closure;
   // do not pretend its internal row groups are independently addressable
   // SiteBuild artifacts until the producer actually emits them that way.
   requiredArtifacts: Object.freeze([CYCLE_SITE_DB_ARTIFACT]),
+});
+
+/** Historical name retained for source compatibility with the v1 adapter. */
+export const CYCLE_RENDER_PLAN = CYCLE_RENDER_PLAN_V1;
+
+export const CYCLE_SEMANTIC_NAMESPACE = 'cycle.semantic/v1';
+
+export const CYCLE_SEMANTIC_RESOURCES_ARTIFACT = Object.freeze({
+  kind: 'data',
+  namespace: CYCLE_SEMANTIC_NAMESPACE,
+  name: 'resources.json',
+} as const);
+
+export const CYCLE_SEMANTIC_TERMINOLOGY_ARTIFACT = Object.freeze({
+  kind: 'data',
+  namespace: CYCLE_SEMANTIC_NAMESPACE,
+  name: 'terminology.json',
+} as const);
+
+export const CYCLE_SEMANTIC_NAVIGATION_ARTIFACT = Object.freeze({
+  kind: 'data',
+  namespace: CYCLE_SEMANTIC_NAMESPACE,
+  name: 'navigation.json',
+} as const);
+
+export const CYCLE_SEMANTIC_CONFIG_ARTIFACT = Object.freeze({
+  kind: 'data',
+  namespace: CYCLE_SEMANTIC_NAMESPACE,
+  name: 'config.json',
+} as const);
+
+/** Static v2 roots. Every authored Asset root is required beside these values. */
+export const CYCLE_SEMANTIC_DATA_ARTIFACTS = Object.freeze([
+  CYCLE_SEMANTIC_RESOURCES_ARTIFACT,
+  CYCLE_SEMANTIC_TERMINOLOGY_ARTIFACT,
+  CYCLE_SEMANTIC_NAVIGATION_ARTIFACT,
+  CYCLE_SEMANTIC_CONFIG_ARTIFACT,
+]);
+
+export const CYCLE_RENDER_PLAN_V2 = Object.freeze({
+  id: 'cycle-site/v2',
+  requiredDataArtifacts: CYCLE_SEMANTIC_DATA_ARTIFACTS,
 });

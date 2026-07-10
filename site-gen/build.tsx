@@ -13,7 +13,7 @@ import { dirname, posix } from 'node:path';
 import { AtomicOutputPublication } from './core/atomic-output';
 import { SqliteSiteBuildView } from './core/db';
 import { openFilesystemClosedBuild } from './core/filesystem-closed-build';
-import { JsonSiteBuildView } from './core/json-site-build';
+import { openCycleSiteBuild } from './core/open-site-build';
 import { CycleSiteRenderer } from './core/renderer';
 import { createCycleContentRenderer } from './core/content';
 import type { SiteBuildView } from './core/site-build';
@@ -34,7 +34,7 @@ const OUT = project.outDir;
 const DESIGN = project.designDir;
 
 type NativeInput =
-  | { mode: 'portable'; view: JsonSiteBuildView; buildId: string }
+  | { mode: 'portable'; view: SiteBuildView; buildId: string }
   | { mode: 'legacy-sqlite'; view: SqliteSiteBuildView; siteDb: string; inputBuildId: string };
 
 async function openNativeInput(): Promise<NativeInput> {
@@ -45,7 +45,7 @@ async function openNativeInput(): Promise<NativeInput> {
   }
   if (buildDirectory) {
     const handle = await openFilesystemClosedBuild(buildDirectory);
-    const view = await JsonSiteBuildView.fromClosedBuild(handle);
+    const view = await openCycleSiteBuild(handle);
     return { mode: 'portable', view, buildId: handle.manifest.buildId };
   }
   if (siteDb) {
