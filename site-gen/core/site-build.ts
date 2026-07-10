@@ -1,12 +1,11 @@
 /**
  * Callback-free semantic view consumed by the Cycle renderer.
  *
- * This is the TypeScript-facing view of Cycle's aggregate compatibility
- * artifact. It is intentionally independent of SQLite, Bun, the filesystem,
- * and the editor's RowStore. The browser constructs it only after validating a
- * ClosedSiteBuild. `SqliteSiteBuildView` is an explicitly selected legacy
- * native adapter; the preferred native path consumes the proof-bearing Fig
- * bundle through `JsonSiteBuildView`, just like the browser.
+ * The interface is intentionally independent of SQLite, Bun, the filesystem,
+ * and the editor's RowStore. Portable hosts construct it only after validating
+ * a ClosedSiteBuild: v2 uses `SemanticSiteBuildView`, while
+ * `JsonSiteBuildView` adapts the aggregate v1 compatibility artifact.
+ * `SqliteSiteBuildView` is an explicitly selected legacy native adapter.
  */
 
 export interface ResourceRow {

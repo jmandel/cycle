@@ -1,6 +1,6 @@
-/** Node/Bun-only staging and publication for a completed static-site tree. */
+/** Bun-only staging and publication for a completed static-site tree. */
 import { randomUUID } from 'node:crypto';
-import { lstat, mkdtemp, open, realpath, rename, rm, writeFile } from 'node:fs/promises';
+import { lstat, mkdtemp, open, realpath, rm, writeFile } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, normalize, parse, relative, resolve } from 'node:path';
 import { sealCycleOutputTree, verifyCycleOutputTree } from './output-receipt-node';
 import type {
@@ -8,6 +8,7 @@ import type {
   CycleOutputReceipt,
   CycleProducerIdentity,
 } from './output-receipt';
+import { renameDirectoryNoReplace } from './no-replace-rename';
 
 interface FileIdentity {
   dev: number;
@@ -252,7 +253,23 @@ export class AtomicOutputPublication {
         if (!this.replaceExisting) throw new Error('Existing output replacement was not authorized');
         backup = join(dirname(this.destination), `.${basename(this.destination)}.previous-${randomUUID()}`);
         if (await statOrNull(backup)) throw new Error(`Refusing to overwrite publication backup: ${backup}`);
-        await rename(this.destination, backup);
+        await renameDirectoryNoReplace(this.destination, backup);
+        // `assertDestinationUnchanged` and the rename cannot be one syscall. A
+        // non-cooperating writer could replace the source path between them,
+        // causing an unrelated tree to be moved to `backup`. Rename preserves
+        // inode identity, so validate the object that actually moved before we
+        // publish or ever delete it. The catch path restores it when possible
+        // and otherwise deliberately leaves the named backup for recovery.
+        const retired = await statOrNull(backup);
+        if (
+          !retired?.isDirectory()
+          || retired.isSymbolicLink()
+          || !sameIdentity(this.initialDestination, { dev: retired.dev, ino: retired.ino })
+        ) {
+          throw new Error(
+            `Existing output was replaced while being retired; publication stopped and the moved tree is at ${backup}`,
+          );
+        }
       }
 
       // The destination is absent here. rename publishes the already-complete
@@ -260,7 +277,7 @@ export class AtomicOutputPublication {
       if (await statOrNull(this.destination)) {
         throw new Error(`Output destination appeared before atomic publication: ${this.destination}`);
       }
-      await rename(this.stagingDirectory, this.destination);
+      await renameDirectoryNoReplace(this.stagingDirectory, this.destination);
       this.published = true;
       this.closed = true;
       // Publication has committed once the completed staging tree is live.
@@ -271,7 +288,7 @@ export class AtomicOutputPublication {
     } catch (error) {
       if (backup && !(await statOrNull(this.destination)) && (await statOrNull(backup))) {
         try {
-          await rename(backup, this.destination);
+          await renameDirectoryNoReplace(backup, this.destination);
           backup = null;
         } catch (rollbackError) {
           throw new AggregateError(

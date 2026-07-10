@@ -185,8 +185,8 @@ export class JsonSiteBuildView implements SiteBuildView {
     }));
   }
 
-  /** Narrow adapter for the current editor protocol, which still transports
-   * preview assets as base64. Do not use this for native file write-out. */
+  /** Narrow accessor for legacy v1 hosts that still need the compatibility
+   * row's base64 spelling. Do not use this for ordinary view or file output. */
   encodedAssets(): JsonAssetRow[] {
     return this.rows.assets.slice();
   }

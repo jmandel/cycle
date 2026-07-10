@@ -11,7 +11,8 @@
  *               by page markdown
  *
  * Everything else (page structure/titles/order, dependencies, bindings, …) is
- * derived from the DB at render time. After this runs, build.tsx reads ONLY site.db.
+ * derived from the DB at render time. In this explicitly selected legacy
+ * workflow, build.tsx reads only site.db; portable v2 builds bypass this file.
  *
  * Run: bun site-gen/ingest.ts     (PKG_DB / SITE_DB env override defaults)
  */

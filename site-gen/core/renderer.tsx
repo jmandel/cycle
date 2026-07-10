@@ -217,6 +217,14 @@ class SiteContext {
       this.artifactHrefByLocalTarget.set(`${row.Type}-${row.Id}`, href);
       this.artifactHrefByLocalTarget.set(`${row.Type}/${row.Id}`, href);
       this.resourcesByReference.set(`${row.Type}/${row.Id}`, row);
+      if (row.Type === 'ImplementationGuide' && row.Web === 'index.html') {
+        const authoredId = this.view.parse(row)?.id;
+        if (typeof authoredId === 'string' && authoredId && authoredId !== row.Id) {
+          this.artifactHrefByLocalTarget.set(`ImplementationGuide-${authoredId}`, href);
+          this.artifactHrefByLocalTarget.set(`ImplementationGuide/${authoredId}`, href);
+          this.resourcesByReference.set(`ImplementationGuide/${authoredId}`, row);
+        }
+      }
     }
     for (const resource of this.igResource.definition?.resource || []) {
       const reference = resource.reference?.reference;
@@ -257,7 +265,7 @@ class SiteContext {
     }
   }
 
-  page(row: ResourceRow): string { return `${row.Type}-${row.Id}.html`; }
+  page(row: ResourceRow): string { return row.Web || `${row.Type}-${row.Id}.html`; }
   resourceReference(row: ResourceRow): string { return `${row.Type}/${row.Id}`; }
   topMenuLabel(row: MenuRow): string {
     let current = row;
@@ -268,6 +276,7 @@ class SiteContext {
     return !PRIMARY_RESOURCE_TYPES.has(row.Type) && this.exampleRefs.has(this.resourceReference(row));
   }
   isGenericResourcePageRow(row: ResourceRow): boolean {
+    if (row.Type === 'ImplementationGuide') return row.Web !== 'index.html';
     return !PRIMARY_RESOURCE_TYPES.has(row.Type) && !this.isExampleRow(row);
   }
   artifactRank(row: ResourceRow): number { return this.sortRanks.get(this.resourceReference(row)) ?? 100000; }
@@ -536,7 +545,7 @@ export class CycleSiteRenderer {
     for (const row of this.context.artifactResources('ValueSet')) result.push({ file: this.context.page(row), title: row.Title || row.Name || row.Id, kind: 'valueset' });
     for (const row of this.context.artifactResources('CodeSystem')) result.push({ file: this.context.page(row), title: row.Title || row.Name || row.Id, kind: 'codesystem' });
     for (const row of this.context.artifactResources().filter((candidate) => this.context.isGenericResourcePageRow(candidate))) {
-      if (row.Type !== 'ImplementationGuide') result.push({ file: this.context.page(row), title: row.Title || row.Name || row.Id, kind: 'generic' });
+      result.push({ file: this.context.page(row), title: row.Title || row.Name || row.Id, kind: 'generic' });
     }
     for (const row of this.context.exampleResources()) result.push({ file: this.context.page(row), title: row.Title || row.Name || row.Id, kind: 'example' });
     const seen = new Map<string, PageDescriptor>();
@@ -640,10 +649,10 @@ export class CycleSiteRenderer {
     return this.renderResourcePage(file, row);
   }
 
-  /** Render any public output path through the same lazy renderer used for its
-   * owning HTML page. Hosts use this for direct/new-tab requests for narrative
-   * Markdown, machine JSON, and llms.txt; no host-specific output synthesis is
-   * permitted. */
+  /** Render any public output path through the shared renderer. Machine JSON is
+   * read directly from the matching resource because the primary IG and its
+   * authored home narrative intentionally share `index.html`; other auxiliary
+   * outputs continue to resolve through their owning page. */
   renderOutput(file: string): RenderedOutput {
     const descriptor = this.listOutputs().find((candidate) => candidate.file === file);
     if (!descriptor) throw new Error(`Cycle renderer: no output '${file}'`);
@@ -657,6 +666,13 @@ export class CycleSiteRenderer {
     if (file.endsWith('.html')) {
       const page = this.renderPage(file);
       return { file: page.file, content: page.html, mime: 'text/html' };
+    }
+
+    if (descriptor.mime === 'application/fhir+json') {
+      const row = this.context.all.find((candidate) => `${candidate.Type}-${candidate.Id}.json` === file);
+      if (row) {
+        return { file, content: JSON.stringify(this.view.parse(row), null, 2), mime: descriptor.mime };
+      }
     }
 
     if (descriptor.owner) {

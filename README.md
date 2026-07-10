@@ -27,30 +27,43 @@ content-addressed handoff used in the browser:
 
 ```text
 authored IG + exact package cache
-    -> fig prepare --target cycle-site/v1
-    -> ClosedBuildHandle + JsonSiteBuildView
+    -> fig prepare --target cycle-site/v2
+    -> ClosedBuildHandle + SemanticSiteBuildView
     -> shared CycleSiteRenderer + shared Cycle content policy
-    -> verified cycle-output-receipt.json
-    -> atomic site-gen/out
+    -> verified inner renderer output
+    -> project viewers/SHL/skill/QA + final link check
+    -> complete cycle-output-receipt.json
+    -> one atomic site-gen/out publication
 ```
 
 The existing Publisher `package.db` → `site.db` path remains an explicit legacy
 fallback for validation/fixture workflows; neither database is the published
 site.
 
-The Rust engine emits a verified, content-addressed `ClosedSiteBuild` whose one
-Cycle compatibility artifact is canonical site.db row JSON. Browser and native
-hosts validate the manifest/read graph and verify every reachable ready-artifact
-body, adapt the rows to the same `SiteBuildView`, and call the same
-`CycleSiteRenderer` and content policy.
+The Rust engine emits a verified, content-addressed `ClosedSiteBuild` with typed
+resource, terminology, navigation, and config roots plus raw authored asset
+roots. Browser and native hosts validate the manifest/read graph and verify
+every reachable body, preload the same `SiteBuildView`, and call the same
+`CycleSiteRenderer` and content policy. The v1 aggregate row reader remains for
+migration but is not the preferred handoff.
 
-Native publication hashes the complete staged output tree (renderer results,
-design/project assets, and client bundle) into a receipt bound to the input
-SiteBuild id and Cycle renderer version. The browser-compatible receipt core can
-compute or compare the same identity from `listOutputs()` / `renderOutput()` and
-the corresponding host assets. Publication re-verifies every byte before the
-atomic rename; the receipt file is excluded from its own file list to avoid
-self-reference.
+Native publication hashes the complete staged output tree into a receipt bound
+to the input SiteBuild id and Cycle renderer version. For a reusable
+`site-gen/build.tsx` invocation that tree is the renderer, design/project assets,
+and client bundle. The repository's whole-publication wrapper runs that build in
+an inner disposable directory, verifies its receipt, copies only declared bytes
+into one outer staging tree, adds the viewers, SHL files, skill, CNAME, redirect,
+and Publisher QA, then seals and publishes that complete tree once. The
+browser-compatible receipt core can compute or compare the same identity from
+`listOutputs()` / `renderOutput()` and corresponding host assets. Publication
+re-verifies every byte before the atomic rename; the receipt file is excluded
+from its own file list to avoid self-reference.
+
+The input contract and output renderer have independent version labels.
+`cycle-site/v2` / render-target producer `2` names the typed handoff; the current
+receipt names output renderer `cycle-site@1`, shared by both v1 and v2 adapters.
+Thus adapter-parity builds can have identical ordinary files but must have
+different receipt ids because `inputBuildId` is part of the receipt.
 
 See [`site-gen/README.md`](site-gen/README.md) for the renderer layers and
 contracts.
@@ -103,7 +116,7 @@ mkdir -p input/resources
 EXAMPLE_OUT=input/resources/Bundle-period-tracking-longitudinal-example.json \
   bun scripts/gen-example.ts
 SOURCE_DATE_EPOCH=1783555200 fig prepare . \
-  --target cycle-site/v1 \
+  --target cycle-site/v2 \
   --sushi-out temp/fig-sushi \
   --cache /path/to/fhir-package-cache \
   --out temp/cycle.fig-build
@@ -127,6 +140,13 @@ legacy database path:
 ./_genonce.sh               # FSH/Publisher intermediate, including package.db
 bun run build:sitegen       # custom publication plus viewer/SHL/skill artifacts
 ```
+
+`build:sitegen` does not mutate a renderer publication in place. It treats the
+inner renderer receipt as inherited proof, verifies inherited bytes again after
+adding project outputs, performs the whole-tree link check, and writes the sole
+shipped receipt immediately before the sole canonical rename. The intentional
+agent-package append to `llms.txt` is represented as a wrapper-produced file in
+that final receipt.
 
 For legacy renderer work with the committed fixture:
 

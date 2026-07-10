@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { expect, test } from 'bun:test';
 import { AtomicOutputPublication } from './atomic-output';
+import { renameDirectoryNoReplace } from './no-replace-rename';
 import { CYCLE_OUTPUT_RECEIPT_PATH, validateCycleOutputReceipt } from './output-receipt';
 
 async function tempWorkspace(): Promise<string> {
@@ -121,6 +122,22 @@ test('a destination created during staging is preserved and publication fails cl
     await expect(publication.publish()).rejects.toThrow('appeared during the build');
     await publication.abort();
     expect(await readFile(join(destination, 'intruder.txt'), 'utf8')).toBe('intruder');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('native no-replace rename preserves even an empty destination directory', async () => {
+  const root = await tempWorkspace();
+  const source = join(root, 'source');
+  const destination = join(root, 'destination');
+  try {
+    await mkdir(source);
+    await writeFile(join(source, 'new.txt'), 'new');
+    await mkdir(destination);
+    await expect(renameDirectoryNoReplace(source, destination)).rejects.toThrow();
+    expect(await readFile(join(source, 'new.txt'), 'utf8')).toBe('new');
+    expect(await readdir(destination)).toEqual([]);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

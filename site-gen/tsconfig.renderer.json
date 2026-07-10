@@ -15,6 +15,7 @@
     "types": ["node", "react", "react-dom"]
   },
   "include": [
+    "core/bun-ffi.d.ts",
     "core/atomic-output.ts",
     "core/closed-build.ts",
     "core/content.ts",

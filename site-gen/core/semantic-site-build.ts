@@ -256,11 +256,10 @@ export function decodeSemanticResources(value: unknown): SemanticResourcesPayloa
   });
 
   const guideId = resourceKeyId(guide.implementationGuide);
-  const implementationGuides = resources.filter((entry) => entry.key.resourceType === 'ImplementationGuide');
+  const selectedGuide = resources.find((entry) => resourceKeyId(entry.key) === guideId);
   if (guide.implementationGuide.resourceType !== 'ImplementationGuide'
-    || implementationGuides.length !== 1
-    || resourceKeyId(implementationGuides[0].key) !== guideId) {
-    throw new Error('Cycle semantic resources.guide must reference the one ImplementationGuide resource');
+    || selectedGuide?.key.resourceType !== 'ImplementationGuide') {
+    throw new Error('Cycle semantic resources.guide must reference an existing ImplementationGuide resource');
   }
 
   let publisherCompatibility: SemanticResourcesPayload['publisherCompatibility'];
@@ -425,6 +424,15 @@ function assertV2Contract(build: ClosedSiteBuild): ArtifactKey[] {
   if (expected.size) {
     throw new Error(`cycle-site/v2 is missing required root ${[...expected.values()].map(artifactKeyId).join(', ')}`);
   }
+  const rootedAssets = new Set(assets.map(artifactKeyId));
+  const catalogAssets = new Set(build.artifacts
+    .map((record) => record.key)
+    .filter((key) => authoredAssetKey(key) !== null)
+    .map(artifactKeyId));
+  const omitted = [...catalogAssets].filter((id) => !rootedAssets.has(id));
+  if (omitted.length) {
+    throw new Error(`cycle-site/v2 authored asset is outside the render plan: ${omitted.join(', ')}`);
+  }
   return assets;
 }
 
@@ -481,6 +489,13 @@ export class SemanticSiteBuildView implements SiteBuildView {
       this.resourceEntries.set(row.Key, entry);
       return row;
     });
+    const references = new Set<string>();
+    for (const row of this.resourceRows) {
+      const reference = `${row.Type}/${row.Id}`;
+      if (!references.add(reference)) {
+        throw new Error(`Cycle semantic compatibility projection creates duplicate resource ${reference}`);
+      }
+    }
     this.buildConceptRows();
     this.pageRows = this.flattenPages();
     this.menuRows = this.flattenMenu();
@@ -631,7 +646,9 @@ export class SemanticSiteBuildView implements SiteBuildView {
   private resourceRow(entry: SemanticResourceEntry, key: number): ResourceRow {
     const resource = entry.resource;
     const type = entry.key.resourceType;
-    const id = type === 'ImplementationGuide'
+    const primaryGuide = resourceKeyId(entry.key)
+      === resourceKeyId(this.semanticResources.guide.implementationGuide);
+    const id = primaryGuide
       ? this.semanticResources.guide.packageId
       : entry.key.id;
     const hasCanonical = typeof resource.url === 'string' && resource.url.length > 0;
@@ -640,7 +657,7 @@ export class SemanticSiteBuildView implements SiteBuildView {
       || scalarString(resource.title)
       || entry.key.id
       || type;
-    const url = type === 'ImplementationGuide' && this.semanticResources.guide.canonical
+    const url = primaryGuide && this.semanticResources.guide.canonical
       ? `${this.semanticResources.guide.canonical.replace(/\/$/, '')}/ImplementationGuide/${id}`
       : hasCanonical ? String(resource.url) : null;
     return {
@@ -648,7 +665,7 @@ export class SemanticSiteBuildView implements SiteBuildView {
       Type: type,
       Custom: 0,
       Id: id,
-      Web: type === 'ImplementationGuide' ? 'index.html' : `${type}-${id}.html`,
+      Web: primaryGuide ? 'index.html' : `${type}-${id}.html`,
       Url: url,
       Version: hasCanonical ? scalarString(resource.version) ?? null : null,
       Status: scalarString(resource.status) ?? null,

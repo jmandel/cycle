@@ -74,8 +74,10 @@ while retaining A's identity. It refuses an existing output directory; final
 live-tree comparisons are mutation diagnostics, not build inputs.
 
 `site-gen/build.tsx` reads only through `ClosedBuildHandle` and uses the shared
-Cycle renderer/content policy. It writes decoded assets, renders, bundles the
-client, and checks links inside a validated sibling staging directory, then
+Cycle renderer/content policy. It materializes every declared renderer file
+through `listOutputs()` + `renderOutput()`—the same direct-path seam used by the
+browser—then bundles the client and checks links inside a validated sibling
+staging directory before it
 atomically renames the completed tree to `OUT_DIR`. It rejects root,
 working-tree/source overlap, symlink traversal, and an existing output unless
 `SITE_GEN_REPLACE_OUTPUT=1` explicitly enables staged replacement. Any failure
@@ -85,8 +87,19 @@ staged-tree-to-destination; this prevents partial trees and supports rollback,
 but does not promise uninterrupted path availability between the two renames.
 The renderer's `listOutputs()` manifest is mandatory: every declared page,
 narrative Markdown file, machine JSON file, `llms.txt`, and row asset must be
-emitted exactly once, and collisions with host design/client assets fail the
-build.
+returned exactly once by `renderOutput()`, and collisions with host
+design/client assets fail the build. Hosts do not need to know whether an
+auxiliary file belongs to a separate page, shares `index.html`, or has no page.
+
+For the repository's full Pages publication, `scripts/build-sitegen-site.ts`
+owns a larger outer `AtomicOutputPublication`. It points `site-gen/build.tsx` at
+an inner disposable destination inside outer staging, verifies the inner receipt
+and copies only those declared files, then adds and declares the project viewers,
+SHL files, agent package, deployment metadata, compatibility redirect, and
+Publisher QA. It rechecks inherited hashes, runs the final link check over the
+complete tree, writes one outer receipt, and performs the only rename to
+`site-gen/out`. The intentional agent-package append to `llms.txt` receives new
+wrapper provenance; no other inherited renderer file may change.
 
 Portable mode does not inject SQL and does not honor the lenient Liquid escape
 hatch, so a SQL tag fails loudly.
@@ -108,9 +121,11 @@ the same preprocessing command.
 
 ## Content-addressed final output
 
-Cycle declares its logical renderer namespace through `listOutputs()` and the
-native host declares the design, project stylesheet, and client-bundle outputs
-as it reserves them. After rendering and link checking,
+Cycle declares its logical renderer namespace through `listOutputs()` and each
+host declares every additional output as it reserves or imports it. In the full
+repository publication this includes viewer, SHL, skill, deployment, redirect,
+and Publisher QA files as well as the design, project stylesheet, and client
+bundle. After rendering and whole-tree link checking,
 `AtomicOutputPublication.sealOutputReceipt()` traverses the complete private
 tree, rejects symlinks/non-files and missing or undeclared paths, and writes:
 

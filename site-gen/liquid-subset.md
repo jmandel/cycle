@@ -160,10 +160,11 @@ successful.
 ## Relationship to `SiteBuild`
 
 The browser and preferred native path construct `SiteBuildView` only after
-verifying a `ClosedSiteBuild` whose render plan requires the addressed
-`compat.site_db/rows.json` artifact. `SqliteSiteBuildView` remains an explicitly
-selected legacy adapter over an unsealed `site.db`; it is not part of the
-portable chain.
+verifying a `cycle-site/v2` `ClosedSiteBuild` whose render plan requires typed
+resource, terminology, navigation, and config roots plus every raw authored
+asset root. The v1 `compat.site_db/rows.json` reader and
+`SqliteSiteBuildView` remain explicitly selected legacy adapters; neither is
+part of the preferred portable chain.
 
 Therefore the intended portable chain is:
 

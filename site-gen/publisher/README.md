@@ -1,5 +1,11 @@
 # Experimental package.db producer
 
+> **Legacy/experimental preparation path.** This code remains useful for
+> Publisher comparison and safety research, but it is not Cycle's preferred
+> renderer handoff. Current portable/native publication uses a verified
+> `cycle-site/v2` `ClosedSiteBuild`; see [`../README.md`](../README.md) and
+> [`../FIG-INTEGRATION.md`](../FIG-INTEGRATION.md).
+
 This folder is an experiment in replacing the Java IG Publisher as the producer
 of the `package.db` shape consumed by `site-gen`.
 

@@ -495,6 +495,47 @@ test('v2 rejects missing, extra, and non-authored render-plan roots', async () =
     CYCLE_SEMANTIC_TERMINOLOGY_ARTIFACT,
   ], [{ key: generatedAsset, bytes: encoder.encode('x'), mediaType: 'image/svg+xml' }]);
   await expect(openCycleSiteBuild(wrongAsset)).rejects.toThrow('unexpected required root');
+
+  const omittedAsset: ArtifactKey = {
+    kind: 'asset', namespace: { kind: 'authored' }, path: 'images/omitted.svg',
+  };
+  const outsidePlan = await v2Handle(payloads(), undefined, [
+    { key: omittedAsset, bytes: encoder.encode('omitted'), mediaType: 'image/svg+xml' },
+  ]);
+  await expect(openCycleSiteBuild(outsidePlan)).rejects.toThrow('authored asset is outside the render plan');
+});
+
+test('v2 guide identity selects the primary guide while retaining ImplementationGuide examples', async () => {
+  const values = payloads();
+  values.resources.resources.push({
+    key: { resourceType: 'ImplementationGuide', id: 'example-guide' },
+    resource: {
+      resourceType: 'ImplementationGuide',
+      id: 'example-guide',
+      packageId: 'example.guide',
+      status: 'draft',
+    },
+  });
+  const view = await openCycleSiteBuild(await v2Handle(values));
+  const guides = view.resources('ImplementationGuide');
+  expect(guides).toHaveLength(2);
+  expect(guides.map((row) => [row.Id, row.Web, row.Url])).toEqual([
+    ['example-guide', 'ImplementationGuide-example-guide.html', null],
+    ['fixture.ig', 'index.html', 'https://example.org/ig/ImplementationGuide/fixture.ig'],
+  ]);
+  expect(view.ig().id).toBe('fixture');
+  const renderer = new CycleSiteRenderer(view, { content: { renderLiquid: (source: string) => source } });
+  expect(renderer.listPages()).toContainEqual({
+    file: 'ImplementationGuide-example-guide.html',
+    title: 'example-guide',
+    kind: 'generic',
+  });
+  expect(renderer.renderPage('ImplementationGuide-example-guide.html').html).toContain('example-guide');
+  expect(renderer.renderOutput('ImplementationGuide-fixture.ig.json')).toEqual({
+    file: 'ImplementationGuide-fixture.ig.json',
+    content: JSON.stringify(values.resources.resources[0].resource, null, 2),
+    mime: 'application/fhir+json',
+  });
 });
 
 test('target mismatch never falls back by artifact presence', async () => {
@@ -519,7 +560,7 @@ test('v2 strict decoders reject schema drift and corrupt semantic references', a
   const missingGuide = payloads();
   missingGuide.resources.guide.implementationGuide.id = 'missing';
   await expect(openCycleSiteBuild(await v2Handle(missingGuide))).rejects.toThrow(
-    'must reference the one ImplementationGuide resource',
+    'must reference an existing ImplementationGuide resource',
   );
 
   const missingValueSet = payloads();

@@ -245,17 +245,15 @@ try {
     writeOutput(rendererOutputDeclaration(descriptor), content, descriptor.producer);
     generatorEmitted.add(file);
   };
-  for (const asset of siteBuildView.assets()) {
-    writeRendererOutput(asset.Name, asset.Content, asset.Mime);
+  // Materialize the declared namespace through the same direct-path API used
+  // by browser hosts. This keeps host code independent of whether an auxiliary
+  // output belongs to a distinct page (ordinary resources), shares a page with
+  // another producer (the primary IG and index narrative), or has no page at
+  // all (assets and llms.txt).
+  for (const descriptor of outputManifest) {
+    const rendered = renderer.renderOutput(descriptor.file);
+    writeRendererOutput(rendered.file, rendered.content, rendered.mime);
   }
-  for (const descriptor of descriptors) {
-    const rendered = renderer.renderPage(descriptor.file);
-    writeRendererOutput(rendered.file, rendered.html, 'text/html');
-    for (const output of rendered.outputs) {
-      writeRendererOutput(output.file, output.content, output.mime);
-    }
-  }
-  writeRendererOutput('llms.txt', renderer.renderLlmsTxt(), 'text/plain');
   assertGeneratorManifest(outputManifest.map((output) => output.file), generatorEmitted);
 
   // CLI-only browser bundle.

@@ -72,6 +72,18 @@ immediately before publication; a missing, extra, changed, non-regular, or
 symlinked output fails closed. The receipt itself is the sole excluded path so
 that its identity is not recursively self-referential.
 
+The repository-wide `bun run build:sitegen` adds guide-specific outputs beyond
+this reusable builder. It therefore creates one outer
+`AtomicOutputPublication`, points `site-gen/build.tsx` at an inner disposable
+directory, verifies the inner receipt, and copies only its declared files into
+outer staging. Viewers, SHL payloads, the agent package, `package-list.json`,
+`CNAME`, the compatibility redirect, and Publisher QA are added and declared
+there. All inherited renderer files are hash-checked again (with the deliberate
+agent-package append to `llms.txt` recorded as a wrapper transformation), the
+complete tree is link-checked and sealed, and only then is `site-gen/out`
+published once. The inner receipt is proof consumed by the wrapper; it is not the
+receipt shipped beside a larger, mutated tree.
+
 ## Legacy SQLite fallback
 
 The existing Publisher/fixture workflow remains available only when `SITE_DB`
@@ -127,10 +139,11 @@ it never silently selects a stale database.
 | `ClosedBuildHandle` | validates the manifest/read graph and eagerly verifies every reachable ready-artifact body, then exposes immutable scoped reads |
 | `ContentStore` | read-only content-addressed byte transport; never a compiler/materialization callback |
 | `FilesystemContentStore` / `openFilesystemClosedBuild` | Node/Bun-only reader for a native `fig prepare` bundle; not imported by browser renderer modules |
-| `AtomicOutputPublication` | Node/Bun-only validated sibling staging, failure cleanup, and completed-tree publication; not imported by browser modules |
+| `AtomicOutputPublication` | Bun-only validated sibling staging, failure cleanup, kernel-level no-replace rename, and completed-tree publication; not imported by browser modules |
 | `createCycleOutputReceipt` / `verifyCycleOutputReceipt` | pure Web-Crypto API that computes or verifies a complete output set in Bun or a browser |
 | `createCycleRendererOutputReceipt` | browser convenience that consumes `listOutputs()` / `renderOutput()`; optional host materials allow it to reproduce a native complete-tree receipt |
 | `sealCycleOutputTree` / `verifyCycleOutputTree` | Node/Bun-only regular-file traversal and receipt adapter used by atomic publication |
+| `scripts/final-publication.ts` | verifies and imports an inner receipt into outer staging, preserves inherited provenance, and audits inherited bytes after wrapper work |
 | `SiteBuildView` | synchronous, callback-free semantic and asset queries for one closed Cycle build |
 | `CYCLE_RENDER_PLAN_V2` | names `cycle-site/v2`: four `cycle.semantic/v1` JSON roots plus every raw authored asset root |
 | `openCycleSiteBuild` | dispatches only by the exact target; malformed v2 inputs never fall back to v1 by artifact presence |
@@ -149,7 +162,10 @@ it never silently selects a stale database.
 do not need a receipt. Its `publish()` permits an unsealed tree; if
 `sealOutputReceipt()` was called it always re-verifies before rename. The native
 Cycle builder unconditionally calls `sealOutputReceipt()` after link checking,
-so its publication path cannot skip receipt verification.
+so its publication path cannot skip receipt verification. The whole-publication
+wrapper independently seals its outer tree and performs the only rename to the
+canonical `site-gen/out`; the builder's verified inner directory is removed
+before that outer seal.
 
 Both browser and native portable hosts call `openCycleSiteBuild` only through a
 `ClosedBuildHandle`, after the required artifact closure and every ready body
@@ -159,6 +175,21 @@ asset bytes. Source/package read references are validated against the manifest
 but are not downloaded again by a renderer. `JsonSiteBuildView.encodedAssets()`
 exists only for the v1 browser compatibility transport; ordinary
 `SiteBuildView.assets()` always returns bytes.
+
+The resources root explicitly identifies its primary ImplementationGuide.
+Only that entry receives the compatibility `packageId`/canonical/`index.html`
+row identity. Additional ImplementationGuide resources retain their own ids,
+URLs, and `ImplementationGuide-<id>.html` pages; duplicate compatibility
+references fail before renderer maps are built.
+
+Recursive v2 page roots flatten to compatibility depth zero. A positive depth
+offset left behind when a producer omits a structural page such as `toc.html`
+is normalized before the wire; only the relative page hierarchy is semantic.
+
+`cycle-site/v2` identifies this input adapter contract. The receipt's
+`cycle-site@1` renderer identity is deliberately independent and currently
+shared with v1. Receipt ids still differ across v1/v2 parity builds because the
+receipt commits `inputBuildId` as well as all output bytes.
 
 The portable verified handle and native Fig handoff are documented in
 [`FIG-INTEGRATION.md`](FIG-INTEGRATION.md).
