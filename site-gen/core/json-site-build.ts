@@ -192,8 +192,13 @@ export class JsonSiteBuildView implements SiteBuildView {
   }
 
   ig(): any {
-    const row = this.rows.resources.find((candidate) => candidate.Type === 'ImplementationGuide');
-    if (!row) throw new Error('no ImplementationGuide row in Cycle SiteBuild');
+    const rows = this.rows.resources.filter(
+      (candidate) => candidate.Type === 'ImplementationGuide' && candidate.Web === 'index.html',
+    );
+    if (rows.length !== 1) {
+      throw new Error(`Cycle v1 SiteBuild must contain exactly one primary ImplementationGuide index row; found ${rows.length}`);
+    }
+    const row = rows[0];
     const ig = JSON.parse(row.Json);
     ig.contact = (ig.contact || []).map((contact: any) => ({
       ...contact,

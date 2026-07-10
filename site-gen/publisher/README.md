@@ -26,6 +26,12 @@ The current producer is deliberately source-driven:
   `ImplementationGuide.definition.extension` package context, optional
   operator-supplied extras, and package transitive dependencies.
 
+The generated `ImplementationGuide-<sushi-config id>.json` is the explicit
+project guide. It alone supplies project context and the `index.html` resource
+row; any additional ImplementationGuide resources are ordinary artifacts with
+their own ids, canonicals, and pages. If the configured generated guide cannot
+be found, only a single unambiguous ImplementationGuide is accepted.
+
 It does not copy rows from `output/package.db` and does not hardcode
 cycle-specific resource ids. It scans actual FHIR resources, extracts resource
 metadata, CodeSystem concepts, ValueSet compose includes, and the package/base

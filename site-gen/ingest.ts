@@ -64,7 +64,13 @@ DELETE FROM Pages; DELETE FROM Menu;
 if (!preserveAssets) db.exec('DELETE FROM Assets;');
 
 // ---- Pages: tree (from DB) + body (from input/pagecontent) ----
-const igRow: any = db.query("SELECT Json FROM Resources WHERE Type='ImplementationGuide'").get();
+const igRows = db
+  .query("SELECT Json FROM Resources WHERE Type='ImplementationGuide' AND Web='index.html'")
+  .all() as any[];
+if (igRows.length !== 1) {
+  throw new Error(`site.db ingest requires exactly one primary ImplementationGuide index row; found ${igRows.length}`);
+}
+const igRow = igRows[0];
 const ig = JSON.parse(typeof igRow.Json === 'string' ? igRow.Json : new TextDecoder().decode(igRow.Json));
 let ord = 0;
 const pageIncludeNames = new Set<string>();

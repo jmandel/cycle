@@ -15,6 +15,7 @@ const rows: SiteDbRows = {
     Key: 1,
     Type: 'ImplementationGuide',
     Id: 'filesystem-fixture',
+    Web: 'index.html',
     Json: JSON.stringify({ resourceType: 'ImplementationGuide', id: 'filesystem-fixture', contact: [] }),
   }],
   concepts: [],

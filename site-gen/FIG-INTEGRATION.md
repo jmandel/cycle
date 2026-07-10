@@ -106,6 +106,10 @@ hatch, so a SQL tag fails loudly.
 
 `SITE_DB=/path/to/site.db` selects the legacy `SqliteSiteBuildView` explicitly.
 Setting both `SITE_BUILD_DIR` and `SITE_DB`, or neither, is an error.
+The v1 row contract identifies its primary ImplementationGuide as the sole IG
+row whose `Web` is `index.html`; additional guides retain ordinary resource
+pages. A missing or ambiguous primary marker fails instead of relying on row
+order.
 
 ## End-to-end evidence
 

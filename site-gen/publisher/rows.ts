@@ -130,8 +130,8 @@ function formatGenDate(d: Date): string {
   return `${day}, ${month} ${dd}, ${yyyy} ${hh}:${mm}${offStr}`;
 }
 
-export function pageFor(type: string, id: string): string {
-  return type === 'ImplementationGuide' ? 'index.html' : `${type}-${id}.html`;
+export function pageFor(type: string, id: string, primaryGuide = false): string {
+  return primaryGuide ? 'index.html' : `${type}-${id}.html`;
 }
 
 export function resourceRef(r: Json): string {
@@ -254,13 +254,13 @@ function dependencyCanonicalVersions(cfg: Json): DependencyCanonicalVersion[] {
   }));
 }
 
-function resourceRowId(resource: Json, cfg: Json): string {
-  if (resource.resourceType === 'ImplementationGuide') return configuredPackageId(cfg, resource) || resource.id;
+function resourceRowId(resource: Json, cfg: Json, primaryGuide: boolean): string {
+  if (primaryGuide) return configuredPackageId(cfg, resource) || resource.id;
   return resource.id;
 }
 
-function resourceRowUrl(resource: Json, cfg: Json, id: string): string | null {
-  if (resource.resourceType === 'ImplementationGuide' && cfg.canonical && id) {
+function resourceRowUrl(resource: Json, cfg: Json, id: string, primaryGuide: boolean): string | null {
+  if (primaryGuide && cfg.canonical && id) {
     return `${String(cfg.canonical).replace(/\/+$/, '')}/ImplementationGuide/${id}`;
   }
   return hasCanonicalUrl(resource) ? resource.url ?? null : null;
@@ -298,10 +298,22 @@ export function deriveMetadataRows(args: {
   return values.map(([name, value], i) => ({ key: i + 1, name, value }));
 }
 
-export function deriveResourceRows(resources: Json[], resourceMeta: Map<string, Json>, cfg: Json): ResourceRows {
+export function deriveResourceRows(
+  resources: Json[],
+  resourceMeta: Map<string, Json>,
+  cfg: Json,
+  explicitPrimaryGuide?: Json,
+): ResourceRows {
   const rows: ResourceRow[] = [];
   const keyByRef = new Map<string, number>();
-  const ig = resources.find((r) => r.resourceType === 'ImplementationGuide');
+  const guides = resources.filter((r) => r.resourceType === 'ImplementationGuide');
+  const ig = explicitPrimaryGuide
+    ? guides.find((guide) => resourceRef(guide) === resourceRef(explicitPrimaryGuide))
+    : guides.length === 1 ? guides[0] : undefined;
+  if (explicitPrimaryGuide && !ig) throw new Error('Explicit primary ImplementationGuide is absent from resources');
+  if (!explicitPrimaryGuide && guides.length > 1) {
+    throw new Error('Multiple ImplementationGuides require an explicit primary');
+  }
   const igStandardStatus = ig ? standardStatus(ig) : null;
   const igCanonical = igCanonicalBase(ig);
   resources.forEach((r, i) => {
@@ -309,14 +321,15 @@ export function deriveResourceRows(resources: Json[], resourceMeta: Map<string, 
     keyByRef.set(resourceRef(r), key);
     const meta = resourceMeta.get(resourceRef(r));
     const canonicalResource = hasCanonicalUrl(r);
-    const rowId = resourceRowId(r, cfg);
+    const primaryGuide = Boolean(ig && resourceRef(r) === resourceRef(ig));
+    const rowId = resourceRowId(r, cfg, primaryGuide);
     rows.push({
       key,
       type: r.resourceType,
       custom: 0,
       id: rowId,
-      web: pageFor(r.resourceType, rowId),
-      url: resourceRowUrl(r, cfg, rowId),
+      web: pageFor(r.resourceType, rowId, primaryGuide),
+      url: resourceRowUrl(r, cfg, rowId, primaryGuide),
       version: canonicalResource ? r.version ?? null : null,
       status: r.status ?? null,
       date: canonicalResource ? r.date ?? null : null,

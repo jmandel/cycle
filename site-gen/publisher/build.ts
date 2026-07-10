@@ -320,7 +320,7 @@ function loadResources(cfg: Json, now: Date): Json[] {
     if (!r.resourceType || !r.id) continue;
     byRef.set(resourceRef(r), r);
   }
-  const ig = generated.find((r) => r.resourceType === 'ImplementationGuide');
+  const ig = primaryGeneratedImplementationGuide(generatedResourceFiles, generated, cfg);
   if (!ig) throw new Error(`No ImplementationGuide JSON found in ${relative(root, fshResourceDir)}. The integrated SUSHI stage did not produce IG resources.`);
   const resourceMeta = igResourceMetadata(ig);
 
@@ -351,12 +351,30 @@ function loadResources(cfg: Json, now: Date): Json[] {
     .map((r) => applyGlobalResourceMetadata(r, cfg, now));
 }
 
-function loadGeneratedImplementationGuide(generatedResourceFiles: string[]): Json | null {
-  for (const file of generatedResourceFiles) {
-    const resource = readJson(file);
-    if (resource.resourceType === 'ImplementationGuide') return resource;
+function primaryGeneratedImplementationGuide(files: string[], resources: Json[], cfg: Json): Json | null {
+  const configuredId = scalarString(cfg.id);
+  if (configuredId) {
+    const target = `ImplementationGuide-${configuredId}.json`;
+    const matches = files
+      .map((file, index) => ({ file, resource: resources[index] }))
+      .filter(({ file, resource }) => file.replaceAll('\\', '/').split('/').pop() === target
+        && resource?.resourceType === 'ImplementationGuide');
+    if (matches.length !== 1) {
+      throw new Error(`Expected exactly one generated ${target}; found ${matches.length}`);
+    }
+    return matches[0].resource;
   }
-  return null;
+  const guides = resources.filter((resource) => resource.resourceType === 'ImplementationGuide');
+  if (guides.length > 1) throw new Error('Multiple generated ImplementationGuides require sushi-config.id');
+  return guides[0] || null;
+}
+
+function loadGeneratedImplementationGuide(generatedResourceFiles: string[], cfg: Json): Json | null {
+  return primaryGeneratedImplementationGuide(
+    generatedResourceFiles,
+    generatedResourceFiles.map(readJson),
+    cfg,
+  );
 }
 
 function configuredSushiLogLevel(): 'error' | 'warn' | 'info' | 'debug' | undefined {
@@ -435,7 +453,7 @@ async function main() {
   }
   const fhirVersion = configFhirVersion(cfg);
   const txServer = process.env.PUBLISHER_TX_SERVER || defaultTerminologyServerForFhirVersion(fhirVersion);
-  const generatedImplementationGuide = timed('read generated ImplementationGuide', () => loadGeneratedImplementationGuide(generatedResourceFiles));
+  const generatedImplementationGuide = timed('read generated ImplementationGuide', () => loadGeneratedImplementationGuide(generatedResourceFiles, cfg));
   const packageResolution = await timedAsync('resolve packages', () => resolvePackages(cfg, packageCacheRoot, {
     implementationGuide: generatedImplementationGuide,
   }));
@@ -484,8 +502,9 @@ async function main() {
     profile,
   };
   const valueSetExpansions = await timedAsync('value set expansions', () => prepareValueSetExpansions(resources, terminologyOptions, terminologyContext));
-  const ig = resources.find((r) => r.resourceType === 'ImplementationGuide');
-  if (!ig) throw new Error('No ImplementationGuide resource loaded');
+  if (!generatedImplementationGuide) throw new Error('No generated primary ImplementationGuide loaded');
+  const ig = resources.find((resource) => resourceRef(resource) === resourceRef(generatedImplementationGuide));
+  if (!ig) throw new Error('Primary ImplementationGuide is absent after snapshot completion');
   const resourceMeta = timed('ig resource metadata', () => igResourceMetadata(ig));
   const rowConfig = { ...cfg, __publisherPackageCanonicalVersions: packageCanonicalVersions(packageResolution) };
   const metadataRows = timed('derive metadata rows', () => deriveMetadataRows({
@@ -519,7 +538,7 @@ async function main() {
     if (errors.length) console.warn(`Example validation reported ${errors.length} error${errors.length === 1 ? '' : 's'}; see ${relative(root, validationReportPath)}`);
   }
 
-  const resourceRows = timed('derive resource rows', () => deriveResourceRows(resources, resourceMeta, rowConfig));
+  const resourceRows = timed('derive resource rows', () => deriveResourceRows(resources, resourceMeta, rowConfig, ig));
   const keyByRef = resourceRows.keyByRef;
   const conceptRows = timed('derive concept rows', () => deriveConceptRows(resources, keyByRef));
   const codeSystemPropertyRows = timed('derive code system property rows', () => deriveCodeSystemPropertyRows(resources, keyByRef));

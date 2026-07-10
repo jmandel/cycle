@@ -83,8 +83,13 @@ export class SqliteSiteBuildView implements SiteBuildView {
   }
 
   ig(): any {
-    const row = this.db.query("SELECT Json FROM Resources WHERE Type='ImplementationGuide'").get() as any;
-    if (!row) throw new Error('no ImplementationGuide row in site.db');
+    const rows = this.db
+      .query("SELECT Json FROM Resources WHERE Type='ImplementationGuide' AND Web='index.html'")
+      .all() as any[];
+    if (rows.length !== 1) {
+      throw new Error(`site.db must contain exactly one primary ImplementationGuide index row; found ${rows.length}`);
+    }
+    const row = rows[0];
     const ig = JSON.parse(decode(row.Json));
     ig.contact = (ig.contact || []).map((contact: any) => ({
       ...contact,

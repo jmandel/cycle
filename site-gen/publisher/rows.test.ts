@@ -390,4 +390,28 @@ describe('package DB row derivation', () => {
       },
     ]);
   });
+
+  test('shapes only the explicit ImplementationGuide as the project index', () => {
+    const extra = {
+      resourceType: 'ImplementationGuide',
+      id: 'aaa-example',
+      url: 'http://example.org/ImplementationGuide/aaa-example',
+    };
+    const primary = {
+      resourceType: 'ImplementationGuide',
+      id: 'primary',
+      packageId: 'example.primary',
+      url: 'http://example.org/ImplementationGuide/primary',
+    };
+    const rows = deriveResourceRows(
+      [extra, primary],
+      new Map(),
+      { canonical: 'http://example.org', packageId: 'example.primary' },
+      primary,
+    ).rows;
+    expect(rows.map((row) => [row.id, row.web, row.url])).toEqual([
+      ['aaa-example', 'ImplementationGuide-aaa-example.html', extra.url],
+      ['example.primary', 'index.html', 'http://example.org/ImplementationGuide/example.primary'],
+    ]);
+  });
 });

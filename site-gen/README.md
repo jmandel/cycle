@@ -149,7 +149,7 @@ it never silently selects a stale database.
 | `openCycleSiteBuild` | dispatches only by the exact target; malformed v2 inputs never fall back to v1 by artifact presence |
 | `openCycleSiteBuildPayload` | strictly decodes the generic digest-to-base64 WASM CAS transport, verifies the build, and dispatches its view |
 | `SemanticSiteBuildView` | preloads strict resource/terminology/navigation/config payloads and raw assets; legacy numeric row keys exist only in memory |
-| `CYCLE_RENDER_PLAN_V1` / `JsonSiteBuildView` | readable v1 fallback over the one verified `compat.site_db/rows.json` artifact |
+| `CYCLE_RENDER_PLAN_V1` / `JsonSiteBuildView` | readable v1 fallback over the one verified `compat.site_db/rows.json` artifact; the sole `ImplementationGuide` row whose `Web` is `index.html` is its explicit primary marker |
 | `CycleContentRenderer` | injected narrative transformation over one explicit content context |
 | `createCycleContentRenderer` | shared LiquidJS/include/fragment/site-data policy used by CLI and browser |
 | `CycleSiteRenderer.listPages()` | deterministic page manifest |

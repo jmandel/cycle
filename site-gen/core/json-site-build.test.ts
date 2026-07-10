@@ -15,6 +15,7 @@ const rows: SiteDbRows = {
     Key: 1,
     Type: 'ImplementationGuide',
     Id: 'fixture',
+    Web: 'index.html',
     Json: JSON.stringify({ resourceType: 'ImplementationGuide', id: 'fixture', contact: [] }),
   }],
   concepts: [],
@@ -66,6 +67,36 @@ test('JsonSiteBuildView is constructed from verified canonical rows', async () =
   expect(view.textAsset('note.md')).toBe('Hello');
   expect(new TextDecoder().decode(view.assets()[0].Content as Uint8Array)).toBe('Hello');
   expect(view.encodedAssets()[0].Content).toBe(btoa('Hello'));
+});
+
+test('JsonSiteBuildView selects the explicit index guide when additional guides sort first', () => {
+  const view = new JsonSiteBuildView({
+    ...rows,
+    resources: [
+      {
+        Key: 2,
+        Type: 'ImplementationGuide',
+        Id: 'aaa-example',
+        Web: 'ImplementationGuide-aaa-example.html',
+        Json: JSON.stringify({ resourceType: 'ImplementationGuide', id: 'aaa-example' }),
+      },
+      ...rows.resources,
+    ],
+  });
+  expect(view.ig().id).toBe('fixture');
+});
+
+test('JsonSiteBuildView rejects an absent or ambiguous primary index row', () => {
+  const missing = new JsonSiteBuildView({
+    ...rows,
+    resources: rows.resources.map((row) => ({ ...row, Web: 'ImplementationGuide-fixture.html' })),
+  });
+  expect(() => missing.ig()).toThrow('found 0');
+  const duplicate = new JsonSiteBuildView({
+    ...rows,
+    resources: [...rows.resources, { ...rows.resources[0], Key: 2, Id: 'other' }],
+  });
+  expect(() => duplicate.ig()).toThrow('found 2');
 });
 
 test('JsonSiteBuildView refuses a different external-builder contract', async () => {
