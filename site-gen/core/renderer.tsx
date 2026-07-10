@@ -22,6 +22,7 @@ import type { ResolveType } from '../fhir/ElementTable';
 import { renderMarkdown, sanitizeMarkdownSource } from './markdown';
 import type { MenuRow, PageRow, ResourceRow, SiteBuildView } from './site-build';
 import { compareText } from './order';
+import { CYCLE_OUTPUT_RECEIPT_PATH } from './output-receipt';
 
 export type IncludeGenerator = (ig: unknown, params: Record<string, string>) => string;
 export type IncludeRegistry = Record<string, IncludeGenerator>;
@@ -672,6 +673,9 @@ export class CycleSiteRenderer {
     const parts = file.split('/');
     if (parts.some((part) => !part || part === '.' || part === '..')) {
       throw new Error(`Cycle renderer produced unsafe output path '${file}'`);
+    }
+    if (file === CYCLE_OUTPUT_RECEIPT_PATH) {
+      throw new Error(`Cycle renderer output collides with reserved receipt path '${file}'`);
     }
   }
 

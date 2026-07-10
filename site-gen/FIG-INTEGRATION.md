@@ -101,35 +101,62 @@ documentation because they change with exact source/package bytes. The gate is
 evidence for this repository, not a promise that every unrelated guide needs
 the same preprocessing command.
 
-## Content-addressed output receipt remains a later step
+## Content-addressed final output
 
-Cycle now declares and enforces its complete logical output namespace before
-publishing. It does not yet return a content-addressed receipt for those final
-bytes to Fig. A future Fig finalization boundary can pair the current logical
-manifest and staging step with a hashed output receipt:
+Cycle declares its logical renderer namespace through `listOutputs()` and the
+native host declares the design, project stylesheet, and client-bundle outputs
+as it reserves them. After rendering and link checking,
+`AtomicOutputPublication.sealOutputReceipt()` traverses the complete private
+tree, rejects symlinks/non-files and missing or undeclared paths, and writes:
 
 ```json
 {
-  "schemaVersion": "fig-generator-output/v1",
+  "schemaVersion": "cycle-output-receipt/v1",
   "inputBuildId": "sb1-sha256:...",
-  "generator": { "id": "cycle-site", "version": "<code digest>" },
+  "renderer": { "id": "cycle-site", "version": "1" },
   "files": [
     {
       "path": "index.html",
       "mediaType": "text/html",
       "sha256": "...",
       "byteLength": 123,
-      "reads": [{ "kind": "artifact", "key": { "kind": "data", "namespace": "compat.site_db", "name": "rows.json" } }]
+      "producer": { "id": "cycle-site", "version": "1" },
+      "source": "narrative page"
     }
-  ]
+  ],
+  "outputBuildId": "cob1-sha256:..."
 }
 ```
 
-A future `fig finalize` would validate the input build id, generator identity,
-safe unique paths, byte hashes, and read dependencies before materializing
-output. Initially each Cycle page may honestly record the aggregate row artifact
-as its read; a later split model can make invalidation finer without changing
-the handle.
+Files are uniquely keyed and sorted using Rust-compatible UTF-8 byte order.
+`outputBuildId` is SHA-256 over canonical UTF-8 JSON containing the schema,
+input build id, renderer identity, and every file record; it deliberately omits
+only `outputBuildId` itself. The serialized receipt is also deterministic. The
+reserved `cycle-output-receipt.json` path is not a member of `files`, avoiding
+self-hash recursion. Atomic publication re-reads the receipt and all file bytes
+immediately before the final rename, so late corruption also fails closed.
+
+Portable builds bind the output directly to the verified `sb1-sha256` input.
+The explicitly selected legacy SQLite adapter records
+`legacy-site-db-sha256:<digest>` instead, making the compatibility input honest
+without pretending it is a SiteBuild.
+
+That binding is intentional: v1 and a future typed v2 SiteBuild can render
+byte-identical generator files but still have different receipt identities
+because their exact semantic inputs have different build ids. Renderer parity
+tests should compare the declared output files (or their per-file hashes), not
+the receipt file or unnormalized `outputBuildId`.
+
+`core/output-receipt.ts` is a browser-safe Web Crypto module.
+`createCycleRendererOutputReceipt()` consumes the same `listOutputs()` and
+`renderOutput()` API used by the editor; a host can add its design/client
+materials to reproduce and compare the complete native receipt. No filesystem
+or Bun API is needed to compute, validate, or compare receipt identities.
+
+A future `fig finalize` can consume this versioned receipt as-is. Initially all
+renderer files truthfully inherit the aggregate Cycle input identity; a later
+split artifact model can add finer read provenance in a new receipt version
+without weakening this complete-byte boundary.
 
 ## Execution choice
 

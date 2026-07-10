@@ -2,6 +2,12 @@
 import { randomUUID } from 'node:crypto';
 import { lstat, mkdtemp, open, realpath, rename, rm, writeFile } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, normalize, parse, relative, resolve } from 'node:path';
+import { sealCycleOutputTree, verifyCycleOutputTree } from './output-receipt-node';
+import type {
+  CycleOutputDeclaration,
+  CycleOutputReceipt,
+  CycleProducerIdentity,
+} from './output-receipt';
 
 interface FileIdentity {
   dev: number;
@@ -79,6 +85,8 @@ export class AtomicOutputPublication {
   private readonly replaceExisting: boolean;
   private published = false;
   private closed = false;
+  private sealedReceipt: CycleOutputReceipt | null = null;
+  private sealedDeclarations: readonly CycleOutputDeclaration[] | null = null;
 
   private constructor(args: {
     destination: string;
@@ -182,6 +190,32 @@ export class AtomicOutputPublication {
     return safeOutputPath(this.stagingDirectory, name);
   }
 
+  /**
+   * Hash and seal the complete private tree. The receipt is written inside the
+   * staging directory and is re-verified immediately before publication.
+   */
+  async sealOutputReceipt(options: {
+    inputBuildId: string;
+    renderer: CycleProducerIdentity;
+    declarations: readonly CycleOutputDeclaration[];
+  }): Promise<CycleOutputReceipt> {
+    if (this.closed) throw new Error('Atomic output publication is already closed');
+    if (this.sealedReceipt) throw new Error('Atomic output publication already has an output receipt');
+    const declarations = options.declarations.map((declaration) => ({
+      ...declaration,
+      producer: { ...declaration.producer },
+    }));
+    const receipt = await sealCycleOutputTree({
+      root: this.stagingDirectory,
+      inputBuildId: options.inputBuildId,
+      renderer: options.renderer,
+      declarations,
+    });
+    this.sealedDeclarations = declarations;
+    this.sealedReceipt = receipt;
+    return receipt;
+  }
+
   private async assertDestinationUnchanged(): Promise<void> {
     const current = await statOrNull(this.destination);
     if (!this.initialDestination) {
@@ -196,9 +230,20 @@ export class AtomicOutputPublication {
     }
   }
 
-  /** Publish the complete staging tree. Call only after rendering and checks. */
+  /**
+   * Publish the complete staging tree. Generic callers may intentionally use
+   * this primitive without a receipt; when `sealOutputReceipt()` was called,
+   * publication always re-verifies the seal. Native Cycle always seals.
+   */
   async publish(): Promise<void> {
     if (this.closed) throw new Error('Atomic output publication is already closed');
+    if (this.sealedReceipt && this.sealedDeclarations) {
+      await verifyCycleOutputTree({
+        root: this.stagingDirectory,
+        declarations: this.sealedDeclarations,
+        expected: this.sealedReceipt,
+      });
+    }
     await this.assertDestinationUnchanged();
 
     let backup: string | null = null;

@@ -15,9 +15,13 @@
     "types": ["node", "react", "react-dom"]
   },
   "include": [
+    "core/atomic-output.ts",
     "core/closed-build.ts",
     "core/content.ts",
     "core/json-site-build.ts",
+    "core/order.ts",
+    "core/output-receipt-node.ts",
+    "core/output-receipt.ts",
     "core/renderer.tsx",
     "core/site-build.ts",
     "project/index.ts",

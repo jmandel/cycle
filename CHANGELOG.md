@@ -2,6 +2,9 @@
 
 ## 0.2.0
 
+- Added a deterministic, browser-compatible content-addressed receipt for the
+  complete Cycle output tree, with pre-publication missing/extra/hash checks and
+  input SiteBuild/renderer identity binding.
 - Relaxed the Period Tracking Fact category to a required binding allowing `survey` or `vital-signs`, so basal body temperature (a FHIR vital-sign code) conforms; added `input/ignoreWarnings.txt`.
 - Reoriented the common core around an emitted boolean `cycle#menstrual-bleeding` fact and moved menstrual flow to an optional intensity layer.
 - Defined concrete fact profiles for bleeding, flow, symptom, numeric pain, and basal body temperature; facts are grouped by `effectiveDateTime` in clients when needed.

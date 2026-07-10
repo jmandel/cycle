@@ -23,6 +23,7 @@ authored IG + exact package cache
    → ClosedBuildHandle + JsonSiteBuildView
    → CycleSiteRenderer   (pure page manifest + SSR + auxiliary outputs)
    → site-gen/build.tsx  (writes outputs/assets, bundles client, checks links)
+   → cycle-output-receipt.json + atomic publication
 ```
 
 Produce a new bundle (the output directory must not already exist), then render
@@ -63,7 +64,12 @@ same-filesystem operations, but never a partially written tree. The flag in the 
 `site-gen/out` build and can be omitted for a fresh `OUT_DIR`.
 `CycleSiteRenderer.listOutputs()` is enforced as the complete generator-owned
 namespace before publication; the native host also rejects collisions with
-design files, project CSS, or the client bundle.
+design files, project CSS, or the client bundle. After link checking, the host
+hashes every declared renderer and host output and writes
+`cycle-output-receipt.json`. It then re-reads the receipt and every staged file
+immediately before publication; a missing, extra, changed, non-regular, or
+symlinked output fails closed. The receipt itself is the sole excluded path so
+that its identity is not recursively self-referential.
 
 ## Legacy SQLite fallback
 
@@ -96,7 +102,9 @@ it never silently selects a stale database.
   CLI/browser semantic preparation + page/SSR implementation), `content` (the
   one CLI/browser closed narrative policy), `db` (legacy native SQLite adapter),
   `filesystem-closed-build` (Node/Bun-only Fig CAS reader), `markdown`,
-  `link-check` (href/src/srcset), and `liquid` (safe LiquidJS evaluator).
+  `link-check` (href/src/srcset), `output-receipt` (browser-compatible canonical
+  output identity), `output-receipt-node` (native tree verification), and
+  `liquid` (safe LiquidJS evaluator).
 - **`fhir/`** — reusable FHIR IG rendering: profile / value-set / code-system /
   example pages, `ElementTable`, `MachineFormats`. Reads the typed row shapes
   exposed by `SiteBuildView`, not a SQLite connection.
@@ -117,6 +125,9 @@ it never silently selects a stale database.
 | `ContentStore` | read-only content-addressed byte transport; never a compiler/materialization callback |
 | `FilesystemContentStore` / `openFilesystemClosedBuild` | Node/Bun-only reader for a native `fig prepare` bundle; not imported by browser renderer modules |
 | `AtomicOutputPublication` | Node/Bun-only validated sibling staging, failure cleanup, and completed-tree publication; not imported by browser modules |
+| `createCycleOutputReceipt` / `verifyCycleOutputReceipt` | pure Web-Crypto API that computes or verifies a complete output set in Bun or a browser |
+| `createCycleRendererOutputReceipt` | browser convenience that consumes `listOutputs()` / `renderOutput()`; optional host materials allow it to reproduce a native complete-tree receipt |
+| `sealCycleOutputTree` / `verifyCycleOutputTree` | Node/Bun-only regular-file traversal and receipt adapter used by atomic publication |
 | `SiteBuildView` | synchronous, callback-free semantic and asset queries for one closed Cycle build |
 | `CYCLE_RENDER_PLAN` | names the `cycle-site/v1` contract and its one required `compat.site_db/rows.json` artifact |
 | `JsonSiteBuildView` | shared view over the verified canonical row artifact; decodes asset bytes for portable consumers |
@@ -127,6 +138,12 @@ it never silently selects a stale database.
 | `CycleSiteRenderer.renderPage(file)` | pure React SSR for one page plus auxiliary outputs |
 | `CycleSiteRenderer.renderOutput(file)` | lazy direct-path access to HTML, narrative Markdown, machine JSON, or `llms.txt`; browser and native hosts do not synthesize these separately |
 | `SqliteSiteBuildView` | native legacy adapter over `site.db`; the only shared-renderer module that opens SQLite |
+
+`AtomicOutputPublication` intentionally remains useful to generic callers that
+do not need a receipt. Its `publish()` permits an unsealed tree; if
+`sealOutputReceipt()` was called it always re-verifies before rename. The native
+Cycle builder unconditionally calls `sealOutputReceipt()` after link checking,
+so its publication path cannot skip receipt verification.
 
 Both browser and native portable hosts construct `JsonSiteBuildView` only
 through a `ClosedBuildHandle`, after the required artifact closure and all of
@@ -158,6 +175,10 @@ for the implemented Cycle contract and the native-only SQL capability.
 - **Native output is staged and published as a completed tree**. Dangerous or
   source-overlapping paths and symlink traversal are rejected; replacing an
   existing output requires `SITE_GEN_REPLACE_OUTPUT=1`.
+- **The final staged tree is content-addressed before publication**. Receipt
+  paths use the same UTF-8 byte ordering as SiteBuild identities; every file's
+  media type, length, SHA-256, producer, and available source/owner identity is
+  bound to the input build id and Cycle renderer version.
 - A **Liquid/include error fails the build** (set `SITE_GEN_LENIENT=1` only for
   local dev) — a broken directive must never silently publish.
 - The **link checker rejects `javascript:` links** and flags dangling internal refs.

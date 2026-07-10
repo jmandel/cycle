@@ -14,8 +14,12 @@ export SITE_DB="${SITE_DB:-temp/site-gen/site.db}"
 export SITE_GEN_REPLACE_OUTPUT="${SITE_GEN_REPLACE_OUTPUT:-1}"
 bun site-gen/ingest.ts >/dev/null 2>&1 || { echo "INGEST FAILED"; exit 1; }
 bun test site-gen/core/renderer.test.tsx || { echo "RENDERER TESTS FAILED"; exit 1; }
+# A caller may supply a real portable Fig bundle for the native end-to-end
+# build while the renderer hash tests above continue using the small SQLite
+# fixture. The build accepts exactly one input transport.
+if [ -n "${SITE_BUILD_DIR:-}" ]; then unset SITE_DB; fi
 BUILD=$(bun site-gen/build.tsx 2>&1) || { echo "$BUILD"; echo "BUILD FAILED"; exit 1; }
-echo "$BUILD" | grep -E "Rendered|bundle|link check"
+echo "$BUILD" | grep -E "Rendered|bundle|receipt|link check"
 
 O="$PWD/site-gen/out"
 SHOTS="site-gen/.shots"; mkdir -p "$SHOTS"
@@ -47,10 +51,11 @@ assert "index.html present"            "[ -f '$O/index.html' ]"
 assert "llms.txt present"              "[ -f '$O/llms.txt' ]"
 assert "per-page .md published"        "[ -f '$O/specification.md' ]"
 assert "machine JSON published"        "ls '$O'/StructureDefinition-*.json >/dev/null 2>&1"
+assert "verified output receipt published" "[ -f '$O/cycle-output-receipt.json' ] && grep -q '\"schemaVersion\":\"cycle-output-receipt/v1\"' '$O/cycle-output-receipt.json'"
 assert "project.css linked"            "grep -q 'assets/project.css' '$O/index.html'"
 assert "no /en/ shell (root site)"     "[ ! -d '$O/en' ]"
 assert "design from designs/ (cycle css)" "[ -f '$O/assets/cycle/base.css' ]"
-assert "no Publisher template path dep" "[ -z \"\$(grep -rl 'template/' site-gen --include=*.ts --include=*.tsx 2>/dev/null)\" ]"
+assert "renderer has no Publisher template path dep" "[ -z \"\$(grep -rl 'template/' site-gen/core site-gen/fhir site-gen/chrome site-gen/client site-gen/ds --include=*.ts --include=*.tsx 2>/dev/null)\" ]"
 # project artifacts (viewers/skill.zip) are injected by build:sitegen, not the
 # renderer smoke test; the orchestrator's final strict link check covers those.
 

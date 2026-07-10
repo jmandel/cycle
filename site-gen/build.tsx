@@ -1,9 +1,11 @@
 /** Native Cycle site build orchestration around the shared pure renderer. */
+import { createHash } from 'node:crypto';
 import {
   copyFileSync,
   existsSync,
   lstatSync,
   mkdirSync,
+  readFileSync,
   readdirSync,
   writeFileSync,
 } from 'node:fs';
@@ -19,6 +21,13 @@ import { includes } from './project/includes';
 import { isExternalLink } from './config';
 import { checkInternalLinks } from './core/link-check';
 import { compareText } from './core/order';
+import {
+  CYCLE_RENDERER_IDENTITY,
+  assertCycleOutputPath,
+  rendererOutputDeclaration,
+  type CycleOutputDeclaration,
+  type CycleProducerIdentity,
+} from './core/output-receipt';
 import { project } from './project';
 
 const OUT = project.outDir;
@@ -26,7 +35,7 @@ const DESIGN = project.designDir;
 
 type NativeInput =
   | { mode: 'portable'; view: JsonSiteBuildView; buildId: string }
-  | { mode: 'legacy-sqlite'; view: SqliteSiteBuildView; siteDb: string };
+  | { mode: 'legacy-sqlite'; view: SqliteSiteBuildView; siteDb: string; inputBuildId: string };
 
 async function openNativeInput(): Promise<NativeInput> {
   const buildDirectory = process.env.SITE_BUILD_DIR?.trim();
@@ -39,7 +48,10 @@ async function openNativeInput(): Promise<NativeInput> {
     const view = await JsonSiteBuildView.fromClosedBuild(handle);
     return { mode: 'portable', view, buildId: handle.manifest.buildId };
   }
-  if (siteDb) return { mode: 'legacy-sqlite', view: new SqliteSiteBuildView(siteDb), siteDb };
+  if (siteDb) {
+    const inputBuildId = `legacy-site-db-sha256:${createHash('sha256').update(readFileSync(siteDb)).digest('hex')}`;
+    return { mode: 'legacy-sqlite', view: new SqliteSiteBuildView(siteDb), siteDb, inputBuildId };
+  }
   throw new Error(
     'No native Cycle input selected. Set SITE_BUILD_DIR to a `fig prepare` bundle, '
       + 'or set SITE_DB explicitly for the legacy SQLite fallback.',
@@ -88,25 +100,57 @@ const publication = await AtomicOutputPublication.create({
 const WORK = publication.stagingDirectory;
 const emitted = new Set<string>();
 const producers = new Map<string, string>();
+const outputDeclarations = new Map<string, CycleOutputDeclaration>();
 
-function reserveOutput(name: string, producer: string): string {
+function reserveOutput(declaration: CycleOutputDeclaration, description: string): string {
+  const name = declaration.path;
+  assertCycleOutputPath(name, 'Native Cycle output path');
   const destination = publication.outputPath(name);
   const prior = producers.get(name);
   if (prior || existsSync(destination)) {
-    throw new Error(`Native output collision at '${name}': ${prior || 'existing staged file'} and ${producer}`);
+    throw new Error(`Native output collision at '${name}': ${prior || 'existing staged file'} and ${description}`);
   }
-  producers.set(name, producer);
+  producers.set(name, description);
+  outputDeclarations.set(name, declaration);
   emitted.add(name);
   return destination;
 }
 
-function writeOutput(name: string, content: string | Uint8Array, producer: string): void {
-  const destination = reserveOutput(name, producer);
+function writeOutput(
+  declaration: CycleOutputDeclaration,
+  content: string | Uint8Array,
+  description: string,
+): void {
+  const destination = reserveOutput(declaration, description);
   mkdirSync(dirname(destination), { recursive: true });
   writeFileSync(destination, content as any);
 }
 
-function copyOutputTree(sourceRoot: string, outputRoot: string, producer: string): void {
+function mediaTypeForOutput(path: string): string {
+  const extension = path.slice(path.lastIndexOf('.') + 1).toLowerCase();
+  return ({
+    css: 'text/css',
+    gif: 'image/gif',
+    ico: 'image/x-icon',
+    jpeg: 'image/jpeg',
+    jpg: 'image/jpeg',
+    js: 'text/javascript',
+    png: 'image/png',
+    svg: 'image/svg+xml',
+    ttf: 'font/ttf',
+    webp: 'image/webp',
+    woff: 'font/woff',
+    woff2: 'font/woff2',
+  } as Record<string, string>)[extension] || 'application/octet-stream';
+}
+
+function copyOutputTree(
+  sourceRoot: string,
+  outputRoot: string,
+  description: string,
+  producer: CycleProducerIdentity,
+  sourceNamespace: string,
+): void {
   const visit = (source: string, relative: string): void => {
     const metadata = lstatSync(source);
     if (metadata.isSymbolicLink()) {
@@ -120,7 +164,12 @@ function copyOutputTree(sourceRoot: string, outputRoot: string, producer: string
     }
     if (!metadata.isFile()) throw new Error(`Native output source is not a regular file: ${source}`);
     const name = outputRoot ? posix.join(outputRoot, relative) : relative;
-    const destination = reserveOutput(name, `${producer} (${source})`);
+    const destination = reserveOutput({
+      path: name,
+      mediaType: mediaTypeForOutput(name),
+      producer,
+      source: relative ? `${sourceNamespace}/${relative}` : sourceNamespace,
+    }, `${description} (${source})`);
     mkdirSync(dirname(destination), { recursive: true });
     copyFileSync(source, destination);
   };
@@ -141,10 +190,34 @@ function assertGeneratorManifest(expected: readonly string[], actual: Set<string
 try {
   // CLI-only output setup and design assets. Nothing is visible at OUT until
   // rendering, client bundling, and the strict link check have all succeeded.
-  copyOutputTree(`${DESIGN}/styles`, 'assets/cycle', 'Cycle design styles');
-  copyOutputTree(`${DESIGN}/fonts`, 'assets/fonts', 'Cycle design fonts');
-  copyOutputTree(`${DESIGN}/assets`, 'assets', 'Cycle design assets');
-  copyOutputTree(project.projectCss, 'assets/project.css', 'project stylesheet');
+  copyOutputTree(
+    `${DESIGN}/styles`,
+    'assets/cycle',
+    'Cycle design styles',
+    { id: 'cycle-design', version: '1' },
+    'styles',
+  );
+  copyOutputTree(
+    `${DESIGN}/fonts`,
+    'assets/fonts',
+    'Cycle design fonts',
+    { id: 'cycle-design', version: '1' },
+    'fonts',
+  );
+  copyOutputTree(
+    `${DESIGN}/assets`,
+    'assets',
+    'Cycle design assets',
+    { id: 'cycle-design', version: '1' },
+    'assets',
+  );
+  copyOutputTree(
+    project.projectCss,
+    'assets/project.css',
+    'project stylesheet',
+    { id: 'cycle-project', version: '1' },
+    'stylesheet',
+  );
 
   const content = createCycleContentRenderer({
     // Portable builds are closed and deliberately have no SQL capability. The
@@ -161,26 +234,37 @@ try {
   const renderer = new CycleSiteRenderer(siteBuildView, { content, includes, project });
   const descriptors = renderer.listPages();
   const outputManifest = renderer.listOutputs();
+  const outputDescriptors = new Map(outputManifest.map((output) => [output.file, output]));
   const generatorEmitted = new Set<string>();
+  const writeRendererOutput = (file: string, content: string | Uint8Array, mime: string): void => {
+    const descriptor = outputDescriptors.get(file);
+    if (!descriptor) throw new Error(`Cycle renderer emitted undeclared output '${file}'`);
+    if (descriptor.mime !== mime) {
+      throw new Error(`Cycle renderer emitted '${file}' as ${mime}; manifest declares ${descriptor.mime}`);
+    }
+    writeOutput(rendererOutputDeclaration(descriptor), content, descriptor.producer);
+    generatorEmitted.add(file);
+  };
   for (const asset of siteBuildView.assets()) {
-    writeOutput(asset.Name, asset.Content, `row asset ${asset.Name}`);
-    generatorEmitted.add(asset.Name);
+    writeRendererOutput(asset.Name, asset.Content, asset.Mime);
   }
   for (const descriptor of descriptors) {
     const rendered = renderer.renderPage(descriptor.file);
-    writeOutput(rendered.file, rendered.html, `${descriptor.kind} page`);
-    generatorEmitted.add(rendered.file);
+    writeRendererOutput(rendered.file, rendered.html, 'text/html');
     for (const output of rendered.outputs) {
-      writeOutput(output.file, output.content, `auxiliary output owned by ${rendered.file}`);
-      generatorEmitted.add(output.file);
+      writeRendererOutput(output.file, output.content, output.mime);
     }
   }
-  writeOutput('llms.txt', renderer.renderLlmsTxt(), 'LLM site index');
-  generatorEmitted.add('llms.txt');
+  writeRendererOutput('llms.txt', renderer.renderLlmsTxt(), 'text/plain');
   assertGeneratorManifest(outputManifest.map((output) => output.file), generatorEmitted);
 
   // CLI-only browser bundle.
-  const appBundlePath = reserveOutput('assets/app.js', 'Cycle browser application bundle');
+  const appBundlePath = reserveOutput({
+    path: 'assets/app.js',
+    mediaType: 'text/javascript',
+    producer: { id: 'cycle-client-bundle', version: '1' },
+    source: 'site-gen/client/entry.tsx',
+  }, 'Cycle browser application bundle');
   mkdirSync(dirname(appBundlePath), { recursive: true });
   const bundle = await Bun.build({
     entrypoints: ['site-gen/client/entry.tsx'],
@@ -213,11 +297,20 @@ try {
     throw new Error('Strict link check failed; staged site was not published');
   }
 
+  const inputBuildId = input.mode === 'portable'
+    ? input.buildId
+    : input.inputBuildId;
+  const receipt = await publication.sealOutputReceipt({
+    inputBuildId,
+    renderer: CYCLE_RENDERER_IDENTITY,
+    declarations: [...outputDeclarations.values()],
+  });
   await publication.publish();
   const count = (kind: string) => descriptors.filter((page) => page.kind === kind).length;
   console.log(
     `Rendered ${count('narrative')} narrative + artifacts/toc/validation + ${count('profile')} profiles + VS/CS + ${count('generic')} generic resources + ${count('example')} examples → ${publication.destination}/`,
   );
+  console.log(`✓ output receipt ${receipt.outputBuildId} (${receipt.files.length} files) verified`);
   console.log('✓ link check passed; completed site published atomically');
 } catch (error) {
   await publication.abort();

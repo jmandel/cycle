@@ -7,6 +7,8 @@
  * copies of those verified immutable bytes.
  */
 
+import { compareUtf8 } from './order';
+
 export interface ContentRef {
   sha256: string;
   byteLength: number;
@@ -80,21 +82,6 @@ export interface ClosedBuildOpenOptions {
    * source, package, and ready-artifact body it claims to contain.
    */
   verify?: 'render-closure' | 'all-addressed';
-}
-
-const utf8 = new TextEncoder();
-
-/** Rust `String::cmp` compares UTF-8 bytes. JavaScript's default sort compares
- * UTF-16 code units and disagrees for some non-BMP keys, which would reject a
- * valid Rust build id. */
-function compareUtf8(left: string, right: string): number {
-  const a = utf8.encode(left);
-  const b = utf8.encode(right);
-  const length = Math.min(a.length, b.length);
-  for (let index = 0; index < length; index++) {
-    if (a[index] !== b[index]) return a[index] - b[index];
-  }
-  return a.length - b.length;
 }
 
 function stableJson(value: unknown): string {

@@ -30,7 +30,8 @@ authored IG + exact package cache
     -> fig prepare --target cycle-site/v1
     -> ClosedBuildHandle + JsonSiteBuildView
     -> shared CycleSiteRenderer + shared Cycle content policy
-    -> site-gen/out
+    -> verified cycle-output-receipt.json
+    -> atomic site-gen/out
 ```
 
 The existing Publisher `package.db` → `site.db` path remains an explicit legacy
@@ -42,6 +43,14 @@ Cycle compatibility artifact is canonical site.db row JSON. Browser and native
 hosts validate the manifest/read graph and verify every reachable ready-artifact
 body, adapt the rows to the same `SiteBuildView`, and call the same
 `CycleSiteRenderer` and content policy.
+
+Native publication hashes the complete staged output tree (renderer results,
+design/project assets, and client bundle) into a receipt bound to the input
+SiteBuild id and Cycle renderer version. The browser-compatible receipt core can
+compute or compare the same identity from `listOutputs()` / `renderOutput()` and
+the corresponding host assets. Publication re-verifies every byte before the
+atomic rename; the receipt file is excluded from its own file list to avoid
+self-reference.
 
 See [`site-gen/README.md`](site-gen/README.md) for the renderer layers and
 contracts.
