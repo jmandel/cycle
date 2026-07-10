@@ -1,5 +1,5 @@
-import React from 'react';
-import { Icon } from './Icon.jsx';
+import type { CSSProperties, HTMLAttributes, ReactNode } from 'react';
+import { Icon, type IconName } from './Icon';
 
 /** Badge — compact status / label pill. */
 const TONES = {
@@ -12,10 +12,18 @@ const TONES = {
   warning:    { color: 'var(--follicular-deep)', tint: 'var(--follicular-tint)',  solid: 'var(--follicular)' },
   danger:     { color: 'var(--menstrual-deep)',  tint: 'var(--menstrual-tint)',   solid: 'var(--menstrual)' },
   info:       { color: 'var(--luteal-deep)',     tint: 'var(--luteal-tint)',      solid: 'var(--luteal)' },
+} as const;
+
+type BadgeProps = HTMLAttributes<HTMLSpanElement> & {
+  children: ReactNode;
+  tone?: keyof typeof TONES;
+  variant?: 'soft' | 'solid' | 'outline';
+  icon?: IconName;
+  style?: CSSProperties;
 };
 
-export function Badge({ children, tone = 'neutral', variant = 'soft', icon, style, ...rest }) {
-  const t = TONES[tone] || TONES.neutral;
+export function Badge({ children, tone = 'neutral', variant = 'soft', icon, style, ...rest }: BadgeProps) {
+  const t = TONES[tone];
   const skin =
     variant === 'solid'
       ? { background: t.solid, color: '#fff', border: '1px solid transparent' }

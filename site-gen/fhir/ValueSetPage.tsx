@@ -1,9 +1,8 @@
-import React from 'react';
-import { Badge } from '../ds/Badge.jsx';
+import { Badge } from '../ds/Badge';
 import { PageHeader, StatusBadge, Tag, SectionHeading } from '../chrome/Parts';
-import { CopyValue } from '../ds/CopyValue.jsx';
+import { CopyValue } from '../ds/CopyValue';
 import type { ResolveType } from './ElementTable';
-import type { ResourceRow } from '../core/db';
+import type { ResourceRow } from '../core/site-build';
 
 interface ExpansionCode { system: string; code: string; display?: string }
 
@@ -14,11 +13,11 @@ export function ValueSetPage({ r, data, resolve, expansion }: { r: ResourceRow; 
       <PageHeader
         eyebrow="Value set"
         title={r.Title || r.Name || r.Id}
-        badges={<><StatusBadge status={r.Status} /><Badge tone="neutral" variant="outline">{(expansion.length || includes.reduce((n, i) => n + (i.concept?.length || 0), 0))} codes</Badge></>}
+        badges={<><StatusBadge status={r.Status ?? undefined} /><Badge tone="neutral" variant="outline">{(expansion.length || includes.reduce((n, i) => n + (i.concept?.length || 0), 0))} codes</Badge></>}
         lead={r.Description}
         meta={[
-          ['Official URL', <CopyValue value={r.Url} label="official URL" truncate="middle" />],
-          ['Computable', <CopyValue value={r.Name} label="computable name" />],
+          ['Official URL', <CopyValue value={r.Url ?? undefined} label="official URL" truncate="middle" />],
+          ['Computable', <CopyValue value={r.Name ?? undefined} label="computable name" />],
           ['Status', `${r.Status} · v${r.Version}`],
         ]}
       />

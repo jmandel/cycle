@@ -1,7 +1,7 @@
 import React from 'react';
-import { CodeBlock } from '../ds/CodeBlock.jsx';
+import { CodeBlock } from '../ds/CodeBlock';
 import { PageHeader, Tag, SectionHeading } from '../chrome/Parts';
-import type { ResourceRow } from '../core/db';
+import type { ResourceRow } from '../core/site-build';
 
 export function ResourcePage({ r, data }: { r: ResourceRow; data: any }) {
   const json = JSON.stringify(data, null, 2);

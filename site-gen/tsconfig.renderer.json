@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowJs": true,
+    "checkJs": false,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "skipLibCheck": true,
+    "types": ["react", "react-dom"]
+  },
+  "include": [
+    "core/closed-build.ts",
+    "core/content.ts",
+    "core/json-site-build.ts",
+    "core/renderer.tsx",
+    "core/site-build.ts",
+    "project/index.ts",
+    "project/includes.ts"
+  ]
+}

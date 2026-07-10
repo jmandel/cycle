@@ -1,8 +1,7 @@
-import React from 'react';
-import { Badge } from '../ds/Badge.jsx';
-import { PageHeader, StatusBadge, Tag, SectionHeading } from '../chrome/Parts';
-import { CopyValue } from '../ds/CopyValue.jsx';
-import type { ResourceRow } from '../core/db';
+import { Badge } from '../ds/Badge';
+import { PageHeader, StatusBadge, SectionHeading } from '../chrome/Parts';
+import { CopyValue } from '../ds/CopyValue';
+import type { ResourceRow } from '../core/site-build';
 
 export interface Concept { Key: number; ParentKey: number | null; Code: string; Display?: string; Definition?: string }
 
@@ -26,11 +25,11 @@ export function CodeSystemPage({ r, data, concepts }: { r: ResourceRow; data: an
         eyebrow="Code system"
         eyebrowColor="var(--luteal-deep)"
         title={r.Title || r.Name || r.Id}
-        badges={<><StatusBadge status={r.Status} /><Badge tone="luteal" variant="soft">{concepts.length} concepts</Badge>{data.caseSensitive && <Badge tone="neutral" variant="outline">case-sensitive</Badge>}</>}
+        badges={<><StatusBadge status={r.Status ?? undefined} /><Badge tone="luteal" variant="soft">{concepts.length} concepts</Badge>{data.caseSensitive && <Badge tone="neutral" variant="outline">case-sensitive</Badge>}</>}
         lead={r.Description}
         meta={[
-          ['Official URL', <CopyValue value={r.Url} label="official URL" truncate="middle" />],
-          ['Computable', <CopyValue value={r.Name} label="computable name" />],
+          ['Official URL', <CopyValue value={r.Url ?? undefined} label="official URL" truncate="middle" />],
+          ['Computable', <CopyValue value={r.Name ?? undefined} label="computable name" />],
           ['Status', `${r.Status} · v${r.Version}`],
           ['Content', data.content || 'complete'],
         ]}

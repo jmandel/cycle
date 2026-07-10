@@ -1,4 +1,3 @@
-import React from 'react';
 import { project } from '../project';
 
 const brand = project.brand;

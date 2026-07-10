@@ -1,5 +1,11 @@
 # site-gen — plan to a complete, beautiful, isomorphic IG site
 
+> **Historical plan.** The implemented renderer contract is documented in
+> [`README.md`](README.md) and `core/site-build.ts` / `core/renderer.tsx`.
+> References below to `site.db` as the single source of truth describe the
+> original native build plan; portable/browser rendering now begins from a
+> verified `ClosedSiteBuild` and consumes a callback-free `SiteBuildView`.
+
 Single source of truth (`site.db`) → **SSR static HTML (full content, great with JS
 disabled)** → **client React hydration (JS unlocks full interactivity)**. Faithful to
 the cycle design system, responsive, navigable, **zero broken links**, all content

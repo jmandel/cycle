@@ -5,6 +5,7 @@ import stu3Model from 'fhirpath/fhir-context/stu3';
 import { XMLBuilder } from 'fast-xml-parser';
 
 type Json = Record<string, any>;
+type FhirPathModel = Parameters<typeof fhirpath.evaluate>[3];
 
 type FragmentDirective =
   | { kind: 'BASE'; expression: string }
@@ -170,18 +171,18 @@ function normalizeFragmentExpression(expression: string): string {
     .replace(/\bselect\(\s*item\s*\)/g, 'item');
 }
 
-function fhirPathModelForVersion(fhirVersion: string | null | undefined): Json | undefined {
+function fhirPathModelForVersion(fhirVersion: string | null | undefined): FhirPathModel {
   if (!fhirVersion) return undefined;
-  if (fhirVersion.startsWith('3.0.')) return stu3Model as Json;
-  if (fhirVersion.startsWith('4.0.') || fhirVersion.startsWith('4.3.')) return r4Model as Json;
-  if (fhirVersion.startsWith('5.') || fhirVersion.startsWith('6.')) return r5Model as Json;
+  if (fhirVersion.startsWith('3.0.')) return stu3Model;
+  if (fhirVersion.startsWith('4.0.') || fhirVersion.startsWith('4.3.')) return r4Model;
+  if (fhirVersion.startsWith('5.') || fhirVersion.startsWith('6.')) return r5Model;
   return undefined;
 }
 
-function evalPath(context: unknown, expression: string, model?: Json, resource?: Json): any[] {
+function evalPath(context: unknown, expression: string, model?: FhirPathModel, resource?: Json): any[] {
   const normalized = normalizeFragmentExpression(expression);
   try {
-    return fhirpath.evaluate(context, normalized, resource ? { resource } : {}, model);
+    return fhirpath.evaluate(context, normalized, resource ? { resource } : {}, model) as any[];
   } catch (e) {
     throw new Error(`FHIRPath '${expression}' failed: ${e instanceof Error ? e.message : String(e)}`);
   }
@@ -315,7 +316,7 @@ function finalizeHidden(value: any, state: HiddenState): any {
   return out;
 }
 
-function applyExcept(root: Json, fragmentRoots: any[], except: { expression: string; base?: string }, model: Json | undefined, state: HiddenState): void {
+function applyExcept(root: Json, fragmentRoots: any[], except: { expression: string; base?: string }, model: FhirPathModel, state: HiddenState): void {
   const baseContexts = except.base
     ? fragmentRoots.flatMap((fragmentRoot) => evalPath(fragmentRoot, except.base!, model, root))
     : fragmentRoots;
@@ -332,7 +333,7 @@ function applyExcept(root: Json, fragmentRoots: any[], except: { expression: str
   }
 }
 
-function applyElide(root: Json, fragmentRoots: any[], expressionList: string, model: Json | undefined, state: HiddenState): void {
+function applyElide(root: Json, fragmentRoots: any[], expressionList: string, model: FhirPathModel, state: HiddenState): void {
   for (const expression of splitTopLevel(expressionList, '|')) {
     for (const context of fragmentRoots) {
       if (/^[A-Za-z_][A-Za-z0-9_-]*$/.test(expression)) {

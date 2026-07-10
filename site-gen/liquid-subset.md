@@ -1,141 +1,104 @@
-# Liquid subset for the jekyll-less build
+# Cycle Liquid contract
 
-The package.db generator renders narrative pages (`input/pagecontent/*.md`) itself —
-no Jekyll. But the authored content uses a little Liquid. This doc defines the
-**minimal subset we support, where it runs in the pipeline, and how includes resolve**.
+Status: implemented. This document describes the shared Cycle narrative policy
+in `core/liquid.ts` and `core/content.ts`; it is not a proposal for choosing a
+Liquid library.
 
-Design stance: support the *small, bounded* dialect our content actually uses; map
-`{% include %}` to **data-driven generators** or **trusted source assets ingested
-into the site DB**; hard-cut everything advanced. The Liquid we keep is a thin
-authoring convenience over data we already have in the package/site DB.
+Cycle uses LiquidJS. The native CLI and browser editor call the same
+`createCycleContentRenderer()` and `CycleSiteRenderer`. There is no browser fork
+and no fallback to the Rust Publisher-template Liquid engine.
 
----
+## Placement
 
-## 1 · What our content actually uses (the whole inventory)
+For a narrative page, the renderer applies:
 
-Current cycle content uses:
-
-| Construct | Site(s) | Category |
-| --- | --- | --- |
-| `{% include dependency-table.xhtml %}` etc. (×4) | `ig-details.md` | **generated artifact** include |
-| `{% sql select … %}` | `specification.md` | read-only table/query over `site.db` |
-| `{% assign source_repo = site.data.fhir.ig.contact[0].telecom[0] %}` | `index.md` | assign from data |
-| `{{ source_repo \| replace: 'https://','' }}` | `index.md` | output + filter |
-| `{% include sample-viewer-links.md %}` | `index.md` | checked-in source include asset |
-
-So we need exactly: **`assign`, `capture`, `include`, object/path interpolation, a few
-filters** — plus a **data context** (`site.data.fhir.ig.*`). Other IGs also use
-Publisher-style `{% fragment Type/id JSON|XML ... %}`; the site-gen publisher supports
-that from resources in the package DB so it does not need Java Publisher fragments.
-
----
-
-## 2 · Pipeline placement
-
-Liquid runs **before** Markdown (Jekyll order), so includes can emit block HTML that
-Markdown then passes through:
-
-```
-raw .md ──▶ [1] Liquid pass (resolve assign/capture/include/{{…}})
-        ──▶ [2] Markdown render (markdown-it, HTML passthrough on)
-        ──▶ [3] wrap in cycle Layout (React SSR shell) ──▶ static .html
+```text
+PageRow.Body
+  -> CycleContentRenderer.renderLiquid
+  -> known FHIR/core link rewriting
+  -> Markdown rendering
+  -> React static markup inside the Cycle Layout
 ```
 
-Front matter (`---`) is parsed in [1] and removed before [2]. Includes that return
-HTML tables/SVG survive [2] untouched.
+The content renderer is injected into `CycleSiteRenderer`. Its request contains
+the page identity and an immutable `CycleContentContext` built from one
+`SiteBuildView`.
 
----
+## Data boundary
 
-## 3 · Supported subset
+Liquid can read only values assembled into its explicit context:
 
-### Tags
-| Tag | Support | Notes |
-| --- | --- | --- |
-| `{% assign v = expr %}` | ✅ | RHS = path lookup, string/number literal, or filtered expr |
-| `{% capture v %}…{% endcapture %}` | ✅ | captures rendered inner block into `v` |
-| `{% include NAME %}` | ✅ **remapped** | NAME resolves against our **shortcode registry** (§5), *not* the filesystem |
-| `{% lang-fragment NAME %}` | ✅ **remapped** | same resolution as `include`; used by some IGs for localized fragments |
-| `{% sql SELECT … %}` | ✅ | documented IG Guidance-style read-only table/query over `site.db` |
-| `{% sql { "query": "…", "columns": […] } %}` | ✅ partial | documented IG Guidance-style JSON-control form; basic column selection/link/coding rendering |
-| `{% sqlToData name SELECT … %}` | ✅ | stores result rows in the Liquid context as `name` |
-| `{% fragment Type/id JSON|XML ... %}` | ✅ partial | Publisher-style resource fragment rendered from package DB resources (§5.2) |
-| `{% comment %}…{% endcomment %}` | ✅ | dropped |
-| `{% if %}` / `{% unless %}` / `{% else %}` | ⚠️ minimal | truthiness + `==`/`!=` only; no `and/or` chains initially |
-| `{% for %}` | ❌ (phase 2) | not used by our content; add only if needed |
-| `{% raw %}` | ✅ | useful to show literal `{{ }}` in docs |
-| layouts / `{% layout %}` / tablerow / cycle / increment | ❌ | out of scope — the Layout is React |
+- `site.data`, including `site.data.fhir.ig` and the Cycle metadata projection;
+- the current ImplementationGuide resource;
+- registered computed includes;
+- generated fragment text exposed by the view;
+- previously ingested textual assets;
+- resources resolved from the view for `{% fragment %}`; and
+- an optional, explicitly injected SQL executor.
 
-### Output / interpolation
-- `{{ path.to.value }}` and `{{ path[0].x | filter: 'arg' }}`.
-- Path resolution over the data context: dotted keys + `[n]` indexing; missing → empty string (configurable to throw in strict mode).
+The portable/browser renderer never calls a compiler, fragment engine, native
+template tree, filesystem, SQLite connection, or ambient “active database.” A
+missing capability is an error, not a callback opportunity.
 
-### Filters (initial set — extensible)
-`replace`, `remove`, `remove_first`, `append`, `prepend`, `downcase`, `upcase`,
-`strip`, `default`, `escape`, `date`, `markdownify`. Everything else → build error
-naming the unknown filter (no silent passthrough).
+## LiquidJS configuration
 
----
+`core/liquid.ts` constructs LiquidJS with:
 
-## 4 · Data context (the `site` drop)
-
-A single read-only object assembled from `package.db` + the IG resource, exposing the
-Jekyll-ish paths FHIR content expects:
-
-```
-site.data.fhir.ig            → the ImplementationGuide resource (Resources.Json where Type='ImplementationGuide')
-site.data.fhir.ig.version    → Metadata.igVer
-site.data.fhir.path          → Metadata.path  (core FHIR spec base)
-site.data.fhir.canonical     → Metadata.canonical
-site.data.fhir.packageId     → package id
-site.data.fhir.ver.*         → dependency aliases mapped to their canonical bases
-page.*                       → per-page front matter (title, etc.)
+```ts
+new Liquid({ strictFilters: true, strictVariables: false, extname: '' })
 ```
 
-Only this curated surface is exposed — **not** Jekyll's full `site`/`site.data`
-(no collections, no `_data/*` sprawl). New paths are added deliberately as content
-needs them and should be backed by package metadata, not local Publisher output.
+Standard LiquidJS tags and filters are available. An unknown filter fails.
+Missing variables follow Liquid's empty/nil behavior because strict variables
+are disabled. There is no LiquidJS filesystem: Cycle replaces include behavior
+with an explicit registry/asset lookup.
 
----
+## Custom tags and behavior
 
-## 5 · `include` → shortcode registry (the important part)
+### `include` and `lang-fragment`
 
-`{% include NAME args %}` does **not** read the filesystem at render time. NAME first
-maps to a registered generator `(args, ctx) => htmlString`, fed by the IG resource
-or package DB; if no generator exists, it may resolve to a same-named text/SVG asset
-that `ingest.ts` already copied or generated into the DB from trusted source dirs
-such as `input/includes` and `template/includes`.
+```liquid
+{% include dependency-table.xhtml %}
+{% include sample-viewer-links.md variant="compact" %}
+```
 
-**A. Publisher-artifact replacements** (what `ig-details.md` / `specification.md` need):
-| include NAME | Generated from |
-| --- | --- |
-| `dependency-table` | IG resource `dependsOn[]` |
-| `cross-version-analysis` | (stub/optional) |
-| `globals-table` | IG resource `global[]` |
-| `ip-statements` | package copyright/license metadata |
-| `*.svg` backed by `images-source/*.plantuml` | generated by PlantUML during ingest, then stored in DB assets |
+Both tags use the same resolution order:
 
-**B. Authoring shortcodes** (our components, React SSR → HTML):
-| include NAME | Renders |
-| --- | --- |
-| `callout` (variant=, title=) | `<Callout>` |
-| `codeblock` (lang=, file=) | `<CodeBlock>` |
-| `artifact-link` (id=) | resolved link + `Tag` |
+1. a registered pure include generator receives the ImplementationGuide and
+   parsed `key=value` parameters;
+2. otherwise a same-named textual asset from the closed view is recursively
+   evaluated with the same Liquid data and `include` parameters;
+3. otherwise rendering fails with an unknown-include error.
 
-Rules:
-- **Unknown NAME → build error** (fail loud; never emit a broken `{% include %}`).
-- Args are simple `key=value` (quoted strings / refs), parsed to an object.
-- Generators are pure: `(args, ctx) → string`; they may pull from `package.db`.
-- File-like includes are data, not registry code: referenced source include assets
-  are ingested into `Assets` and then inlined from the DB.
-- Text include assets are rendered recursively through the same Liquid context, so
-  nested includes work without filesystem access at render time.
+No filesystem search occurs during rendering. Binary assets are not treated as
+Liquid source.
 
----
+The standard content policy has one narrowly named preview placeholder for
+`sample-viewer-links.md` when that build-wrapper artifact is absent. Other
+unknown includes fail.
 
-## 5.1 · SQL blocks
+### `fragment`
 
-Trusted first-party markdown can query the augmented site DB directly using the
-syntax documented in the IG Guidance IG:
+```liquid
+{% fragment Questionnaire/example JSON BASE:descendants().select(item) %}
+{% fragment Binary/Services XML EXCEPT:services.where(hook='appointment-book') %}
+```
+
+The tag resolves `Type/id` through the view, optionally decodes JSON
+`Binary.data`, applies supported `BASE:`, `EXCEPT:`, and `ELIDE:` selectors, and
+emits escaped JSON or FHIR-like XML. Unsupported selector syntax and missing
+resources fail.
+
+For compatibility with Publisher-authored pages, a final fragment pass also
+evaluates a `{% fragment %}` that LiquidJS correctly preserved inside a
+`{% raw %}` block. This is a deliberate, tested authoring quirk.
+
+This resource fragment is a Cycle-owned pure formatter. It is not a request for
+Rust Publisher `_includes` and does not cross the native `ArtifactResolver`.
+
+### `sql` and `sqlToData`: native capability only
+
+The shared parser understands the IG Guidance forms:
 
 ```liquid
 {% sql
@@ -144,8 +107,6 @@ from Concepts
 order by Key
 %}
 ```
-
-The JSON-control form is also supported for simple column control:
 
 ```liquid
 {% sql {
@@ -157,76 +118,58 @@ The JSON-control form is also supported for simple column control:
 } %}
 ```
 
-`sqlToData` is available for the documented "query first, use later in Liquid"
-pattern:
-
 ```liquid
 {% sqlToData itemQuery SELECT count(*) as n from Metadata %}
-Number of Metadata Items: {{ itemQuery[0].n }}
+Number of metadata items: {{ itemQuery[0].n }}
 ```
 
-The SQL surface is deliberately read-only: the query must begin with `select` or
-`with`, may not contain semicolons, and rejects mutation / attachment keywords.
-This is an authoring convenience over trusted `site.db`; it is not an end-user
-query feature.
+SQL is not part of the portable `SiteBuildView` contract. Only the explicitly
+selected native `SITE_DB` legacy path injects an executor backed by the
+read-only `SqliteSiteBuildView`. Browser and native `SITE_BUILD_DIR` construction
+omit it; using either tag then fails with “no SQL executor was provided.”
 
-## 5.2 · Resource fragments
+Even in native mode the query must begin with `SELECT` or `WITH`, contain no
+semicolon, and contain none of the mutation/attachment/schema keywords rejected
+by `assertSafeSelect`. This is trusted first-party build compatibility, not an
+end-user query API.
 
-Publisher-style fragments are supported for common source IG authoring patterns:
+## Includes and generated fragments
 
-```liquid
-{% fragment Questionnaire/example JSON BASE:descendants().select(item).where(linkId='x') %}
-{% fragment Binary/Services XML EXCEPT:services.where(hook='appointment-book') %}
+Cycle's computed include registry is passed explicitly as
+`CycleRendererOptions.includes`. The renderer also makes these view-derived
+functions available to the content policy:
+
+- `generatedFragment(name)`;
+- `textAsset(name)`; and
+- `resolveFragmentResource(type, id)`.
+
+Adding a new include should normally mean adding a pure generator or ingesting a
+text asset. It should not mean adding another global store, filesystem probe, or
+compiler callback.
+
+## Failure and leniency
+
+Strict mode is the default. A Liquid, include, fragment, or missing-capability
+error is rethrown with the narrative slug, so the build fails visibly.
+
+`createCycleContentRenderer({ lenient: true, warn })` is an explicit diagnostic
+escape hatch: it reports the failure and returns the original source. It is not
+the normal publication contract and must not be used to call incomplete output
+successful.
+
+## Relationship to `SiteBuild`
+
+The browser and preferred native path construct `SiteBuildView` only after
+verifying a `ClosedSiteBuild` whose render plan requires the addressed
+`compat.site_db/rows.json` artifact. `SqliteSiteBuildView` remains an explicitly
+selected legacy adapter over an unsealed `site.db`; it is not part of the
+portable chain.
+
+Therefore the intended portable chain is:
+
+```text
+ClosedSiteBuild -> SiteBuildView -> CycleSiteRenderer
+                -> CycleContentRenderer -> LiquidJS
 ```
 
-The fragment renderer resolves `Type/id` from the package DB, optionally decodes a
-JSON `Binary.data` payload, applies `BASE:`, `EXCEPT:`, and `ELIDE:` selectors with
-FHIRPath, and emits escaped JSON or FHIR-like XML in a code block. Unsupported syntax
-or a missing resource fails the build.
-
-This is deliberately resource-based. It does not read Java Publisher `_includes`,
-and it does not use pre-rendered Publisher HTML as an input.
-
----
-
-## 6 · Explicitly out of scope (cut features)
-Arbitrary runtime file/`_includes/*` resolution · full `site`/`site.data`/collections ·
-`for`/`tablerow`/`cycle` (phase 1) · custom Jekyll plugins · layouts & multi-layout
-inheritance · liquid inside data files · whitespace-control nuance parity. If content
-needs one of these, we add it deliberately, not by importing all of Jekyll.
-
----
-
-## 7 · Implementation: two options
-
-**Option A — LiquidJS, locked down (recommended).** Mature JS Liquid engine; we
-restrict capability by *configuration*, not by writing a parser:
-- `new Liquid({ strictFilters: true, strictVariables: false, globals: ctx })`.
-- Register only our filters; **custom `fs`** so `include` resolves to the shortcode
-  registry (or disable file fs and implement `include` as a custom tag).
-- Pros: correct Liquid semantics for the dialect the content was authored in; trivial
-  to extend; ~one dependency. Cons: ships a fuller engine than we strictly use (mitigated
-  by strict flags + not registering extra tags).
-
-**Option B — hand-rolled (~150 LOC).** A tiny tokenizer for `{{…}}` / `{%…%}` + the
-five tags + path resolver + filter map. Pros: zero deps, total control, matches the
-"from scratch" ethos. Cons: we re-implement (and must keep correct) edge cases
-LiquidJS already handles (filter args, nesting, whitespace).
-
-**Recommendation:** start with **A** (locked-down LiquidJS) so existing content renders
-faithfully day one; the restriction lives in *what we register*, which is exactly the
-subset above. Revisit B only if the dependency or surface area becomes a problem.
-
-> Escape hatch for *this* IG: the 7 sites are few enough to hand-strip/inline today for
-> an immediately Liquid-free build. The subset engine is the **reusable** answer.
-
----
-
-## 8 · Open questions
-- `markdownify` filter: do we let included fragments contain Markdown (needs a nested
-  md render) or HTML-only? Leaning HTML-only for generated tables; Markdown for prose includes.
-- Strict variables: throw on missing path, or empty-string? Propose **warn + empty** in
-  dev, **throw** in CI.
-- Diagrams: if markdown references an SVG include and a matching
-  `images-source/*.plantuml` file exists, ingest renders it to SVG and stores it in
-  `Assets`; render inlines it from the DB.
+All data needed by Liquid is already on the closed side of that boundary.

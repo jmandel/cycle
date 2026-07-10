@@ -1,7 +1,7 @@
 import React from 'react';
-import { Tag } from '../ds/Tag.jsx';
-import { Badge } from '../ds/Badge.jsx';
-import { CopyValue } from '../ds/CopyValue.jsx';
+import { Tag } from '../ds/Tag';
+import { Badge } from '../ds/Badge';
+import { CopyValue } from '../ds/CopyValue';
 
 export type ResolveType = (code: string, profileUrl?: string) => string;
 

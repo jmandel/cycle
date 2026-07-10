@@ -3,6 +3,7 @@ import { Menu } from './Menu';
 import { MachineFormats } from '../fhir/MachineFormats';
 import { Footer } from './Footer';
 import { project } from '../project';
+import type { MenuRow } from '../core/site-build';
 
 const brand = project.brand;
 const BRAND_MARK = brand.mark
@@ -13,7 +14,7 @@ export interface Crumb { label: string; href?: string }
 export interface TocItem { id: string; label: string }
 
 export function Layout({
-  meta, title, crumbs, toc, sidebar, navActive, machineBase, aiSource, ig, children,
+  meta, title, crumbs, toc, sidebar, navActive, machineBase, aiSource, ig, menu, children,
 }: {
   meta: Record<string, string>;
   title: string;
@@ -24,6 +25,7 @@ export function Layout({
   machineBase?: string;
   aiSource?: string;
   ig?: any;
+  menu: readonly MenuRow[];
   children: React.ReactNode;
 }) {
   const css = ['fonts', 'colors', 'typography', 'spacing', 'effects'];
@@ -50,7 +52,7 @@ export function Layout({
               <span className="cycle-wordmark">{brand.wordmark}{brand.tld && <span className="cycle-tld">{brand.tld}</span>}</span>
             </a>
             <span className="cycle-badge">{meta.igVer} · {meta.releaseLabel || 'draft'}</span>
-            <Menu active={navActive} />
+            <Menu active={navActive} rows={menu} />
             <button type="button" className="cycle-menu-btn" aria-label="Menu" data-toggle="mobile-nav">≡</button>
           </div>
         </header>

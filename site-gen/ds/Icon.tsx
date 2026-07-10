@@ -1,4 +1,4 @@
-import React from 'react';
+import type { CSSProperties, SVGProps } from 'react';
 
 /**
  * Icon — thin wrapper over Lucide path data (https://lucide.dev, ISC).
@@ -25,9 +25,18 @@ export const ICONS = {
   layers:      '<path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"/><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"/>',
   hash:        '<line x1="4" x2="20" y1="9" y2="9"/><line x1="4" x2="20" y1="15" y2="15"/><line x1="10" x2="8" y1="3" y2="21"/><line x1="16" x2="14" y1="3" y2="21"/>',
   menu:        '<line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="18" y2="18"/>',
+} as const;
+
+export type IconName = keyof typeof ICONS;
+
+type IconProps = Omit<SVGProps<SVGSVGElement>, 'name'> & {
+  name: IconName;
+  size?: number;
+  strokeWidth?: number;
+  style?: CSSProperties;
 };
 
-export function Icon({ name, size = 20, strokeWidth = 2, style, ...rest }) {
+export function Icon({ name, size = 20, strokeWidth = 2, style, ...rest }: IconProps) {
   const d = ICONS[name];
   return (
     <svg
@@ -36,7 +45,7 @@ export function Icon({ name, size = 20, strokeWidth = 2, style, ...rest }) {
       strokeLinecap="round" strokeLinejoin="round"
       aria-hidden="true"
       style={{ display: 'block', flex: 'none', ...style }}
-      dangerouslySetInnerHTML={{ __html: d || '' }}
+      dangerouslySetInnerHTML={{ __html: d }}
       {...rest}
     />
   );

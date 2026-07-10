@@ -1,5 +1,4 @@
-import React from 'react';
-import { Icon } from '../ds/Icon.jsx';
+import { Icon } from '../ds/Icon';
 
 /**
  * MachineFormats — "HTML is a view; the JSON is the truth." A light, compact set

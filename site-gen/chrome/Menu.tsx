@@ -1,16 +1,15 @@
 import React from 'react';
-import * as db from '../core/db';
+import type { MenuRow } from '../core/site-build';
 
 /** Top nav with submenus, built from the ingested Menu table (sushi-config). */
-export function Menu({ active }: { active?: string }) {
-  const rows = db.menu();
-  const childrenByParent = new Map<number | null, db.MenuRow[]>();
+export function Menu({ active, rows }: { active?: string; rows: readonly MenuRow[] }) {
+  const childrenByParent = new Map<number | null, MenuRow[]>();
   for (const r of rows) {
     const key = r.ParentId ?? null;
     childrenByParent.set(key, [...(childrenByParent.get(key) || []), r]);
   }
   const childrenOf = (id: number | null) => childrenByParent.get(id) || [];
-  const firstHref = (r: db.MenuRow): string | null => {
+  const firstHref = (r: MenuRow): string | null => {
     if (r.Href) return r.Href;
     for (const child of childrenOf(r.Id)) {
       const href = firstHref(child);
@@ -18,7 +17,7 @@ export function Menu({ active }: { active?: string }) {
     }
     return null;
   };
-  const renderSubmenuItem = (item: db.MenuRow, depth: number): React.ReactNode => {
+  const renderSubmenuItem = (item: MenuRow, depth: number): React.ReactNode => {
     const kids = childrenOf(item.Id);
     if (!kids.length) {
       return item.Href

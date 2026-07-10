@@ -3,7 +3,7 @@
  * `name` passed to <Island> on the server. Keep these browser-safe (no node/db imports).
  */
 import type React from 'react';
-import { CodeBlock } from '../ds/CodeBlock.jsx';
+import { CodeBlock } from '../ds/CodeBlock';
 
 export const ISLANDS: Record<string, React.ComponentType<any>> = {
   CodeBlock,

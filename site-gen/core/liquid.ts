@@ -91,7 +91,7 @@ function columnClass(stats: SqlColumnStats): string {
 
 function renderSqlTable(rows: Record<string, any>[], control: { class?: string; titles?: boolean; columns?: SqlColumn[] } = {}): string {
   if (!rows.length) return '<p class="muted">No rows.</p>';
-  const columns = control.columns?.length
+  const columns: SqlColumn[] = control.columns?.length
     ? control.columns
     : Object.keys(rows[0]).map((name) => ({ source: name, name, title: name, type: 'auto' }));
   const stats = columns.map((col) => {
@@ -214,7 +214,7 @@ export function renderLiquid(src: string, opts: { includes: IncludeRegistry; ig:
   // {% raw %} to protect literal handlebars inside the generated JSON. LiquidJS
   // correctly preserves raw blocks, so run one final fragment pass over the
   // rendered text to match the Publisher authoring pattern.
-  return rendered.replace(/{%-?\s*fragment\s+([\s\S]*?)\s*-?%\}/g, (_m, args) => {
+  return rendered.replace(/{%-?\s*fragment\s+([\s\S]*?)\s*-?%\}/g, (_m: string, args: string) => {
     if (!opts.fragment) throw new Error('fragment tag used, but no fragment renderer was provided');
     return opts.fragment(args);
   });

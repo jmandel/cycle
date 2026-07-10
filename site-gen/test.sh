@@ -8,7 +8,12 @@ echo "== build =="
 # renderer smoke test: use the committed-by-convention fixture DB unless a real
 # output/package.db (or PKG_DB) is present.
 export SITE_GEN_USE_FIXTURE="${SITE_GEN_USE_FIXTURE:-1}"
+export SITE_DB="${SITE_DB:-temp/site-gen/site.db}"
+# The harness intentionally replaces its prior verified smoke-test output. The
+# renderer itself refuses an existing destination unless this policy is named.
+export SITE_GEN_REPLACE_OUTPUT="${SITE_GEN_REPLACE_OUTPUT:-1}"
 bun site-gen/ingest.ts >/dev/null 2>&1 || { echo "INGEST FAILED"; exit 1; }
+bun test site-gen/core/renderer.test.tsx || { echo "RENDERER TESTS FAILED"; exit 1; }
 BUILD=$(bun site-gen/build.tsx 2>&1) || { echo "$BUILD"; echo "BUILD FAILED"; exit 1; }
 echo "$BUILD" | grep -E "Rendered|bundle|link check"
 

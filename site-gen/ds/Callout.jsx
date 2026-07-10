@@ -1,5 +1,5 @@
 import React from 'react';
-import { Icon } from './Icon.jsx';
+import { Icon } from './Icon';
 
 /**
  * Callout — admonition. Marks normative vs informative EXPLICITLY

@@ -1,12 +1,11 @@
-import React from 'react';
-import { Badge } from '../ds/Badge.jsx';
-import { CodeBlock } from '../ds/CodeBlock.jsx';
+import { Badge } from '../ds/Badge';
+import { CodeBlock } from '../ds/CodeBlock';
 import { PageHeader, StatusBadge, Tag, SectionHeading } from '../chrome/Parts';
-import { CopyValue } from '../ds/CopyValue.jsx';
-import { Icon } from '../ds/Icon.jsx';
+import { CopyValue } from '../ds/CopyValue';
+import { Icon } from '../ds/Icon';
 import { ElementTable, elementViews, ResolveType } from './ElementTable';
 import { Tabs } from '../chrome/Tabs';
-import type { ResourceRow } from '../core/db';
+import type { ResourceRow } from '../core/site-build';
 
 export interface ProfileRequirement {
   key: string;
@@ -112,13 +111,13 @@ export function ProfilePage({
       <PageHeader
         eyebrow={`Profile · ${rootType}`}
         title={r.Title || r.Name || r.Id}
-        badges={<><StatusBadge status={r.Status} /><Badge tone="neutral" variant="outline">{r.derivation === 'constraint' ? 'Constraint' : r.derivation || 'Profile'}</Badge></>}
+        badges={<><StatusBadge status={r.Status ?? undefined} /><Badge tone="neutral" variant="outline">{r.derivation === 'constraint' ? 'Constraint' : r.derivation || 'Profile'}</Badge></>}
         lead={r.Description}
         meta={[
-          ['Official URL', <CopyValue value={r.Url} label="official URL" truncate="middle" />],
-          ['Computable', <CopyValue value={r.Name} label="computable name" />],
+          ['Official URL', <CopyValue value={r.Url ?? undefined} label="official URL" truncate="middle" />],
+          ['Computable', <CopyValue value={r.Name ?? undefined} label="computable name" />],
           ['Status', `${r.Status} · v${r.Version}`],
-          ['Base', <Tag tone="luteal" href={resolve(rootType!, r.base)}>{baseName}</Tag>],
+          ['Base', <Tag tone="luteal" href={resolve(rootType!, r.base ?? undefined)}>{baseName}</Tag>],
         ]}
       />
       <ProfileExamplesSection examples={examples} />

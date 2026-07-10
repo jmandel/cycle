@@ -1,7 +1,8 @@
 /**
  * project/includes.ts — PROJECT-OWNED Liquid `{% include NAME %}` registry.
- * DB-first: each entry derives HTML from the IG resource. Plain file-like
- * includes are resolved from ingested DB assets by core/liquid.ts.
+ * View-first: each entry derives HTML from the closed IG resource. Plain
+ * file-like includes are resolved from text assets in the explicit content
+ * context by core/content.ts.
  * Adding or removing an include here does not touch the generic renderer
  * (core/liquid.ts). Another IG would replace this file.
  */
@@ -24,7 +25,7 @@ function dependencyTable(ig: any, mode: 'full' | 'short' | 'nontech' = 'full'): 
   if (!deps.length) return '<p class="muted">No package dependencies.</p>';
   if (mode === 'nontech') {
     const names = deps.map((d: any) => esc(d.packageId || d.uri || '')).filter(Boolean);
-    return `<p>This guide depends on ${names.length ? names.map((n) => `<code>${n}</code>`).join(', ') : 'no other FHIR packages'}.</p>`;
+    return `<p>This guide depends on ${names.length ? names.map((n: string) => `<code>${n}</code>`).join(', ') : 'no other FHIR packages'}.</p>`;
   }
   const rows = deps.map((d: any) => {
     const pkg = esc(d.packageId || d.uri || '');
@@ -73,7 +74,7 @@ export const includes: IncludeRegistry = {
   'ip-statements-en.xhtml': (ig) => includes['ip-statements.xhtml'](ig, {}),
 
   // The one genuine non-DB-derivable fragment (publisher-computed). Omitted.
-  'cross-version-analysis.xhtml': () => '<!-- cross-version-analysis: omitted (not derivable from package.db) -->',
-  'cross-version-analysis-inline.xhtml': () => '<!-- cross-version-analysis-inline: omitted (not derivable from package.db) -->',
-  'cross-version-analysis-inline-en.xhtml': () => '<!-- cross-version-analysis-inline: omitted (not derivable from package.db) -->',
+  'cross-version-analysis.xhtml': () => '<!-- cross-version-analysis: omitted (not available in the closed Cycle view) -->',
+  'cross-version-analysis-inline.xhtml': () => '<!-- cross-version-analysis-inline: omitted (not available in the closed Cycle view) -->',
+  'cross-version-analysis-inline-en.xhtml': () => '<!-- cross-version-analysis-inline: omitted (not available in the closed Cycle view) -->',
 };

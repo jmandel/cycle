@@ -1,11 +1,11 @@
-import React from 'react';
-import { Icon } from './Icon.jsx';
+import { useState, type CSSProperties, type HTMLAttributes, type ReactNode } from 'react';
+import { Icon } from './Icon';
 
 /** CodeBlock — dark warm panel for fenced code. Lightweight JSON highlight → phase palette. */
 const JSON_RE = /("(?:\\.|[^"\\])*"\s*:)|("(?:\\.|[^"\\])*")|(\b(?:true|false|null)\b)|(-?\d+\.?\d*(?:[eE][+-]?\d+)?)|([{}\[\],])/g;
 
-function tokenizeJson(line, keyPrefix) {
-  const out = []; let last = 0, m, i = 0; JSON_RE.lastIndex = 0;
+function tokenizeJson(line: string, keyPrefix: string): ReactNode[] {
+  const out: ReactNode[] = []; let last = 0; let m: RegExpExecArray | null; let i = 0; JSON_RE.lastIndex = 0;
   while ((m = JSON_RE.exec(line)) !== null) {
     if (m.index > last) out.push(<span key={keyPrefix + i++}>{line.slice(last, m.index)}</span>);
     let color = 'var(--code-fg)';
@@ -20,18 +20,27 @@ function tokenizeJson(line, keyPrefix) {
   return out;
 }
 
-function renderLine(line, lang, idx) {
+function renderLine(line: string, lang: string, idx: number): ReactNode {
   if (lang === 'json') return tokenizeJson(line, `l${idx}-`);
   if ((lang === 'bash' || lang === 'sh' || lang === 'fsh' || lang === 'text') && line.trimStart().startsWith('#'))
     return <span style={{ color: 'var(--code-comment)' }}>{line}</span>;
   return line === '' ? ' ' : line;
 }
 
-export function CodeBlock({ code = '', lang = 'json', filename, showLines = false, copy = true, style, ...rest }) {
-  const [copied, setCopied] = React.useState(false);
+type CodeBlockProps = HTMLAttributes<HTMLDivElement> & {
+  code?: string;
+  lang?: string;
+  filename?: string;
+  showLines?: boolean;
+  copy?: boolean;
+  style?: CSSProperties;
+};
+
+export function CodeBlock({ code = '', lang = 'json', filename, showLines = false, copy = true, style, ...rest }: CodeBlockProps) {
+  const [copied, setCopied] = useState(false);
   const text = typeof code === 'string' ? code.replace(/\n$/, '') : '';
   const lines = text.split('\n');
-  const doCopy = () => { try { navigator.clipboard.writeText(text); } catch (e) {} setCopied(true); setTimeout(() => setCopied(false), 1400); };
+  const doCopy = () => { try { void navigator.clipboard.writeText(text); } catch {} setCopied(true); setTimeout(() => setCopied(false), 1400); };
   return (
     <div style={{ background: 'var(--code-bg)', borderRadius: 'var(--radius-md)', border: '1px solid var(--code-line)', overflow: 'hidden', boxShadow: 'var(--shadow-sm)', ...style }} {...rest}>
       {(filename || copy || lang) && (

@@ -1,6 +1,6 @@
 import React from 'react';
-import { Badge } from '../ds/Badge.jsx';
-import { Tag } from '../ds/Tag.jsx';
+import { Badge } from '../ds/Badge';
+import { Tag } from '../ds/Tag';
 
 export function Eyebrow({ children, color }: { children: React.ReactNode; color?: string }) {
   return <div className="eyebrow" style={color ? { color } : undefined}>{children}</div>;

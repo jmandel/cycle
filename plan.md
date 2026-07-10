@@ -1,5 +1,11 @@
 # Multi-IG Site Generator and Bun Publisher Plan
 
+> **Historical research and implementation plan.** Current site generation is
+> documented in [`site-gen/README.md`](site-gen/README.md). In particular,
+> `site.db` is now one Cycle compatibility artifact, the portable renderer
+> consumes a verified `ClosedSiteBuild` through `SiteBuildView`, and the CLI and
+> browser share `CycleSiteRenderer` plus one LiquidJS content policy.
+
 This plan describes the work needed before `site-gen` and the experimental Bun
 publisher can be used safely across multiple FHIR IGs. The goal is a small,
 clear, reproducible toolchain, not a second full IG Publisher.

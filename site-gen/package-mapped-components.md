@@ -1,5 +1,10 @@
 # package-mapped components
 
+> **Historical component/design catalog.** Component guidance below remains
+> useful, but its direct-`package.db` wording predates the shared
+> `SiteBuildView`/`CycleSiteRenderer` boundary. See [`README.md`](README.md) for
+> the current native and browser execution paths.
+
 Component catalog for the **from-scratch IG site generator** (the forked architecture):
 the IG Publisher does the FHIR computation and emits `output/package.db`; a **Bun +
 React SSR** pipeline reads that DB and renders a complete static site with the cycle

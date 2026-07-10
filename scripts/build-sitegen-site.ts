@@ -129,7 +129,13 @@ await step('ingest package.db', ['bun', 'site-gen/ingest.ts'], {
   SITE_DB,
   SITE_LIQUID_ASSET_DIRS: `${root}/input/includes`,
 });
-await step('render site-gen site', ['bun', 'site-gen/build.tsx'], { SITE_DB, OUT_DIR: OUT });
+await step('render site-gen site', ['bun', 'site-gen/build.tsx'], {
+  SITE_DB,
+  OUT_DIR: OUT,
+  // This orchestrator owns the canonical destination and deliberately retires
+  // its previous site only after the renderer has staged and checked a new one.
+  SITE_GEN_REPLACE_OUTPUT: '1',
+});
 
 // 8–11. inject project-specific artifacts into the completed site (IG-specific)
 for (const variant of viewerVariants) {

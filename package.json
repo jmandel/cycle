@@ -7,6 +7,7 @@
     "build:site": "bun scripts/build-site.ts",
     "build:sitegen": "bun scripts/build-sitegen-site.ts",
     "test:sitegen": "bash site-gen/test.sh",
+    "typecheck:renderer": "tsc -p site-gen/tsconfig.renderer.json",
     "check": "rm -rf input/resources && mkdir -p input/resources && EXAMPLE_OUT=input/resources/Bundle-period-tracking-longitudinal-example.json bun scripts/gen-example.ts && ./_sushi.sh && BUNDLE_FILE=input/resources/Bundle-period-tracking-longitudinal-example.json bun scripts/check-mvp.ts && bun scripts/check-view2.ts",
     "check:r4": "bun scripts/validate-r4-structures.ts --r4-package ~/.fhir/packages/hl7.fhir.r4.core#4.0.1",
     "verify:viewer": "bun run build && bun scripts/verify-viewer.ts",
@@ -19,11 +20,14 @@
     "experiment:package-db:compare": "bun site-gen/publisher/compare.ts"
   },
   "devDependencies": {
+    "@types/react": "18.3.12",
+    "@types/react-dom": "18.3.1",
     "esbuild": "^0.24.0",
     "fhir-package-loader": "2.2.4",
     "fsh-sushi": "3.20.0",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "typescript": "5.6.3"
   },
   "dependencies": {
     "fast-xml-parser": "^5.9.3",
