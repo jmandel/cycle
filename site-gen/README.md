@@ -79,12 +79,15 @@ this reusable builder. It therefore creates one outer
 `AtomicOutputPublication`, points `site-gen/build.tsx` at an inner disposable
 directory, verifies the inner receipt, and copies only its declared files into
 outer staging. Viewers, SHL payloads, the agent package, `package-list.json`,
-`CNAME`, the compatibility redirect, and Publisher QA are added and declared
-there. All inherited renderer files are hash-checked again (with the deliberate
-agent-package append to `llms.txt` recorded as a wrapper transformation), the
-complete tree is link-checked and sealed, and only then is `site-gen/out`
-published once. The inner receipt is proof consumed by the wrapper; it is not the
-receipt shipped beside a larger, mutated tree.
+`CNAME`, the compatibility redirect, and the complete Publisher output are added
+and declared there; the latter lives under `publisher/`, with root `qa.html`
+redirecting to its QA entry point. All inherited renderer files are hash-checked
+again (with the deliberate agent-package append to `llms.txt` recorded as a
+wrapper transformation). Cycle/wrapper pages pass the final link check, the
+Publisher subtree retains its own Publisher validation semantics, and every byte
+in both artifacts is sealed before `site-gen/out` is published once. The inner
+receipt is proof consumed by the wrapper; it is not the receipt shipped beside a
+larger, mutated tree.
 
 ## Legacy SQLite fallback
 

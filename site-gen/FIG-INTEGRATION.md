@@ -95,9 +95,11 @@ For the repository's full Pages publication, `scripts/build-sitegen-site.ts`
 owns a larger outer `AtomicOutputPublication`. It points `site-gen/build.tsx` at
 an inner disposable destination inside outer staging, verifies the inner receipt
 and copies only those declared files, then adds and declares the project viewers,
-SHL files, agent package, deployment metadata, compatibility redirect, and
-Publisher QA. It rechecks inherited hashes, runs the final link check over the
-complete tree, writes one outer receipt, and performs the only rename to
+SHL files, agent package, deployment metadata, compatibility redirect, and the
+complete Publisher artifact under `publisher/`; root `qa.html` redirects to its
+QA entry point. It rechecks inherited hashes and link-checks Cycle/wrapper pages,
+while the Publisher subtree retains the Publisher's own validation semantics.
+One outer receipt still seals every byte before the only rename to
 `site-gen/out`. The intentional agent-package append to `llms.txt` receives new
 wrapper provenance; no other inherited renderer file may change.
 
@@ -128,8 +130,8 @@ the same preprocessing command.
 Cycle declares its logical renderer namespace through `listOutputs()` and each
 host declares every additional output as it reserves or imports it. In the full
 repository publication this includes viewer, SHL, skill, deployment, redirect,
-and Publisher QA files as well as the design, project stylesheet, and client
-bundle. After rendering and whole-tree link checking,
+and the complete namespaced Publisher output as well as the design, project
+stylesheet, and client bundle. After each renderer's appropriate validation,
 `AtomicOutputPublication.sealOutputReceipt()` traverses the complete private
 tree, rejects symlinks/non-files and missing or undeclared paths, and writes:
 

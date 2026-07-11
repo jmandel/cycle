@@ -53,7 +53,9 @@ to the input SiteBuild id and Cycle renderer version. For a reusable
 and client bundle. The repository's whole-publication wrapper runs that build in
 an inner disposable directory, verifies its receipt, copies only declared bytes
 into one outer staging tree, adds the viewers, SHL files, skill, CNAME, redirect,
-and Publisher QA, then seals and publishes that complete tree once. The
+and the Publisher's complete independently checked output under `publisher/`
+(`qa.html` redirects to its QA entry point), then seals and publishes that
+complete tree once. The
 browser-compatible receipt core can compute or compare the same identity from
 `listOutputs()` / `renderOutput()` and corresponding host assets. Publication
 re-verifies every byte before the atomic rename; the receipt file is excluded

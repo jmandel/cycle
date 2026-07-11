@@ -2,7 +2,7 @@
 
 Use this page when adding cycle.fhir.me support to a period-, fertility-, or cycle-tracking app. It is the working checklist for product teams and AI agents: inspect the app's real data, map only true stored facts, package them as an encrypted SMART Health Link, and verify the viewer/privacy path end to end.
 
-The [Specification](specification.html) is the source of truth for profiles, codes, and conformance. This page explains how to apply it in an app. It is also packaged for agents as [`skill.zip`](skill.zip); inside that zip, this page becomes `SKILL.md` and the core rendered spec markdown is included under `spec/`.
+The [Specification](specification.html) is the source of truth for profiles, codes, and conformance. This page explains how to apply it in an app. It is also packaged for agents as [`skill.zip`](/skill.zip); inside that zip, this page becomes `SKILL.md` and the core rendered spec markdown is included under `spec/`.
 
 ## Operating rule: drive from the app's real data
 
