@@ -53,11 +53,17 @@ export async function openCycleGenerator(
       );
     }
   }
-  const frozenCatalog = Object.freeze(catalog.map((output) => Object.freeze({ ...output })));
+  const frozenCatalog = Object.freeze(catalog.map((output) => Object.freeze({
+    ...output,
+    ...(output.subject ? { subject: Object.freeze({ ...output.subject }) } : {}),
+  })));
 
   return Object.freeze({
     buildId: build.manifest.buildId,
-    outputs: () => frozenCatalog.map((output) => ({ ...output })),
+    outputs: () => frozenCatalog.map((output) => ({
+      ...output,
+      ...(output.subject ? { subject: { ...output.subject } } : {}),
+    })),
     render: (path: string) => {
       const descriptor = frozenCatalog.find((output) => output.file === path);
       if (!descriptor) throw new Error(`Cycle generator: no output '${path}'`);

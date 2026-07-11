@@ -82,6 +82,8 @@ interface PageDescriptor {
   file: string;
   title: string;
   kind: PageKind;
+  subject?: CycleResourceSubject;
+  subjectPage?: 'primary' | 'companion';
 }
 
 export interface RenderedOutput {
@@ -106,6 +108,27 @@ export interface CycleOutputDescriptor {
   owner?: string;
   title?: string;
   pageKind?: PageKind;
+  /** Exact compiled resource represented by this page. Renderer-owned
+   * navigation and aggregate pages intentionally have no subject. */
+  subject?: CycleResourceSubject;
+  /** Whether this is the resource's canonical page or a related view. */
+  subjectPage?: 'primary' | 'companion';
+}
+
+export interface CycleResourceSubject {
+  resourceType: string;
+  id: string;
+}
+
+function resourceSubject(row: CycleResource): CycleResourceSubject {
+  return { resourceType: row.key.resourceType, id: row.key.id };
+}
+
+function cloneOutputDescriptor(output: CycleOutputDescriptor): CycleOutputDescriptor {
+  return {
+    ...output,
+    ...(output.subject ? { subject: { ...output.subject } } : {}),
+  };
 }
 
 const RESOURCE_SORT = 'http://hl7.org/fhir/tools/StructureDefinition/resource-sort';
@@ -539,16 +562,17 @@ export class CycleSiteRenderer {
     );
     for (const row of this.context.artifactResources('StructureDefinition')) {
       const title = row.title || row.name || row.id;
-      result.push({ file: this.context.page(row), title, kind: 'profile' });
-      result.push({ file: `StructureDefinition-${row.id}-definitions.html`, title: `${title} Definitions`, kind: 'profile-companion' });
-      result.push({ file: `StructureDefinition-${row.id}-mappings.html`, title: `${title} Mappings`, kind: 'profile-companion' });
+      const subject = resourceSubject(row);
+      result.push({ file: this.context.page(row), title, kind: 'profile', subject, subjectPage: 'primary' });
+      result.push({ file: `StructureDefinition-${row.id}-definitions.html`, title: `${title} Definitions`, kind: 'profile-companion', subject, subjectPage: 'companion' });
+      result.push({ file: `StructureDefinition-${row.id}-mappings.html`, title: `${title} Mappings`, kind: 'profile-companion', subject, subjectPage: 'companion' });
     }
-    for (const row of this.context.artifactResources('ValueSet')) result.push({ file: this.context.page(row), title: row.title || row.name || row.id, kind: 'valueset' });
-    for (const row of this.context.artifactResources('CodeSystem')) result.push({ file: this.context.page(row), title: row.title || row.name || row.id, kind: 'codesystem' });
+    for (const row of this.context.artifactResources('ValueSet')) result.push({ file: this.context.page(row), title: row.title || row.name || row.id, kind: 'valueset', subject: resourceSubject(row), subjectPage: 'primary' });
+    for (const row of this.context.artifactResources('CodeSystem')) result.push({ file: this.context.page(row), title: row.title || row.name || row.id, kind: 'codesystem', subject: resourceSubject(row), subjectPage: 'primary' });
     for (const row of this.context.artifactResources().filter((candidate) => this.context.isGenericResourcePage(candidate))) {
-      result.push({ file: this.context.page(row), title: row.title || row.name || row.id, kind: 'generic' });
+      result.push({ file: this.context.page(row), title: row.title || row.name || row.id, kind: 'generic', subject: resourceSubject(row), subjectPage: 'primary' });
     }
-    for (const row of this.context.exampleResources()) result.push({ file: this.context.page(row), title: row.title || row.name || row.id, kind: 'example' });
+    for (const row of this.context.exampleResources()) result.push({ file: this.context.page(row), title: row.title || row.name || row.id, kind: 'example', subject: resourceSubject(row), subjectPage: 'primary' });
     const seen = new Map<string, PageDescriptor>();
     for (const page of result) {
       this.assertSafeOutputPath(page.file);
@@ -567,7 +591,7 @@ export class CycleSiteRenderer {
   /** Complete semantic/authored namespace. The facade merges the immutable
    * renderer package into this catalog before exposing it to a host. */
   outputs(): CycleOutputDescriptor[] {
-    if (this.outputManifest) return this.outputManifest.map((output) => ({ ...output }));
+    if (this.outputManifest) return this.outputManifest.map(cloneOutputDescriptor);
     const pages = this.listPages();
     const pageFiles = new Set(pages.map((page) => page.file));
     const outputs: CycleOutputDescriptor[] = [];
@@ -589,6 +613,7 @@ export class CycleSiteRenderer {
         producer: `${page.kind} page`,
         title: page.title,
         pageKind: page.kind,
+        ...(page.subject ? { subject: { ...page.subject }, subjectPage: page.subjectPage } : {}),
       });
     }
     for (const page of this.site.pages().filter((candidate) => candidate.body)) {
@@ -616,8 +641,8 @@ export class CycleSiteRenderer {
       add({ file: asset.path, mime: asset.mediaType, kind: 'asset', producer: `authored asset ${asset.path}` });
     }
     outputs.sort((left, right) => compareText(left.file, right.file));
-    this.outputManifest = outputs.map((output) => ({ ...output }));
-    return outputs.map((output) => ({ ...output }));
+    this.outputManifest = outputs.map(cloneOutputDescriptor);
+    return outputs.map(cloneOutputDescriptor);
   }
 
   private renderPage(file: string): RenderedPage {

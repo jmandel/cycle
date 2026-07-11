@@ -90,6 +90,7 @@ export interface SemanticPageNode {
   title: string;
   generation: string;
   body?: string | null;
+  source?: string;
   children: SemanticPageNode[];
 }
 
@@ -100,7 +101,7 @@ export interface SemanticMenuNode {
 }
 
 export interface SemanticNavigationPayload {
-  schema: 'cycle.semantic.navigation/v1';
+  schema: 'cycle.semantic.navigation/v2';
   pages: SemanticPageNode[];
   menu: SemanticMenuNode[];
 }
@@ -114,6 +115,7 @@ interface LoadedAsset {
   readonly name: string;
   readonly mime: string;
   readonly bytes: Uint8Array;
+  readonly publicOutput: boolean;
 }
 
 function record(value: unknown, label: string): Record<string, unknown> {
@@ -324,18 +326,26 @@ export function decodeSemanticTerminology(value: unknown): SemanticTerminologyPa
 function pageNode(value: unknown, label: string, names: Set<string>, depth: number): SemanticPageNode {
   if (depth > 256) throw new Error(`${label} exceeds the maximum navigation depth`);
   const object = record(value, label);
-  onlyKeys(object, ['nameUrl', 'title', 'generation', 'body', 'children'], label);
+  onlyKeys(object, ['nameUrl', 'title', 'generation', 'body', 'source', 'children'], label);
   const nameUrl = string(object.nameUrl, `${label}.nameUrl`);
   if (names.has(nameUrl)) throw new Error(`Cycle semantic navigation contains duplicate page ${nameUrl}`);
   names.add(nameUrl);
   if (object.body !== undefined && object.body !== null && typeof object.body !== 'string') {
     throw new Error(`${label}.body must be a string, null, or omitted`);
   }
+  const source = optionalString(object.source, `${label}.source`);
+  if (source && (source.startsWith('/') || source.includes('\\') || source.split('/').some((part) => !part || part === '.' || part === '..'))) {
+    throw new Error(`${label}.source must be a normalized project-relative path`);
+  }
+  if ((object.body === undefined || object.body === null) !== !source) {
+    throw new Error(`${label}.body and source must either both be present or both be absent`);
+  }
   return {
     nameUrl,
     title: string(object.title, `${label}.title`),
     generation: string(object.generation, `${label}.generation`),
     ...(object.body === undefined ? {} : { body: object.body as string | null }),
+    ...(source ? { source } : {}),
     children: array(object.children, `${label}.children`).map((child, index) => (
       pageNode(child, `${label}.children[${index}]`, names, depth + 1)
     )),
@@ -357,12 +367,12 @@ function menuNode(value: unknown, label: string, depth: number): SemanticMenuNod
 export function decodeSemanticNavigation(value: unknown): SemanticNavigationPayload {
   const object = record(value, 'Cycle semantic navigation');
   onlyKeys(object, ['schema', 'pages', 'menu'], 'Cycle semantic navigation');
-  if (object.schema !== 'cycle.semantic.navigation/v1') {
+  if (object.schema !== 'cycle.semantic.navigation/v2') {
     throw new Error(`Unsupported Cycle navigation schema ${String(object.schema)}`);
   }
   const names = new Set<string>();
   return {
-    schema: 'cycle.semantic.navigation/v1',
+    schema: 'cycle.semantic.navigation/v2',
     pages: array(object.pages, 'Cycle semantic navigation.pages').map((item, index) => (
       pageNode(item, `Cycle semantic navigation.pages[${index}]`, names, 0)
     )),
@@ -384,13 +394,19 @@ export function decodeSemanticConfig(value: unknown): SemanticConfigPayload {
   };
 }
 
-function authoredAssetKey(key: ArtifactKey): { path: string } | null {
+const AUTHORED_INCLUDE_NAMESPACE = 'cycle.authored.include/v1';
+
+function authoredAssetKey(key: ArtifactKey): { path: string; publicOutput: boolean } | null {
   if (key.kind !== 'asset') return null;
   const namespace = key.namespace;
   if (!namespace || typeof namespace !== 'object' || Array.isArray(namespace)) return null;
   const object = namespace as Record<string, unknown>;
-  if (Object.keys(object).length !== 1 || object.kind !== 'authored') return null;
-  return typeof key.path === 'string' ? { path: key.path } : null;
+  const publicOutput = Object.keys(object).length === 1 && object.kind === 'authored';
+  const privateInclude = Object.keys(object).length === 2
+    && object.kind === 'other'
+    && object.name === AUTHORED_INCLUDE_NAMESPACE;
+  if (!publicOutput && !privateInclude) return null;
+  return typeof key.path === 'string' ? { path: key.path, publicOutput } : null;
 }
 
 function assertV2Contract(build: ClosedSiteBuild): ArtifactKey[] {
@@ -516,6 +532,7 @@ export class CycleSiteBuild {
   private readonly pageValues: readonly CyclePage[];
   private readonly metadataValue: Readonly<Record<string, string>>;
   private readonly assetsByPath: ReadonlyMap<string, LoadedAsset>;
+  private readonly includesByPath: ReadonlyMap<string, LoadedAsset>;
 
   private constructor(
     private readonly semanticResources: SemanticResourcesPayload,
@@ -534,7 +551,12 @@ export class CycleSiteBuild {
       }
     }
     this.pageValues = Object.freeze(this.flattenPages().map((page) => Object.freeze(page)));
-    this.assetsByPath = new Map(loadedAssets.map((asset) => [asset.name, Object.freeze(asset)]));
+    this.assetsByPath = new Map(loadedAssets
+      .filter((asset) => asset.publicOutput)
+      .map((asset) => [asset.name, Object.freeze(asset)]));
+    this.includesByPath = new Map(loadedAssets
+      .filter((asset) => !asset.publicOutput)
+      .map((asset) => [asset.name, Object.freeze(asset)]));
   }
 
   static async fromClosedBuild(build: ClosedBuildHandle): Promise<CycleSiteBuild> {
@@ -554,6 +576,7 @@ export class CycleSiteBuild {
           name: parsed.path,
           mime: artifact.state.content.mediaType,
           bytes: await build.readArtifact(key),
+          publicOutput: parsed.publicOutput,
         };
       })),
     ]);
@@ -629,7 +652,7 @@ export class CycleSiteBuild {
   }
 
   textAsset(name: string): string | null {
-    const asset = this.assetsByPath.get(name);
+    const asset = this.includesByPath.get(name) ?? this.assetsByPath.get(name);
     return asset && textualMime(asset.mime) ? new TextDecoder().decode(asset.bytes) : null;
   }
 

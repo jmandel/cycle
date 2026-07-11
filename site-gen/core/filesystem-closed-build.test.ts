@@ -30,7 +30,7 @@ const values: Array<{ key: ArtifactKey; value: unknown; mediaType: string }> = [
   },
   {
     key: CYCLE_SEMANTIC_NAVIGATION_ARTIFACT,
-    value: { schema: 'cycle.semantic.navigation/v1', pages: [], menu: [] },
+    value: { schema: 'cycle.semantic.navigation/v2', pages: [], menu: [] },
     mediaType: 'application/json',
   },
   {

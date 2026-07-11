@@ -88,6 +88,42 @@ test('closed renderer output catalog is deterministic, complete, safe, and colli
   expect(first).toContainEqual(expect.objectContaining({ file: 'images/fixture.svg', kind: 'asset' }));
 });
 
+test('resource pages declare exact subjects without guessing from output paths', () => {
+  const outputs = renderer.outputs();
+  expect(outputs).toContainEqual(expect.objectContaining({
+    file: 'StructureDefinition-fixture-profile.html',
+    subject: { resourceType: 'StructureDefinition', id: 'fixture-profile' },
+    subjectPage: 'primary',
+  }));
+  expect(outputs).toContainEqual(expect.objectContaining({
+    file: 'StructureDefinition-fixture-profile-definitions.html',
+    subject: { resourceType: 'StructureDefinition', id: 'fixture-profile' },
+    subjectPage: 'companion',
+  }));
+  expect(outputs).toContainEqual(expect.objectContaining({
+    file: 'ValueSet-fixture-values.html',
+    subject: { resourceType: 'ValueSet', id: 'fixture-values' },
+    subjectPage: 'primary',
+  }));
+  expect(outputs).toContainEqual(expect.objectContaining({
+    file: 'CodeSystem-fixture-codes.html',
+    subject: { resourceType: 'CodeSystem', id: 'fixture-codes' },
+    subjectPage: 'primary',
+  }));
+  expect(outputs).toContainEqual(expect.objectContaining({
+    file: 'Bundle-fixture-example.html',
+    subject: { resourceType: 'Bundle', id: 'fixture-example' },
+    subjectPage: 'primary',
+  }));
+
+  for (const file of ['index.html', 'artifacts.html', 'toc.html', 'validation.html']) {
+    const output = outputs.find((candidate) => candidate.file === file);
+    expect(output).toBeDefined();
+    expect(output).not.toHaveProperty('subject');
+    expect(output).not.toHaveProperty('subjectPage');
+  }
+});
+
 test('direct output rendering returns page, resource, narrative, and asset bytes', () => {
   expect(renderer.render('index.html').content).toContain('<!doctype html>');
   expect(JSON.parse(String(renderer.render('ValueSet-fixture-values.json').content)).resourceType).toBe('ValueSet');

@@ -212,17 +212,19 @@ function payloads(): FixturePayloads {
       }],
     },
     navigation: {
-      schema: 'cycle.semantic.navigation/v1',
+      schema: 'cycle.semantic.navigation/v2',
       pages: [{
         nameUrl: 'index.html',
         title: 'Home',
         generation: 'markdown',
         body: '# Home\n\nFixture.',
+        source: 'input/pagecontent/index.md',
         children: [{
           nameUrl: 'guide.html',
           title: 'Guide',
           generation: 'markdown',
           body: '# Guide',
+          source: 'input/pagecontent/guide.md',
           children: [],
         }],
       }],
@@ -242,6 +244,12 @@ const assetKey: ArtifactKey = {
   kind: 'asset',
   namespace: { kind: 'authored' },
   path: 'images/fixture.svg',
+};
+
+const includeKey: ArtifactKey = {
+  kind: 'asset',
+  namespace: { kind: 'other', name: 'cycle.authored.include/v1' },
+  path: 'shared.md',
 };
 
 function jsonArtifact(key: ArtifactKey, value: unknown): FixtureArtifact {
@@ -325,6 +333,24 @@ test('cycle-site/v2 preloads typed semantic resources, navigation, and assets', 
   expect(site.assetCatalog()).toEqual([{ path: 'images/fixture.svg', mediaType: 'image/svg+xml' }]);
   expect(bytesOf(site.asset('images/fixture.svg')!)).toBe('<svg>fixture</svg>');
   expect(site.ig().contact[0].telecom).toEqual(['https://example.org']);
+});
+
+test('typed authored includes are available to Liquid but are not public outputs', async () => {
+  const handle = await v2Handle(payloads(), [
+    assetKey,
+    includeKey,
+    CYCLE_SEMANTIC_CONFIG_ARTIFACT,
+    CYCLE_SEMANTIC_NAVIGATION_ARTIFACT,
+    CYCLE_SEMANTIC_RESOURCES_ARTIFACT,
+    CYCLE_SEMANTIC_TERMINOLOGY_ARTIFACT,
+  ], [{ key: includeKey, bytes: encoder.encode('private include'), mediaType: 'text/markdown' }]);
+  const site = await CycleSiteBuild.fromClosedBuild(handle);
+  expect(site.textAsset('shared.md')).toBe('private include');
+  expect(site.assetCatalog()).toEqual([{ path: 'images/fixture.svg', mediaType: 'image/svg+xml' }]);
+  expect(site.asset('shared.md')).toBeNull();
+
+  const generator = await openFixtureGenerator(handle);
+  expect(generator.outputs().some((output) => output.file === 'shared.md')).toBe(false);
 });
 
 test('v2-only generator binds its output catalog and direct renderer to one build', async () => {
@@ -430,6 +456,8 @@ test('v2 guide identity selects the primary guide while retaining Implementation
     file: 'ImplementationGuide-example-guide.html',
     title: 'example-guide',
     pageKind: 'generic',
+    subject: { resourceType: 'ImplementationGuide', id: 'example-guide' },
+    subjectPage: 'primary',
   }));
   expect(String(renderer.render('ImplementationGuide-example-guide.html').content)).toContain('example-guide');
   expect(renderer.render('ImplementationGuide-fixture.ig.json')).toEqual({
@@ -455,7 +483,7 @@ test('v2 strict decoders reject schema drift and corrupt semantic references', a
   await expect(openFixtureGenerator(await v2Handle(unknownField))).rejects.toThrow('unexpected field extra');
 
   const wrongSchema = payloads();
-  (wrongSchema.navigation as unknown as Record<string, unknown>).schema = 'cycle.semantic.navigation/v2';
+  (wrongSchema.navigation as unknown as Record<string, unknown>).schema = 'cycle.semantic.navigation/v1';
   await expect(openFixtureGenerator(await v2Handle(wrongSchema))).rejects.toThrow('Unsupported Cycle navigation schema');
 
   const missingGuide = payloads();
