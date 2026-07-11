@@ -23,6 +23,7 @@ import { checkInternalLinks } from './core/link-check';
 import { compareText } from './core/order';
 import {
   CYCLE_RENDERER_IDENTITY,
+  CYCLE_OUTPUT_SCHEMA,
   assertCycleOutputPath,
   rendererOutputDeclaration,
   type CycleOutputDeclaration,
@@ -32,6 +33,52 @@ import { project } from './project';
 
 const OUT = project.outDir;
 const DESIGN = project.designDir;
+
+const RENDERER_RECIPE_INPUTS = [...new Set([
+  'site-gen/build.tsx',
+  'site-gen/client',
+  'site-gen/chrome',
+  'site-gen/core',
+  'site-gen/designs',
+  'site-gen/ds',
+  'site-gen/fhir',
+  'site-gen/project',
+  'package.json',
+  'bun.lock',
+  DESIGN,
+  project.projectCss,
+  project.contentDir,
+  project.imageDir,
+  ...project.liquidAssetDirs,
+])].filter(existsSync);
+
+/** Hash exact renderer code/assets plus the runtime facts that affect output. */
+function rendererRecipeSha256(paths: readonly string[]): string {
+  const entries: Array<{ path: string; byteLength: number; sha256: string }> = [];
+  const visit = (path: string): void => {
+    const metadata = lstatSync(path);
+    if (metadata.isSymbolicLink()) throw new Error(`Renderer recipe may not contain symlinks: ${path}`);
+    if (metadata.isDirectory()) {
+      for (const child of readdirSync(path).sort(compareText)) visit(`${path}/${child}`);
+      return;
+    }
+    if (!metadata.isFile()) throw new Error(`Renderer recipe member is not a regular file: ${path}`);
+    const bytes = readFileSync(path);
+    entries.push({
+      path: path.replace(/\\/g, '/'),
+      byteLength: bytes.byteLength,
+      sha256: createHash('sha256').update(bytes).digest('hex'),
+    });
+  };
+  for (const path of [...paths].sort(compareText)) visit(path);
+  entries.sort((left, right) => compareText(left.path, right.path));
+  const recipe = JSON.stringify({
+    schema: 'cycle-renderer-recipe/v1',
+    runtime: { bun: Bun.version, platform: process.platform, arch: process.arch },
+    entries,
+  });
+  return createHash('sha256').update(recipe).digest('hex');
+}
 
 type NativeInput =
   | { mode: 'portable'; view: SiteBuildView; buildId: string }
@@ -298,9 +345,19 @@ try {
   const inputBuildId = input.mode === 'portable'
     ? input.buildId
     : input.inputBuildId;
+  const recipeSha256 = rendererRecipeSha256(RENDERER_RECIPE_INPUTS);
   const receipt = await publication.sealOutputReceipt({
     inputBuildId,
-    renderer: CYCLE_RENDERER_IDENTITY,
+    renderer: { ...CYCLE_RENDERER_IDENTITY, recipeSha256 },
+    outputSchema: CYCLE_OUTPUT_SCHEMA,
+    options: {
+      bunVersion: Bun.version,
+      clientMinify: 'true',
+      clientTarget: 'browser',
+      nodeEnv: 'production',
+      platform: process.platform,
+      architecture: process.arch,
+    },
     declarations: [...outputDeclarations.values()],
   });
   await publication.publish();
@@ -308,7 +365,7 @@ try {
   console.log(
     `Rendered ${count('narrative')} narrative + artifacts/toc/validation + ${count('profile')} profiles + VS/CS + ${count('generic')} generic resources + ${count('example')} examples → ${publication.destination}/`,
   );
-  console.log(`✓ output receipt ${receipt.outputBuildId} (${receipt.files.length} files) verified`);
+  console.log(`✓ output ${receipt.outputId} (cache ${receipt.cacheKey}; ${receipt.files.length} files) verified`);
   console.log('✓ link check passed; completed site published atomically');
 } catch (error) {
   await publication.abort();

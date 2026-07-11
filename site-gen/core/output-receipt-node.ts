@@ -13,7 +13,7 @@ import {
   type CycleOutputDeclaration,
   type CycleOutputMaterial,
   type CycleOutputReceipt,
-  type CycleProducerIdentity,
+  type CycleRendererImplementation,
 } from './output-receipt';
 
 async function listRegularFiles(root: string): Promise<string[]> {
@@ -95,13 +95,17 @@ async function readDeclaredTree(
 export async function sealCycleOutputTree(options: {
   root: string;
   inputBuildId: string;
-  renderer: CycleProducerIdentity;
+  renderer: CycleRendererImplementation;
+  outputSchema?: string;
+  options?: Readonly<Record<string, string>>;
   declarations: readonly CycleOutputDeclaration[];
 }): Promise<CycleOutputReceipt> {
   const outputs = await readDeclaredTree(options.root, options.declarations, false);
   const receipt = await createCycleOutputReceipt({
     inputBuildId: options.inputBuildId,
     renderer: options.renderer,
+    outputSchema: options.outputSchema,
+    options: options.options,
     outputs,
   });
   await writeFile(join(options.root, CYCLE_OUTPUT_RECEIPT_PATH), serializeCycleOutputReceipt(receipt), {
@@ -129,9 +133,9 @@ export async function verifyCycleOutputTree(options: {
   if (serialized !== serializeCycleOutputReceipt(receipt)) {
     throw new Error(`Cycle output receipt file is not in canonical ${CYCLE_OUTPUT_RECEIPT_SCHEMA} form`);
   }
-  if (options.expected && receipt.outputBuildId !== options.expected.outputBuildId) {
+  if (options.expected && receipt.outputId !== options.expected.outputId) {
     throw new Error(
-      `Cycle output receipt changed after sealing: ${receipt.outputBuildId} != ${options.expected.outputBuildId}`,
+      `SiteOutput changed after sealing: ${receipt.outputId} != ${options.expected.outputId}`,
     );
   }
   const outputs = await readDeclaredTree(options.root, options.declarations, true);

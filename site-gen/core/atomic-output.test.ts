@@ -145,7 +145,7 @@ test('native no-replace rename preserves even an empty destination directory', a
 
 const receiptIdentity = {
   inputBuildId: `sb1-sha256:${'a'.repeat(64)}`,
-  renderer: { id: 'cycle-site', version: '1' },
+  renderer: { id: 'cycle-site', version: '1', recipeSha256: 'b'.repeat(64) },
 } as const;
 
 test('sealed atomic publication emits and verifies a non-recursive output receipt', async () => {
@@ -171,7 +171,7 @@ test('sealed atomic publication emits and verifies a non-recursive output receip
     const written = await validateCycleOutputReceipt(JSON.parse(
       await readFile(join(destination, CYCLE_OUTPUT_RECEIPT_PATH), 'utf8'),
     ));
-    expect(written.outputBuildId).toBe(receipt.outputBuildId);
+    expect(written.outputId).toBe(receipt.outputId);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -189,7 +189,7 @@ test('receipt sealing rejects missing and extra staged outputs', async () => {
         declarations: scenario === 'missing' ? [{
           path: 'missing.txt',
           mediaType: 'text/plain',
-          producer: { id: 'fixture' },
+          producer: { id: 'fixture', version: '1' },
         }] : [],
       })).rejects.toThrow('output tree mismatch');
       await publication.abort();
@@ -212,7 +212,7 @@ test('receipt sealing rejects a symlinked staged output', async () => {
       declarations: [{
         path: 'linked.txt',
         mediaType: 'text/plain',
-        producer: { id: 'fixture' },
+        producer: { id: 'fixture', version: '1' },
       }],
     })).rejects.toThrow('may not contain symlinks');
     await publication.abort();
@@ -232,11 +232,11 @@ test('publication re-verifies sealed bytes and rejects post-receipt corruption',
       declarations: [{
         path: 'index.html',
         mediaType: 'text/html',
-        producer: { id: 'fixture' },
+        producer: { id: 'fixture', version: '1' },
       }],
     });
     await writeFile(publication.outputPath('index.html'), 'corrupt');
-    await expect(publication.publish()).rejects.toThrow("does not match its receipt");
+    await expect(publication.publish()).rejects.toThrow('SiteOutput mismatch');
     await publication.abort();
     await expect(readFile(join(cwd, 'site-gen/out/index.html'), 'utf8')).rejects.toThrow();
   } finally {

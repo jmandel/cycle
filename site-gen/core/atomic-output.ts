@@ -6,7 +6,7 @@ import { sealCycleOutputTree, verifyCycleOutputTree } from './output-receipt-nod
 import type {
   CycleOutputDeclaration,
   CycleOutputReceipt,
-  CycleProducerIdentity,
+  CycleRendererImplementation,
 } from './output-receipt';
 import { renameDirectoryNoReplace } from './no-replace-rename';
 
@@ -197,7 +197,9 @@ export class AtomicOutputPublication {
    */
   async sealOutputReceipt(options: {
     inputBuildId: string;
-    renderer: CycleProducerIdentity;
+    renderer: CycleRendererImplementation;
+    outputSchema?: string;
+    options?: Readonly<Record<string, string>>;
     declarations: readonly CycleOutputDeclaration[];
   }): Promise<CycleOutputReceipt> {
     if (this.closed) throw new Error('Atomic output publication is already closed');
@@ -210,6 +212,8 @@ export class AtomicOutputPublication {
       root: this.stagingDirectory,
       inputBuildId: options.inputBuildId,
       renderer: options.renderer,
+      outputSchema: options.outputSchema,
+      options: options.options,
       declarations,
     });
     this.sealedDeclarations = declarations;

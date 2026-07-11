@@ -18,7 +18,7 @@ import { compareUtf8 } from '../site-gen/core/order';
 export function declarationFromReceiptFile(file: CycleOutputReceiptFile): CycleOutputDeclaration {
   return {
     path: file.path,
-    mediaType: file.mediaType,
+    mediaType: file.content.mediaType,
     producer: { ...file.producer },
     ...(file.source === undefined ? {} : { source: file.source }),
     ...(file.owner === undefined ? {} : { owner: file.owner }),
@@ -82,8 +82,8 @@ export async function receiptFileMatches(
   try {
     await requireRegularFile(path, 'Inherited Cycle output');
     const bytes = await readFile(path);
-    return bytes.byteLength === expected.byteLength
-      && createHash('sha256').update(bytes).digest('hex') === expected.sha256;
+    return bytes.byteLength === expected.content.byteLength
+      && createHash('sha256').update(bytes).digest('hex') === expected.content.sha256;
   } catch {
     return false;
   }

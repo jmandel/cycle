@@ -43,7 +43,7 @@ async function fixture() {
   const receipt = await sealCycleOutputTree({
     root: inner,
     inputBuildId,
-    renderer: { id: 'cycle-site', version: '1' },
+    renderer: { id: 'cycle-site', version: '1', recipeSha256: '4'.repeat(64) },
     declarations,
   });
   return { root, inner, outer, receipt };
@@ -68,7 +68,7 @@ test('copy rejects a corrupt inherited tree before exposing its files to outer s
   const value = await fixture();
   try {
     await writeFile(join(value.inner, 'index.html'), 'corrupt');
-    await expect(copyVerifiedOutput(value.inner, value.outer)).rejects.toThrow("does not match its receipt");
+    await expect(copyVerifiedOutput(value.inner, value.outer)).rejects.toThrow('SiteOutput mismatch');
     expect(await listRegularOutputFiles(value.outer)).toEqual([]);
   } finally {
     await rm(value.root, { recursive: true, force: true });
@@ -112,7 +112,7 @@ test('one outer seal covers inherited renderer files and project extras', async 
     await sealCycleOutputTree({
       root: inner,
       inputBuildId,
-      renderer: { id: 'cycle-site', version: '1' },
+      renderer: { id: 'cycle-site', version: '1', recipeSha256: '4'.repeat(64) },
       declarations: [declarations[0]],
     });
     const inherited = await copyVerifiedOutput(inner, publication.stagingDirectory);

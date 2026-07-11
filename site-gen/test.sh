@@ -20,7 +20,7 @@ bun test site-gen/core/semantic-site-build.test.ts site-gen/core/renderer.test.t
 # fixture. The build accepts exactly one input transport.
 if [ -n "${SITE_BUILD_DIR:-}" ]; then unset SITE_DB; fi
 BUILD=$(bun site-gen/build.tsx 2>&1) || { echo "$BUILD"; echo "BUILD FAILED"; exit 1; }
-echo "$BUILD" | grep -E "Rendered|bundle|receipt|link check"
+echo "$BUILD" | grep -E "Rendered|bundle|output|link check"
 
 O="$PWD/site-gen/out"
 SHOTS="site-gen/.shots"; mkdir -p "$SHOTS"
@@ -52,7 +52,7 @@ assert "index.html present"            "[ -f '$O/index.html' ]"
 assert "llms.txt present"              "[ -f '$O/llms.txt' ]"
 assert "per-page .md published"        "[ -f '$O/specification.md' ]"
 assert "machine JSON published"        "ls '$O'/StructureDefinition-*.json >/dev/null 2>&1"
-assert "verified output receipt published" "[ -f '$O/cycle-output-receipt.json' ] && grep -q '\"schemaVersion\":\"cycle-output-receipt/v1\"' '$O/cycle-output-receipt.json'"
+assert "verified SiteOutput published" "[ -f '$O/site-output.json' ] && grep -q '\"schemaVersion\":\"site-output/v1\"' '$O/site-output.json'"
 assert "project.css linked"            "grep -q 'assets/project.css' '$O/index.html'"
 assert "no /en/ shell (root site)"     "[ ! -d '$O/en' ]"
 assert "design from designs/ (cycle css)" "[ -f '$O/assets/cycle/base.css' ]"

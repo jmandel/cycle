@@ -32,7 +32,7 @@ authored IG + exact package cache
     -> shared CycleSiteRenderer + shared Cycle content policy
     -> verified inner renderer output
     -> project viewers/SHL/skill/QA + final link check
-    -> complete cycle-output-receipt.json
+    -> complete site-output.json (`sok1` derivation key + `so1` byte identity)
     -> one atomic site-gen/out publication
 ```
 

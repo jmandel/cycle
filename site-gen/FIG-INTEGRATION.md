@@ -135,28 +135,29 @@ tree, rejects symlinks/non-files and missing or undeclared paths, and writes:
 
 ```json
 {
-  "schemaVersion": "cycle-output-receipt/v1",
+  "schemaVersion": "site-output/v1",
   "inputBuildId": "sb1-sha256:...",
-  "renderer": { "id": "cycle-site", "version": "1" },
+  "renderer": { "id": "cycle-site", "version": "1", "recipeSha256": "..." },
+  "outputSchema": "cycle-static-site/v1",
+  "options": { "bunVersion": "...", "clientMinify": "true" },
+  "cacheKey": "sok1-sha256:...",
   "files": [
     {
       "path": "index.html",
-      "mediaType": "text/html",
-      "sha256": "...",
-      "byteLength": 123,
+      "content": { "mediaType": "text/html", "sha256": "...", "byteLength": 123 },
       "producer": { "id": "cycle-site", "version": "1" },
       "source": "narrative page"
     }
   ],
-  "outputBuildId": "cob1-sha256:..."
+  "outputId": "so1-sha256:..."
 }
 ```
 
 Files are uniquely keyed and sorted using Rust-compatible UTF-8 byte order.
-`outputBuildId` is SHA-256 over canonical UTF-8 JSON containing the schema,
-input build id, renderer identity, and every file record; it deliberately omits
-only `outputBuildId` itself. The serialized receipt is also deterministic. The
-reserved `cycle-output-receipt.json` path is not a member of `files`, avoiding
+`cacheKey` is known before rendering and binds the exact input, renderer recipe,
+output schema, and options. `outputId` additionally binds every file record and
+deliberately omits only itself. The serialized receipt is deterministic. The
+reserved `site-output.json` path is not a member of `files`, avoiding
 self-hash recursion. Atomic publication re-reads the receipt and all file bytes
 immediately before the final rename, so late corruption also fails closed.
 
@@ -169,7 +170,7 @@ That binding is intentional: v1 and the typed v2 SiteBuild can render
 byte-identical generator files but still have different receipt identities
 because their exact semantic inputs have different build ids. Renderer parity
 tests should compare the declared output files (or their per-file hashes), not
-the receipt file or unnormalized `outputBuildId`.
+the manifest file or unnormalized `outputId`.
 
 `core/output-receipt.ts` is a browser-safe Web Crypto module.
 `createCycleRendererOutputReceipt()` consumes the same `listOutputs()` and

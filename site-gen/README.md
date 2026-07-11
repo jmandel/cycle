@@ -24,7 +24,7 @@ authored IG + exact package cache
    → SemanticSiteBuildView (four typed data roots + raw asset roots)
    → CycleSiteRenderer   (pure page manifest + SSR + auxiliary outputs)
    → site-gen/build.tsx  (writes outputs/assets, bundles client, checks links)
-   → cycle-output-receipt.json + atomic publication
+   → site-output.json + atomic publication
 ```
 
 Produce a new bundle (the output directory must not already exist), then render
@@ -66,8 +66,10 @@ same-filesystem operations, but never a partially written tree. The flag in the 
 `CycleSiteRenderer.listOutputs()` is enforced as the complete generator-owned
 namespace before publication; the native host also rejects collisions with
 design files, project CSS, or the client bundle. After link checking, the host
-hashes every declared renderer and host output and writes
-`cycle-output-receipt.json`. It then re-reads the receipt and every staged file
+hashes every declared renderer and host output and writes `site-output.json`.
+Its `sok1-sha256:` cache key binds the exact input build, renderer recipe digest,
+output schema, runtime/toolchain options; its `so1-sha256:` output id additionally
+binds every declared path and content reference. The host then re-reads the manifest and every staged file
 immediately before publication; a missing, extra, changed, non-regular, or
 symlinked output fails closed. The receipt itself is the sole excluded path so
 that its identity is not recursively self-referential.

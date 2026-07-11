@@ -11,6 +11,7 @@
  * Pages deploys site-gen/out (the root static site, not the Publisher /en/ shell).
  */
 import { constants } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { copyFile, lstat, mkdir, readdir, rm, writeFile, readFile } from 'node:fs/promises';
 import { dirname, join, posix, relative } from 'node:path';
 import { viewerBuildEnv, viewerOutput, viewerVariants } from './viewer-variants.ts';
@@ -245,7 +246,7 @@ try {
   for (const declaration of base.declarations) declareOutput(declaration);
   await rm(BASE_OUT, { recursive: true, force: true });
   await assertInheritedFilesUnchanged(WORK, base.receipt);
-  console.log(`✓ inherited verified renderer receipt ${base.receipt.outputBuildId}`);
+  console.log(`✓ inherited verified renderer output ${base.receipt.outputId}`);
 
   // 8–11. Add every IG-specific artifact inside the same private outer tree.
   for (const variant of viewerVariants) {
@@ -335,7 +336,7 @@ try {
     await copyExtra(join(root, 'output', name), {
       path: name,
       mediaType: mediaTypeForOutput(name),
-      producer: { id: 'hl7-fhir-publisher' },
+      producer: { id: 'hl7-fhir-publisher', version: 'current-input' },
       source: `output/${name}`,
     });
   }
@@ -358,12 +359,33 @@ try {
 
   const receipt = await publication.sealOutputReceipt({
     inputBuildId: base.receipt.inputBuildId,
-    renderer: base.receipt.renderer,
+    renderer: {
+      id: 'cycle-project-publication',
+      version: '1',
+      // This project wrapper has external QA/viewer inputs beyond SiteBuild.
+      // Conservatively bind its exact completed composition into the recipe so
+      // it can never collide with a stale reusable base-renderer entry.
+      recipeSha256: createHash('sha256').update(JSON.stringify({
+        schema: 'cycle-project-publication-recipe/v1',
+        baseRecipe: base.receipt.renderer.recipeSha256,
+        wrapper: createHash('sha256').update(await readFile(import.meta.path)).digest('hex'),
+        files: await Promise.all(allFiles.map(async (path) => {
+          const bytes = await readFile(publication.outputPath(path));
+          return {
+            path,
+            byteLength: bytes.byteLength,
+            sha256: createHash('sha256').update(bytes).digest('hex'),
+          };
+        })),
+      })).digest('hex'),
+    },
+    outputSchema: 'cycle-project-publication/v1',
+    options: { baseOutputId: base.receipt.outputId },
     declarations: [...outputDeclarations.values()],
   });
   await publication.publish();
   console.log(`\n✓ site build complete: ${relative(root, OUT)}/ (${files.length} pages, links OK; Publisher QA at qa.html)`);
-  console.log(`✓ complete output receipt ${receipt.outputBuildId} (${receipt.files.length} files) verified`);
+  console.log(`✓ complete output ${receipt.outputId} (${receipt.files.length} files) verified`);
 } catch (error) {
   await publication.abort();
   throw error;
