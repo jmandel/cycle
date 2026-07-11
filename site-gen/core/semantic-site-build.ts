@@ -1,11 +1,10 @@
 /**
  * cycle-site/v2: strict decoding of the split semantic SiteBuild handoff.
  *
- * The wire contains no SQLite rows. Four typed JSON roots carry resources,
+ * Four typed JSON roots carry resources,
  * terminology, navigation, and parsed configuration; authored assets remain raw
- * content-addressed ArtifactKey::Asset values. This adapter preloads that closed
- * set once and synthesizes the historical synchronous SiteBuildView shape only
- * in memory, allowing the renderer to migrate independently from the transport.
+ * content-addressed ArtifactKey::Asset values. This module validates and
+ * preloads that closed set directly into the renderer's typed input.
  */
 import { artifactKeyId, ClosedBuildHandle } from './closed-build';
 import type { ArtifactKey, ClosedSiteBuild } from './closed-build';
@@ -17,13 +16,6 @@ import {
   CYCLE_SEMANTIC_NAVIGATION_ARTIFACT,
   CYCLE_SEMANTIC_RESOURCES_ARTIFACT,
   CYCLE_SEMANTIC_TERMINOLOGY_ARTIFACT,
-} from './site-build';
-import type {
-  MenuRow,
-  PageRow,
-  ResourceRow,
-  SiteAsset,
-  SiteBuildView,
 } from './site-build';
 
 export interface SemanticResourceKey {
@@ -119,9 +111,9 @@ export interface SemanticConfigPayload {
 }
 
 interface LoadedAsset {
-  name: string;
-  mime: string;
-  bytes: Uint8Array;
+  readonly name: string;
+  readonly mime: string;
+  readonly bytes: Uint8Array;
 }
 
 function record(value: unknown, label: string): Record<string, unknown> {
@@ -459,6 +451,12 @@ function cloned<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
+function deepFreeze<T>(value: T): T {
+  if (!value || typeof value !== 'object' || Object.isFrozen(value)) return value;
+  for (const child of Object.values(value as Record<string, unknown>)) deepFreeze(child);
+  return Object.freeze(value);
+}
+
 function textualMime(mime: string): boolean {
   const value = mime.toLowerCase();
   return value.startsWith('text/')
@@ -467,41 +465,79 @@ function textualMime(mime: string): boolean {
     || value === 'application/xhtml+xml';
 }
 
-/** Preloaded cycle-site/v2 implementation of the existing synchronous view. */
-export class SemanticSiteBuildView implements SiteBuildView {
-  private readonly resourceRows: ResourceRow[];
-  private readonly resourceEntries = new Map<number, SemanticResourceEntry>();
-  private readonly conceptRows = new Map<number, ReturnType<SemanticSiteBuildView['concepts']>>();
-  private readonly pageRows: PageRow[];
-  private readonly menuRows: MenuRow[];
-  private readonly metadataValue: Record<string, string>;
+export interface CycleResource {
+  key: SemanticResourceKey;
+  resource: Record<string, any>;
+  type: string;
+  id: string;
+  page: string;
+  url: string | null;
+  version: string | null;
+  status: string | null;
+  name: string | null;
+  title: string | null;
+  description: string | null;
+  derivation: string | null;
+  standardStatus: string | null;
+  kind: string | null;
+  sdType: string | null;
+  base: string | null;
+  content: string | null;
+  supplements: string | null;
+}
+
+export interface CyclePage {
+  slug: string;
+  nameUrl: string;
+  title: string;
+  generation: string;
+  body: string | null;
+}
+
+export interface CycleAssetDescriptor {
+  path: string;
+  mediaType: string;
+}
+
+export interface CycleAsset extends CycleAssetDescriptor {
+  bytes: Uint8Array;
+}
+
+export interface CycleConcept {
+  code: string;
+  display?: string;
+  definition?: string;
+  children: CycleConcept[];
+}
+
+/** Fully decoded, immutable cycle-site/v2 renderer input. */
+export class CycleSiteBuild {
+  private readonly resourceValues: readonly CycleResource[];
+  private readonly pageValues: readonly CyclePage[];
+  private readonly metadataValue: Readonly<Record<string, string>>;
+  private readonly assetsByPath: ReadonlyMap<string, LoadedAsset>;
 
   private constructor(
     private readonly semanticResources: SemanticResourcesPayload,
     private readonly semanticTerminology: SemanticTerminologyPayload,
     private readonly semanticNavigation: SemanticNavigationPayload,
     private readonly semanticConfig: SemanticConfigPayload,
-    private readonly loadedAssets: LoadedAsset[],
+    loadedAssets: LoadedAsset[],
   ) {
-    this.metadataValue = this.buildMetadata();
-    this.resourceRows = semanticResources.resources.map((entry, index) => {
-      const row = this.resourceRow(entry, index + 1);
-      this.resourceEntries.set(row.Key, entry);
-      return row;
-    });
+    this.metadataValue = Object.freeze(this.buildMetadata());
+    this.resourceValues = Object.freeze(semanticResources.resources.map((entry) => deepFreeze(this.resource(entry))));
     const references = new Set<string>();
-    for (const row of this.resourceRows) {
-      const reference = `${row.Type}/${row.Id}`;
+    for (const resource of this.resourceValues) {
+      const reference = `${resource.type}/${resource.id}`;
       if (!references.add(reference)) {
-        throw new Error(`Cycle semantic compatibility projection creates duplicate resource ${reference}`);
+        throw new Error(`Cycle semantic SiteBuild contains duplicate resource ${reference}`);
       }
     }
-    this.buildConceptRows();
-    this.pageRows = this.flattenPages();
-    this.menuRows = this.flattenMenu();
+    this.pageValues = Object.freeze(this.flattenPages().map((page) => Object.freeze(page)));
+    this.assetsByPath = new Map(loadedAssets.map((asset) => [asset.name, Object.freeze(asset)]));
   }
 
-  static async fromClosedBuild(build: ClosedBuildHandle): Promise<SemanticSiteBuildView> {
+  static async fromClosedBuild(build: ClosedBuildHandle): Promise<CycleSiteBuild> {
     const assetKeys = assertV2Contract(build.manifest);
     const [resourcesValue, terminologyValue, navigationValue, configValue, loadedAssets] = await Promise.all([
       readJson(build, CYCLE_SEMANTIC_RESOURCES_ARTIFACT, 'Cycle semantic resources'),
@@ -522,10 +558,10 @@ export class SemanticSiteBuildView implements SiteBuildView {
       })),
     ]);
 
-    const resources = decodeSemanticResources(resourcesValue);
-    const terminology = decodeSemanticTerminology(terminologyValue);
-    const navigation = decodeSemanticNavigation(navigationValue);
-    const config = decodeSemanticConfig(configValue);
+    const resources = deepFreeze(decodeSemanticResources(resourcesValue));
+    const terminology = deepFreeze(decodeSemanticTerminology(terminologyValue));
+    const navigation = deepFreeze(decodeSemanticNavigation(navigationValue));
+    const config = deepFreeze(decodeSemanticConfig(configValue));
     const resourceIds = new Map(resources.resources.map((entry) => [resourceKeyId(entry.key), entry]));
     for (const expansion of terminology.expansions) {
       const resource = resourceIds.get(resourceKeyId(expansion.valueSet));
@@ -537,27 +573,21 @@ export class SemanticSiteBuildView implements SiteBuildView {
     }
 
     loadedAssets.sort((left, right) => compareText(left.name, right.name));
-    return new SemanticSiteBuildView(resources, terminology, navigation, config, loadedAssets);
+    return new CycleSiteBuild(resources, terminology, navigation, config, loadedAssets);
   }
 
   metadata(): Record<string, string> {
     return { ...this.metadataValue };
   }
 
-  resources(type?: string): ResourceRow[] {
-    const rows = type
-      ? this.resourceRows.filter((row) => row.Type === type).map((row) => ({ ...row }))
-      : this.resourceRows.map((row) => ({ ...row }));
-    rows.sort((left, right) => type
-      ? compareText(left.Id, right.Id)
-      : compareText(left.Type, right.Type) || compareText(left.Id, right.Id));
-    return rows;
-  }
-
-  parse(row: ResourceRow): any {
-    const entry = this.resourceEntries.get(row.Key);
-    if (!entry) throw new Error(`Unknown semantic resource row key ${row.Key}`);
-    return cloned(entry.resource);
+  resources(type?: string): CycleResource[] {
+    const resources = type
+      ? this.resourceValues.filter((resource) => resource.type === type)
+      : this.resourceValues.slice();
+    resources.sort((left, right) => type
+      ? compareText(left.id, right.id)
+      : compareText(left.type, right.type) || compareText(left.id, right.id));
+    return resources;
   }
 
   valueSetCodes(url: string): { system: string; code: string; display?: string }[] {
@@ -572,22 +602,26 @@ export class SemanticSiteBuildView implements SiteBuildView {
       }));
   }
 
-  concepts(resourceKey: number): {
-    Key: number;
-    ParentKey: number | null;
-    Code: string;
-    Display?: string;
-    Definition?: string;
-  }[] {
-    return (this.conceptRows.get(resourceKey) || []).map((row) => ({ ...row }));
+  concepts(resource: CycleResource): CycleConcept[] {
+    const decode = (values: unknown): CycleConcept[] => !Array.isArray(values) ? [] : values.flatMap((value) => {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) return [];
+      const concept = value as Record<string, unknown>;
+      return [{
+        code: scalarString(concept.code) || '',
+        ...(scalarString(concept.display) ? { display: scalarString(concept.display) } : {}),
+        ...(scalarString(concept.definition) ? { definition: scalarString(concept.definition) } : {}),
+        children: decode(concept.concept),
+      }];
+    });
+    return decode(resource.resource.concept);
   }
 
-  pages(): PageRow[] {
-    return this.pageRows.map((row) => ({ ...row }));
+  pages(): CyclePage[] {
+    return this.pageValues.map((page) => ({ ...page }));
   }
 
-  menu(): MenuRow[] {
-    return this.menuRows.map((row) => ({ ...row }));
+  menu(): SemanticMenuNode[] {
+    return cloned(this.semanticNavigation.menu);
   }
 
   siteConfig(name: string): any {
@@ -595,16 +629,20 @@ export class SemanticSiteBuildView implements SiteBuildView {
   }
 
   textAsset(name: string): string | null {
-    const asset = this.loadedAssets.find((candidate) => candidate.name === name);
+    const asset = this.assetsByPath.get(name);
     return asset && textualMime(asset.mime) ? new TextDecoder().decode(asset.bytes) : null;
   }
 
-  assets(): SiteAsset[] {
-    return this.loadedAssets.map((asset) => ({
-      Name: asset.name,
-      Mime: asset.mime,
-      Content: asset.bytes.slice(),
+  assetCatalog(): CycleAssetDescriptor[] {
+    return [...this.assetsByPath.values()].map((asset) => ({
+      path: asset.name,
+      mediaType: asset.mime,
     }));
+  }
+
+  asset(path: string): CycleAsset | null {
+    const asset = this.assetsByPath.get(path);
+    return asset ? { path: asset.name, mediaType: asset.mime, bytes: asset.bytes.slice() } : null;
   }
 
   ig(): any {
@@ -643,7 +681,7 @@ export class SemanticSiteBuildView implements SiteBuildView {
     };
   }
 
-  private resourceRow(entry: SemanticResourceEntry, key: number): ResourceRow {
+  private resource(entry: SemanticResourceEntry): CycleResource {
     const resource = entry.resource;
     const type = entry.key.resourceType;
     const primaryGuide = resourceKeyId(entry.key)
@@ -661,25 +699,19 @@ export class SemanticSiteBuildView implements SiteBuildView {
       ? `${this.semanticResources.guide.canonical.replace(/\/$/, '')}/ImplementationGuide/${id}`
       : hasCanonical ? String(resource.url) : null;
     return {
-      Key: key,
-      Type: type,
-      Custom: 0,
-      Id: id,
-      Web: primaryGuide ? 'index.html' : `${type}-${id}.html`,
-      Url: url,
-      Version: hasCanonical ? scalarString(resource.version) ?? null : null,
-      Status: scalarString(resource.status) ?? null,
-      Date: hasCanonical ? scalarString(resource.date) ?? null : null,
-      Name: hasCanonical ? scalarString(resource.name) ?? null : displayName,
-      Title: scalarString(resource.title) ?? null,
-      Experimental: typeof resource.experimental === 'boolean' ? String(resource.experimental) : null,
-      Realm: null,
-      Description: hasCanonical
+      key: entry.key,
+      resource,
+      type,
+      id,
+      page: primaryGuide ? 'index.html' : `${type}-${id}.html`,
+      url,
+      version: hasCanonical ? scalarString(resource.version) ?? null : null,
+      status: scalarString(resource.status) ?? null,
+      name: hasCanonical ? scalarString(resource.name) ?? null : displayName,
+      title: scalarString(resource.title) ?? null,
+      description: hasCanonical
         ? scalarString(resource.description) ?? null
         : entry.publication?.description || scalarString(resource.description) || null,
-      Purpose: scalarString(resource.purpose) ?? null,
-      Copyright: scalarString(resource.copyright) ?? null,
-      CopyrightLabel: scalarString(resource.copyrightLabel) ?? null,
       derivation: scalarString(resource.derivation) ?? null,
       standardStatus: entry.publication?.standardStatus ?? null,
       kind: type === 'StructureDefinition' ? scalarString(resource.kind) ?? null : null,
@@ -689,88 +721,27 @@ export class SemanticSiteBuildView implements SiteBuildView {
         : null,
       content: scalarString(resource.content) ?? null,
       supplements: scalarString(resource.supplements) ?? null,
-      Json: JSON.stringify(resource),
     };
   }
 
-  private buildConceptRows(): void {
-    let nextKey = 1;
-    for (const row of this.resourceRows) {
-      if (row.Type !== 'CodeSystem') continue;
-      const resource = this.resourceEntries.get(row.Key)!.resource;
-      const output: ReturnType<SemanticSiteBuildView['concepts']> = [];
-      const walk = (values: unknown, parentKey: number | null): void => {
-        if (!Array.isArray(values)) return;
-        for (const value of values) {
-          if (!value || typeof value !== 'object' || Array.isArray(value)) continue;
-          const concept = value as Record<string, unknown>;
-          const key = nextKey++;
-          output.push({
-            Key: key,
-            ParentKey: parentKey,
-            Code: scalarString(concept.code) || '',
-            ...(scalarString(concept.display) ? { Display: scalarString(concept.display) } : {}),
-            ...(scalarString(concept.definition) ? { Definition: scalarString(concept.definition) } : {}),
-          });
-          walk(concept.concept, key);
-        }
-      };
-      walk(resource.concept, null);
-      this.conceptRows.set(row.Key, output);
-    }
-  }
-
-  private flattenPages(): PageRow[] {
-    const rows: PageRow[] = [];
-    let order = 0;
-    const walk = (nodes: readonly SemanticPageNode[], depth: number): void => {
+  private flattenPages(): CyclePage[] {
+    const pages: CyclePage[] = [];
+    const walk = (nodes: readonly SemanticPageNode[]): void => {
       for (const node of nodes) {
         const slug = node.nameUrl.replace(/\.html$/, '');
         if (slug && slug !== 'toc') {
-          rows.push({
-            Slug: slug,
-            NameUrl: node.nameUrl,
-            Title: node.title,
-            Generation: node.generation,
-            Ord: order++,
-            Depth: depth,
-            Body: node.body ?? null,
+          pages.push({
+            slug,
+            nameUrl: node.nameUrl,
+            title: node.title,
+            generation: node.generation,
+            body: node.body ?? null,
           });
         }
-        walk(node.children, depth + 1);
+        walk(node.children);
       }
     };
-    walk(this.semanticNavigation.pages, 0);
-    return rows;
-  }
-
-  private flattenMenu(): MenuRow[] {
-    const rows: MenuRow[] = [];
-    let nextId = 0;
-    let order = 0;
-    const walk = (
-      nodes: readonly SemanticMenuNode[],
-      parentId: number | null,
-      depth: number,
-      parents: readonly string[],
-    ): void => {
-      for (const node of nodes) {
-        const id = ++nextId;
-        const path = [...parents, node.label];
-        rows.push({
-          Id: id,
-          ParentId: parentId,
-          Ord: order++,
-          Depth: depth,
-          Path: path.join('/'),
-          Label: node.label,
-          Href: node.href || null,
-          Kind: node.href ? 'link' : 'group',
-        });
-        walk(node.items, id, depth + 1, path);
-      }
-    };
-    walk(this.semanticNavigation.menu, null, 0, []);
-    return rows;
+    walk(this.semanticNavigation.pages);
+    return pages;
   }
 }

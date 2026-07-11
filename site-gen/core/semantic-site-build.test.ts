@@ -8,11 +8,11 @@ import {
   type ClosedSiteBuild,
   type ContentRef,
 } from './closed-build';
-import { JsonSiteBuildView, type SiteDbRows } from './json-site-build';
-import { openCycleSiteBuild, openCycleSiteBuildPayload } from './open-site-build';
+import { openCycleGenerator } from './open-site-build';
+import { fixtureRendererPackage } from './renderer-package.test-support';
 import { CycleSiteRenderer } from './renderer';
 import {
-  SemanticSiteBuildView,
+  CycleSiteBuild,
   type SemanticConfigPayload,
   type SemanticNavigationPayload,
   type SemanticResourcesPayload,
@@ -23,10 +23,13 @@ import {
   CYCLE_SEMANTIC_NAVIGATION_ARTIFACT,
   CYCLE_SEMANTIC_RESOURCES_ARTIFACT,
   CYCLE_SEMANTIC_TERMINOLOGY_ARTIFACT,
-  CYCLE_SITE_DB_ARTIFACT,
 } from './site-build';
 
 const encoder = new TextEncoder();
+
+async function openFixtureGenerator(build: ClosedBuildHandle) {
+  return openCycleGenerator(build, await fixtureRendererPackage());
+}
 
 interface FixturePayloads {
   resources: SemanticResourcesPayload;
@@ -273,96 +276,14 @@ async function v2Handle(
   ]);
 }
 
-function legacyRows(): SiteDbRows {
-  const values = payloads();
-  const metadata = {
-    path: 'http://hl7.org/fhir/R4/', canonical: 'https://example.org/ig', igId: 'fixture.ig',
-    igName: 'FixtureIG', packageId: 'fixture.ig', igVer: '1.0.0', errorCount: '0',
-    version: '4.0.1', releaseLabel: 'ci-build', revision: 'abc123',
-    versionFull: '4.0.1-abc123', toolingVersion: 'site-gen.publisher', toolingRevision: '0',
-    toolingVersionFull: 'site-gen.publisher experiment', genDate: '2023-11-14T22:13:20Z',
-    genDay: '20231114', gitstatus: 'main',
-  };
-  const semanticRows = values.resources.resources.map((entry, index) => {
-    const resource = entry.resource as Record<string, any>;
-    const canonical = typeof resource.url === 'string' && resource.url.length > 0;
-    const type = entry.key.resourceType;
-    const id = type === 'ImplementationGuide' ? 'fixture.ig' : entry.key.id;
-    return {
-      Key: index + 1, Type: type, Custom: 0, Id: id,
-      Web: type === 'ImplementationGuide' ? 'index.html' : `${type}-${id}.html`,
-      Url: type === 'ImplementationGuide'
-        ? 'https://example.org/ig/ImplementationGuide/fixture.ig'
-        : resource.url ?? null,
-      Version: canonical ? resource.version ?? null : null,
-      Status: resource.status ?? null,
-      Date: canonical ? resource.date ?? null : null,
-      Name: canonical ? resource.name ?? null : entry.publication?.displayName ?? resource.name ?? resource.title ?? entry.key.id,
-      Title: resource.title ?? null,
-      Experimental: typeof resource.experimental === 'boolean' ? String(resource.experimental) : null,
-      Realm: null,
-      Description: canonical ? resource.description ?? null : entry.publication?.description ?? resource.description ?? null,
-      Purpose: resource.purpose ?? null,
-      Copyright: resource.copyright ?? null,
-      CopyrightLabel: resource.copyrightLabel ?? null,
-      derivation: resource.derivation ?? null,
-      standardStatus: entry.publication?.standardStatus ?? null,
-      kind: type === 'StructureDefinition' ? resource.kind ?? null : null,
-      sdType: type === 'StructureDefinition' ? resource.type ?? null : null,
-      base: type === 'StructureDefinition' ? entry.publication?.baseDefinition ?? resource.baseDefinition ?? null : null,
-      content: resource.content ?? null,
-      supplements: resource.supplements ?? null,
-      Json: JSON.stringify(resource),
-    };
-  });
-  return {
-    metadata: Object.entries(metadata).map(([Name, Value], index) => ({ Key: index + 1, Name, Value })),
-    resources: semanticRows,
-    concepts: [
-      { Key: 1, ResourceKey: 2, ParentKey: null, Code: 'parent', Display: 'Parent', Definition: 'Parent concept' },
-      { Key: 2, ResourceKey: 2, ParentKey: 1, Code: 'child', Display: 'Child', Definition: 'Child concept' },
-    ],
-    valueSetCodes: [
-      { Key: 1, ResourceKey: 4, ValueSetUri: 'https://example.org/ig/ValueSet/fixture-values', ValueSetVersion: '1.0.0', System: 'https://example.org/ig/CodeSystem/fixture-codes', Code: 'child', Display: 'Child' },
-      { Key: 2, ResourceKey: 4, ValueSetUri: 'https://example.org/ig/ValueSet/fixture-values', ValueSetVersion: '1.0.0', System: 'https://example.org/ig/CodeSystem/fixture-codes', Code: 'parent', Display: 'Parent' },
-    ],
-    pages: [
-      { Slug: 'index', NameUrl: 'index.html', Title: 'Home', Generation: 'markdown', Ord: 0, Depth: 0, Body: '# Home\n\nFixture.' },
-      { Slug: 'guide', NameUrl: 'guide.html', Title: 'Guide', Generation: 'markdown', Ord: 1, Depth: 1, Body: '# Guide' },
-    ],
-    menu: [
-      { Id: 1, ParentId: null, Ord: 0, Depth: 0, Path: 'Home', Label: 'Home', Href: 'index.html', Kind: 'link' },
-      { Id: 2, ParentId: null, Ord: 1, Depth: 0, Path: 'Documentation', Label: 'Documentation', Href: null, Kind: 'group' },
-      { Id: 3, ParentId: 2, Ord: 2, Depth: 1, Path: 'Documentation/Guide', Label: 'Guide', Href: 'guide.html', Kind: 'link' },
-    ],
-    siteConfig: [{ Name: 'sushi-config', Json: JSON.stringify(values.config.sushiConfig) }],
-    assets: [{ Name: 'images/fixture.svg', Mime: 'image/svg+xml', Content: btoa('<svg>fixture</svg>') }],
-  };
+function bytesOf(asset: { bytes: Uint8Array }): string {
+  return new TextDecoder().decode(asset.bytes);
 }
 
-async function v1Handle(): Promise<ClosedBuildHandle> {
-  return closedHandle({
-    renderer: { id: 'cycle-site', version: '1' },
-    mode: 'external_builder',
-    fhirVersion: '4.0.1',
-    parameters: { contract: 'cycle-site/v1' },
-  }, [jsonArtifact(CYCLE_SITE_DB_ARTIFACT, legacyRows())], [CYCLE_SITE_DB_ARTIFACT]);
-}
-
-function bytesOf(asset: { Content: string | Uint8Array }): string {
-  return typeof asset.Content === 'string' ? asset.Content : new TextDecoder().decode(asset.Content);
-}
-
-function encoded(bytes: Uint8Array): string {
-  let binary = '';
-  for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary);
-}
-
-test('cycle-site/v2 preloads split semantic roots and synthesizes the synchronous view', async () => {
-  const view = await openCycleSiteBuild(await v2Handle());
-  expect(view).toBeInstanceOf(SemanticSiteBuildView);
-  expect(view.metadata()).toEqual({
+test('cycle-site/v2 preloads typed semantic resources, navigation, and assets', async () => {
+  const site = await CycleSiteBuild.fromClosedBuild(await v2Handle());
+  expect(site).toBeInstanceOf(CycleSiteBuild);
+  expect(site.metadata()).toEqual({
     path: 'http://hl7.org/fhir/R4/', canonical: 'https://example.org/ig', igId: 'fixture.ig',
     igName: 'FixtureIG', packageId: 'fixture.ig', igVer: '1.0.0', errorCount: '0',
     version: '4.0.1', releaseLabel: 'ci-build', revision: 'abc123', versionFull: '4.0.1-abc123',
@@ -370,98 +291,78 @@ test('cycle-site/v2 preloads split semantic roots and synthesizes the synchronou
     toolingVersionFull: 'site-gen.publisher experiment', genDate: '2023-11-14T22:13:20Z',
     genDay: '20231114', gitstatus: 'main',
   });
-  const profile = view.resources('StructureDefinition')[0];
-  expect(profile.Key).toBe(3);
+  const profile = site.resources('StructureDefinition')[0];
+  expect(profile.id).toBe('fixture-profile');
   expect(profile.base).toBe('http://hl7.org/fhir/StructureDefinition/Observation|4.0.1');
   expect(profile.standardStatus).toBe('trial-use');
-  expect(Object.keys(view.parse(profile)).slice(0, 6)).toEqual([
+  expect(Object.keys(profile.resource).slice(0, 6)).toEqual([
     'resourceType', 'id', 'zeta', 'alpha', 'url', 'name',
   ]);
-  expect(JSON.stringify(view.parse(profile), null, 2)).toStartWith(
+  expect(JSON.stringify(profile.resource, null, 2)).toStartWith(
     '{\n  "resourceType": "StructureDefinition",\n  "id": "fixture-profile",\n  "zeta":',
   );
-  expect(view.valueSetCodes('https://example.org/ig/ValueSet/fixture-values')).toEqual([
+  expect(site.valueSetCodes('https://example.org/ig/ValueSet/fixture-values')).toEqual([
     { system: 'https://example.org/ig/CodeSystem/fixture-codes', code: 'child', display: 'Child' },
     { system: 'https://example.org/ig/CodeSystem/fixture-codes', code: 'parent', display: 'Parent' },
   ]);
-  expect(view.concepts(2)).toEqual([
-    { Key: 1, ParentKey: null, Code: 'parent', Display: 'Parent', Definition: 'Parent concept' },
-    { Key: 2, ParentKey: 1, Code: 'child', Display: 'Child', Definition: 'Child concept' },
+  expect(site.concepts(site.resources('CodeSystem')[0])).toEqual([
+    {
+      code: 'parent', display: 'Parent', definition: 'Parent concept',
+      children: [{ code: 'child', display: 'Child', definition: 'Child concept', children: [] }],
+    },
   ]);
-  expect(view.pages()).toEqual(legacyRows().pages);
-  expect(view.menu()).toEqual(legacyRows().menu);
-  expect(view.siteConfig('sushi-config')).toEqual({ id: 'fixture.ig', canonical: 'https://example.org/ig' });
-  expect(view.siteConfig('other')).toBeNull();
-  expect(view.textAsset('images/fixture.svg')).toBe('<svg>fixture</svg>');
-  expect(bytesOf(view.assets()[0])).toBe('<svg>fixture</svg>');
-  expect(view.ig().contact[0].telecom).toEqual(['https://example.org']);
+  expect(site.pages()).toEqual([
+    { slug: 'index', nameUrl: 'index.html', title: 'Home', generation: 'markdown', body: '# Home\n\nFixture.' },
+    { slug: 'guide', nameUrl: 'guide.html', title: 'Guide', generation: 'markdown', body: '# Guide' },
+  ]);
+  expect(site.menu()).toEqual([
+    { label: 'Home', href: 'index.html', items: [] },
+    { label: 'Documentation', items: [{ label: 'Guide', href: 'guide.html', items: [] }] },
+  ]);
+  expect(site.siteConfig('sushi-config')).toEqual({ id: 'fixture.ig', canonical: 'https://example.org/ig' });
+  expect(site.siteConfig('other')).toBeNull();
+  expect(site.textAsset('images/fixture.svg')).toBe('<svg>fixture</svg>');
+  expect(site.assetCatalog()).toEqual([{ path: 'images/fixture.svg', mediaType: 'image/svg+xml' }]);
+  expect(bytesOf(site.asset('images/fixture.svg')!)).toBe('<svg>fixture</svg>');
+  expect(site.ig().contact[0].telecom).toEqual(['https://example.org']);
 });
 
-test('v1 and v2 dispatch explicitly and expose equivalent logical views', async () => {
-  const legacy = await openCycleSiteBuild(await v1Handle());
-  const semantic = await openCycleSiteBuild(await v2Handle());
-  expect(legacy).toBeInstanceOf(JsonSiteBuildView);
-  expect(semantic).toBeInstanceOf(SemanticSiteBuildView);
-  expect(semantic.metadata()).toEqual(legacy.metadata());
-  expect(semantic.resources()).toEqual(legacy.resources());
-  expect(semantic.pages()).toEqual(legacy.pages());
-  expect(semantic.menu()).toEqual(legacy.menu());
-  expect(semantic.valueSetCodes('https://example.org/ig/ValueSet/fixture-values'))
-    .toEqual(legacy.valueSetCodes('https://example.org/ig/ValueSet/fixture-values'));
-  expect(semantic.concepts(2)).toEqual(legacy.concepts(2));
-  expect(semantic.siteConfig('sushi-config')).toEqual(legacy.siteConfig('sushi-config'));
-  expect(semantic.ig()).toEqual(legacy.ig());
-  expect(semantic.assets().map((asset) => [asset.Name, asset.Mime, bytesOf(asset)]))
-    .toEqual(legacy.assets().map((asset) => [asset.Name, asset.Mime, bytesOf(asset)]));
+test('v2-only generator binds its output catalog and direct renderer to one build', async () => {
+  const handle = await v2Handle();
+  const generator = await openFixtureGenerator(handle);
+  expect(generator.buildId).toBe(handle.manifest.buildId);
+  expect(generator.outputs()).toContainEqual(expect.objectContaining({
+    file: 'index.html',
+    mime: 'text/html',
+    kind: 'page',
+    title: 'Home',
+    pageKind: 'narrative',
+  }));
+  expect(generator.outputs()).toContainEqual(expect.objectContaining({
+    file: 'assets/app.js',
+    mime: 'text/javascript',
+    kind: 'asset',
+  }));
+  expect(new TextDecoder().decode(generator.render('assets/app.js').content as Uint8Array)).toContain('classList.add');
+  const rendered = generator.render('index.html');
+  expect(rendered.file).toBe('index.html');
+  expect(rendered.mime).toBe('text/html');
+  expect(String(rendered.content)).toContain('<!doctype html>');
 });
 
-test('the unchanged synchronous renderer emits byte-identical v1 and v2 outputs', async () => {
-  const legacyView = await openCycleSiteBuild(await v1Handle());
-  const semanticView = await openCycleSiteBuild(await v2Handle());
-  const content = { renderLiquid: (source: string) => source };
-  const legacy = new CycleSiteRenderer(legacyView, { content });
-  const semantic = new CycleSiteRenderer(semanticView, { content });
-  expect(semantic.listPages()).toEqual(legacy.listPages());
-  expect(semantic.listOutputs()).toEqual(legacy.listOutputs());
-  for (const descriptor of legacy.listOutputs()) {
-    const left = legacy.renderOutput(descriptor.file);
-    const right = semantic.renderOutput(descriptor.file);
-    expect(right.mime).toBe(left.mime);
-    const leftBytes = typeof left.content === 'string' ? encoder.encode(left.content) : left.content;
-    const rightBytes = typeof right.content === 'string' ? encoder.encode(right.content) : right.content;
-    expect(rightBytes).toEqual(leftBytes);
-  }
-});
-
-test('generic digest transport and the legacy one-object transport share the dispatcher', async () => {
-  const values = payloads();
-  const handle = await v2Handle(values);
-  const bodies = [
-    JSON.stringify(values.resources),
-    JSON.stringify(values.terminology),
-    JSON.stringify(values.navigation),
-    JSON.stringify(values.config),
-    '<svg>fixture</svg>',
-  ].map((source) => encoder.encode(source));
-  const objects = Object.fromEntries(bodies.map((bytes) => [content(bytes).sha256, encoded(bytes)]));
-  const opened = await openCycleSiteBuildPayload({
-    transportVersion: 'site-build-cas/v1',
-    siteBuild: handle.manifest,
-    objects,
-  });
-  expect(opened.view).toBeInstanceOf(SemanticSiteBuildView);
-  expect(opened.build.manifest.buildId).toBe(handle.manifest.buildId);
-
-  const rows = JSON.stringify(legacyRows());
-  const legacy = await v1Handle();
-  const openedLegacy = await openCycleSiteBuildPayload({ siteBuild: legacy.manifest, siteDbJson: rows });
-  expect(openedLegacy.view).toBeInstanceOf(JsonSiteBuildView);
-
-  await expect(openCycleSiteBuildPayload({
-    transportVersion: 'site-build-cas/v1',
-    siteBuild: handle.manifest,
-    objects: { ['0'.repeat(64)]: '*' },
-  })).rejects.toThrow('canonical standard base64');
+test('renderer-package and authored paths collide while the catalog is closing', async () => {
+  const appAsset: ArtifactKey = {
+    kind: 'asset', namespace: { kind: 'authored' }, path: 'assets/app.js',
+  };
+  const handle = await v2Handle(payloads(), [
+    appAsset,
+    assetKey,
+    CYCLE_SEMANTIC_CONFIG_ARTIFACT,
+    CYCLE_SEMANTIC_NAVIGATION_ARTIFACT,
+    CYCLE_SEMANTIC_RESOURCES_ARTIFACT,
+    CYCLE_SEMANTIC_TERMINOLOGY_ARTIFACT,
+  ], [{ key: appAsset, bytes: encoder.encode('authored'), mediaType: 'text/javascript' }]);
+  await expect(openFixtureGenerator(handle)).rejects.toThrow("output collision at 'assets/app.js'");
 });
 
 test('v2 rejects missing, extra, and non-authored render-plan roots', async () => {
@@ -471,7 +372,7 @@ test('v2 rejects missing, extra, and non-authored render-plan roots', async () =
     CYCLE_SEMANTIC_NAVIGATION_ARTIFACT,
     CYCLE_SEMANTIC_RESOURCES_ARTIFACT,
   ]);
-  await expect(openCycleSiteBuild(missing)).rejects.toThrow('missing required root');
+  await expect(openFixtureGenerator(missing)).rejects.toThrow('missing required root');
 
   const extraKey: ArtifactKey = { kind: 'data', namespace: 'cycle.semantic/v1', name: 'extra.json' };
   const extraFixture = await v2Handle(payloads(), [
@@ -482,7 +383,7 @@ test('v2 rejects missing, extra, and non-authored render-plan roots', async () =
     CYCLE_SEMANTIC_RESOURCES_ARTIFACT,
     CYCLE_SEMANTIC_TERMINOLOGY_ARTIFACT,
   ], [jsonArtifact(extraKey, {})]);
-  await expect(openCycleSiteBuild(extraFixture)).rejects.toThrow('unexpected required root');
+  await expect(openFixtureGenerator(extraFixture)).rejects.toThrow('unexpected required root');
 
   const generatedAsset: ArtifactKey = {
     kind: 'asset', namespace: { kind: 'generated' }, path: 'generated.svg',
@@ -494,7 +395,7 @@ test('v2 rejects missing, extra, and non-authored render-plan roots', async () =
     CYCLE_SEMANTIC_RESOURCES_ARTIFACT,
     CYCLE_SEMANTIC_TERMINOLOGY_ARTIFACT,
   ], [{ key: generatedAsset, bytes: encoder.encode('x'), mediaType: 'image/svg+xml' }]);
-  await expect(openCycleSiteBuild(wrongAsset)).rejects.toThrow('unexpected required root');
+  await expect(openFixtureGenerator(wrongAsset)).rejects.toThrow('unexpected required root');
 
   const omittedAsset: ArtifactKey = {
     kind: 'asset', namespace: { kind: 'authored' }, path: 'images/omitted.svg',
@@ -502,7 +403,7 @@ test('v2 rejects missing, extra, and non-authored render-plan roots', async () =
   const outsidePlan = await v2Handle(payloads(), undefined, [
     { key: omittedAsset, bytes: encoder.encode('omitted'), mediaType: 'image/svg+xml' },
   ]);
-  await expect(openCycleSiteBuild(outsidePlan)).rejects.toThrow('authored asset is outside the render plan');
+  await expect(openFixtureGenerator(outsidePlan)).rejects.toThrow('authored asset is outside the render plan');
 });
 
 test('v2 guide identity selects the primary guide while retaining ImplementationGuide examples', async () => {
@@ -516,22 +417,22 @@ test('v2 guide identity selects the primary guide while retaining Implementation
       status: 'draft',
     },
   });
-  const view = await openCycleSiteBuild(await v2Handle(values));
-  const guides = view.resources('ImplementationGuide');
+  const site = await CycleSiteBuild.fromClosedBuild(await v2Handle(values));
+  const guides = site.resources('ImplementationGuide');
   expect(guides).toHaveLength(2);
-  expect(guides.map((row) => [row.Id, row.Web, row.Url])).toEqual([
+  expect(guides.map((resource) => [resource.id, resource.page, resource.url])).toEqual([
     ['example-guide', 'ImplementationGuide-example-guide.html', null],
     ['fixture.ig', 'index.html', 'https://example.org/ig/ImplementationGuide/fixture.ig'],
   ]);
-  expect(view.ig().id).toBe('fixture');
-  const renderer = new CycleSiteRenderer(view, { content: { renderLiquid: (source: string) => source } });
-  expect(renderer.listPages()).toContainEqual({
+  expect(site.ig().id).toBe('fixture');
+  const renderer = new CycleSiteRenderer(site, { content: { renderLiquid: (source: string) => source } });
+  expect(renderer.outputs()).toContainEqual(expect.objectContaining({
     file: 'ImplementationGuide-example-guide.html',
     title: 'example-guide',
-    kind: 'generic',
-  });
-  expect(renderer.renderPage('ImplementationGuide-example-guide.html').html).toContain('example-guide');
-  expect(renderer.renderOutput('ImplementationGuide-fixture.ig.json')).toEqual({
+    pageKind: 'generic',
+  }));
+  expect(String(renderer.render('ImplementationGuide-example-guide.html').content)).toContain('example-guide');
+  expect(renderer.render('ImplementationGuide-fixture.ig.json')).toEqual({
     file: 'ImplementationGuide-fixture.ig.json',
     content: JSON.stringify(values.resources.resources[0].resource, null, 2),
     mime: 'application/fhir+json',
@@ -545,32 +446,32 @@ test('target mismatch never falls back by artifact presence', async () => {
     fhirVersion: '4.0.1',
     parameters: { contract: 'cycle-site/v2' },
   });
-  await expect(openCycleSiteBuild(wrong)).rejects.toThrow('Unsupported closed Cycle target');
+  await expect(openFixtureGenerator(wrong)).rejects.toThrow('does not implement cycle-site/v2');
 });
 
 test('v2 strict decoders reject schema drift and corrupt semantic references', async () => {
   const unknownField = payloads();
   (unknownField.config as unknown as Record<string, unknown>).extra = true;
-  await expect(openCycleSiteBuild(await v2Handle(unknownField))).rejects.toThrow('unexpected field extra');
+  await expect(openFixtureGenerator(await v2Handle(unknownField))).rejects.toThrow('unexpected field extra');
 
   const wrongSchema = payloads();
   (wrongSchema.navigation as unknown as Record<string, unknown>).schema = 'cycle.semantic.navigation/v2';
-  await expect(openCycleSiteBuild(await v2Handle(wrongSchema))).rejects.toThrow('Unsupported Cycle navigation schema');
+  await expect(openFixtureGenerator(await v2Handle(wrongSchema))).rejects.toThrow('Unsupported Cycle navigation schema');
 
   const missingGuide = payloads();
   missingGuide.resources.guide.implementationGuide.id = 'missing';
-  await expect(openCycleSiteBuild(await v2Handle(missingGuide))).rejects.toThrow(
+  await expect(openFixtureGenerator(await v2Handle(missingGuide))).rejects.toThrow(
     'must reference an existing ImplementationGuide resource',
   );
 
   const missingValueSet = payloads();
   missingValueSet.terminology.expansions[0].valueSet.id = 'missing';
-  await expect(openCycleSiteBuild(await v2Handle(missingValueSet))).rejects.toThrow(
+  await expect(openFixtureGenerator(await v2Handle(missingValueSet))).rejects.toThrow(
     'references missing ValueSet/missing',
   );
 });
 
-test('v2 requires media types for raw asset roots and keeps returned bytes isolated', async () => {
+test('v2 requires media types and isolates one requested asset body', async () => {
   const noMime = await closedHandle({
     renderer: { id: 'cycle-site', version: '2' }, mode: 'external_builder', fhirVersion: '4.0.1',
     parameters: { contract: 'cycle-site/v2' },
@@ -587,10 +488,21 @@ test('v2 requires media types for raw asset roots and keeps returned bytes isola
     CYCLE_SEMANTIC_RESOURCES_ARTIFACT,
     CYCLE_SEMANTIC_TERMINOLOGY_ARTIFACT,
   ]);
-  await expect(openCycleSiteBuild(noMime)).rejects.toThrow('must have a media type');
+  await expect(openFixtureGenerator(noMime)).rejects.toThrow('must have a media type');
 
-  const view = await openCycleSiteBuild(await v2Handle());
-  const first = view.assets()[0].Content as Uint8Array;
+  const site = await CycleSiteBuild.fromClosedBuild(await v2Handle());
+  const first = site.asset('images/fixture.svg')!.bytes;
   first[0] = 0;
-  expect(bytesOf(view.assets()[0])).toBe('<svg>fixture</svg>');
+  expect(bytesOf(site.asset('images/fixture.svg')!)).toBe('<svg>fixture</svg>');
+  expect(site.asset('missing')).toBeNull();
+});
+
+test('decoded resource ownership is deeply immutable', async () => {
+  const site = await CycleSiteBuild.fromClosedBuild(await v2Handle());
+  const profile = site.resources('StructureDefinition')[0];
+  expect(Object.isFrozen(profile)).toBeTrue();
+  expect(Object.isFrozen(profile.resource)).toBeTrue();
+  expect(Object.isFrozen(profile.resource.differential)).toBeTrue();
+  expect(() => { profile.resource.title = 'mutated'; }).toThrow();
+  expect(site.resources('StructureDefinition')[0].title).toBe('Fixture profile');
 });

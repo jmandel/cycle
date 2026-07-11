@@ -2,23 +2,23 @@ import { Badge } from '../ds/Badge';
 import { PageHeader, StatusBadge, Tag, SectionHeading } from '../chrome/Parts';
 import { CopyValue } from '../ds/CopyValue';
 import type { ResolveType } from './ElementTable';
-import type { ResourceRow } from '../core/site-build';
+import type { CycleResource } from '../core/semantic-site-build';
 
 interface ExpansionCode { system: string; code: string; display?: string }
 
-export function ValueSetPage({ r, data, resolve, expansion }: { r: ResourceRow; data: any; resolve: ResolveType; expansion: ExpansionCode[] }) {
+export function ValueSetPage({ r, data, resolve, expansion }: { r: CycleResource; data: any; resolve: ResolveType; expansion: ExpansionCode[] }) {
   const includes: any[] = data.compose?.include || [];
   return (
     <>
       <PageHeader
         eyebrow="Value set"
-        title={r.Title || r.Name || r.Id}
-        badges={<><StatusBadge status={r.Status ?? undefined} /><Badge tone="neutral" variant="outline">{(expansion.length || includes.reduce((n, i) => n + (i.concept?.length || 0), 0))} codes</Badge></>}
-        lead={r.Description}
+        title={r.title || r.name || r.id}
+        badges={<><StatusBadge status={r.status ?? undefined} /><Badge tone="neutral" variant="outline">{(expansion.length || includes.reduce((n, i) => n + (i.concept?.length || 0), 0))} codes</Badge></>}
+        lead={r.description}
         meta={[
-          ['Official URL', <CopyValue value={r.Url ?? undefined} label="official URL" truncate="middle" />],
-          ['Computable', <CopyValue value={r.Name ?? undefined} label="computable name" />],
-          ['Status', `${r.Status} · v${r.Version}`],
+          ['Official URL', <CopyValue value={r.url ?? undefined} label="official URL" truncate="middle" />],
+          ['Computable', <CopyValue value={r.name ?? undefined} label="computable name" />],
+          ['Status', `${r.status} · v${r.version}`],
         ]}
       />
 

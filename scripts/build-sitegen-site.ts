@@ -2,17 +2,17 @@
 /**
  * build-sitegen-site.ts — the single local/CI entry point for the site-gen site.
  *
- * Lets the IG Publisher do FHIR work (validation, snapshots, terminology, and
- * output/package.db), then site-gen owns final rendering, then this script —
- * the project-specific wrapper — composes the renderer with IG-specific extras
- * (viewers, sample SHL, skill.zip, CNAME, Publisher QA), seals the complete
- * staged tree, and publishes site-gen/out once.
+ * Runs the IG Publisher for validation/QA, closes a separate cycle-site/v2
+ * SiteBuild with pinned Fig, then composes the Cycle renderer with IG-specific
+ * extras (viewers, sample SHL, skill.zip, CNAME, Publisher QA), seals the
+ * complete staged tree, and publishes site-gen/out once.
  *
  * Pages deploys site-gen/out (the root static site, not the Publisher /en/ shell).
  */
 import { constants } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { copyFile, lstat, mkdir, rm, writeFile, readFile } from 'node:fs/promises';
+import { homedir } from 'node:os';
 import { dirname, join, posix, relative } from 'node:path';
 import { viewerBuildEnv, viewerOutput, viewerVariants } from './viewer-variants.ts';
 import {
@@ -33,11 +33,14 @@ import { project } from '../site-gen/project/cycle.ts';
 
 const root = `${import.meta.dir}/..`;
 const OUT = `${root}/site-gen/out`;
-const SITE_DB = `${root}/temp/site-gen/site.db`;
+const SITE_BUILD_DIR = `${root}/temp/site-gen/cycle.fig-build`;
+const FIG_SUSHI_OUT = `${root}/temp/site-gen/fig-sushi`;
 const SAMPLE_SHL_DIR = `${root}/temp/site-gen/sample-shl`;
 const exampleDir = `${root}/input/resources`;
 const exampleOut = `${root}/input/resources/Bundle-period-tracking-longitudinal-example.json`;
 const publisherJar = `${root}/input-cache/publisher.jar`;
+const figBin = Bun.env.FIG_BIN;
+const fhirCache = Bun.env.FHIR_CACHE || `${homedir()}/.fhir/packages`;
 const viewerBase = Bun.env.VIEWER_BASE || `https://${project.cname}/view`;
 const demoFiles = ['example.jwe', 'shlink.txt', '_shlink-local.txt', '_shlink-local-ig.txt'];
 
@@ -107,17 +110,32 @@ await writeSampleViewerInclude(`${SAMPLE_SHL_DIR}/shlink.txt`);
 await step('compile FSH', ['./_sushi.sh']);
 await step('integrity checks', ['bun', 'scripts/check-mvp.ts'], { BUNDLE_FILE: exampleOut });
 
-// 4–5. IG Publisher → output/package.db (validation + the DB we consume)
+// 4. IG Publisher remains an independent validation/QA producer.
 if (!(await Bun.file(publisherJar).exists())) await step('download IG Publisher', ['./_updatePublisher.sh']);
 await rm(`${root}/output`, { recursive: true, force: true });
 await rm(`${root}/temp/pages`, { recursive: true, force: true });
 await step('run IG Publisher', ['./_genonce.sh']);
 
-await step('ingest package.db', ['bun', 'site-gen/ingest.ts'], {
-  PKG_DB: `${root}/output/package.db`,
-  SITE_DB,
-  SITE_LIQUID_ASSET_DIRS: `${root}/input/includes`,
-});
+// 5. Cycle consumes only the closed v2 Fig handoff. The Publisher database is
+// never projected into a renderer input.
+if (!figBin) {
+  throw new Error('FIG_BIN must name a pinned fig executable for the Cycle v2 site build');
+}
+await rm(SITE_BUILD_DIR, { recursive: true, force: true });
+await rm(FIG_SUSHI_OUT, { recursive: true, force: true });
+await step('prepare closed Cycle v2 SiteBuild', [
+  figBin,
+  'prepare',
+  root,
+  '--target',
+  'cycle-site/v2',
+  '--sushi-out',
+  FIG_SUSHI_OUT,
+  '--cache',
+  fhirCache,
+  '--out',
+  SITE_BUILD_DIR,
+], { SOURCE_DATE_EPOCH: Bun.env.SOURCE_DATE_EPOCH || '1783555200' });
 
 // The project wrapper owns the one canonical publication. The generic renderer
 // publishes and verifies its ordinary output only inside this private outer
@@ -132,7 +150,8 @@ const publication = await AtomicOutputPublication.create({
     ...project.liquidAssetDirs,
     'input',
     'output',
-    SITE_DB,
+    SITE_BUILD_DIR,
+    FIG_SUSHI_OUT,
     SAMPLE_SHL_DIR,
     project.projectCss,
     project.packageList,
@@ -228,7 +247,7 @@ async function declareGeneratedTree(
 
 try {
   await step('render verified inner site-gen site', ['bun', 'site-gen/build.tsx'], {
-    SITE_DB,
+    SITE_BUILD_DIR,
     OUT_DIR: BASE_OUT,
   });
   const base = await copyVerifiedOutput(BASE_OUT, WORK);
@@ -372,16 +391,18 @@ try {
       // it can never collide with a stale reusable base-renderer entry.
       recipeSha256: createHash('sha256').update(JSON.stringify({
         schema: 'cycle-project-publication-recipe/v1',
+        // SiteOutput binds every final byte. The derivation recipe instead
+        // binds the upstream authenticated output, wrapper implementation, and
+        // explicit composition options; rereading the completed tree here only
+        // duplicated finalization and caused a whole-site memory spike.
+        baseOutputId: base.receipt.outputId,
         baseRecipe: base.receipt.renderer.recipeSha256,
         wrapper: createHash('sha256').update(await readFile(import.meta.path)).digest('hex'),
-        files: await Promise.all(allFiles.map(async (path) => {
-          const bytes = await readFile(publication.outputPath(path));
-          return {
-            path,
-            byteLength: bytes.byteLength,
-            sha256: createHash('sha256').update(bytes).digest('hex'),
-          };
-        })),
+        options: {
+          sourceDateEpoch: Bun.env.SOURCE_DATE_EPOCH || '1783555200',
+          viewerBase,
+          cname: Bun.env.PAGES_CNAME || project.cname,
+        },
       })).digest('hex'),
     },
     outputSchema: 'cycle-project-publication/v1',

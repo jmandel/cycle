@@ -1,11 +1,11 @@
 import React from 'react';
 import { CodeBlock } from '../ds/CodeBlock';
 import { PageHeader, Tag, SectionHeading } from '../chrome/Parts';
-import type { ResourceRow } from '../core/site-build';
+import type { CycleResource } from '../core/semantic-site-build';
 
-export function ExamplePage({ r, data }: { r: ResourceRow; data: any }) {
+export function ExamplePage({ r, data }: { r: CycleResource; data: any }) {
   const json = JSON.stringify(data, null, 2);
-  const jsonFile = `${r.Type}-${r.Id}.json`;
+  const jsonFile = `${r.type}-${r.id}.json`;
   const previewLines = json.split('\n');
   const maxPreviewLines = 220;
   const truncated = previewLines.length > maxPreviewLines;
@@ -21,11 +21,11 @@ export function ExamplePage({ r, data }: { r: ResourceRow; data: any }) {
       <PageHeader
         eyebrow={`Example · ${data.resourceType}`}
         eyebrowColor="var(--ovulatory-deep)"
-        title={r.Title || r.Name || r.Id}
-        lead={r.Description}
+        title={r.title || r.name || r.id}
+        lead={r.description}
         meta={[
           ['Type', <Tag>{data.resourceType}</Tag>],
-          ['Id', <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-sm)' }}>{r.Id}</span>],
+          ['Id', <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-sm)' }}>{r.id}</span>],
           ...(data.entry ? [['Entries', String(data.entry.length)] as [string, React.ReactNode]] : []),
         ]}
       />

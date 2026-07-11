@@ -1,8 +1,8 @@
 import React from 'react';
 import { Tag } from '../ds/Tag';
-import type { ResourceRow } from '../core/site-build';
+import type { CycleResource } from '../core/semantic-site-build';
 
-type ProfileGroup = { label: string; ids: string[] };
+type ProfileGroup = { label: string; ids: readonly string[] };
 
 const GROUPS: { title: string; types: string[]; accent: string; examples?: boolean }[] = [
   { title: 'Profiles', types: ['StructureDefinition'], accent: 'var(--menstrual)' },
@@ -22,25 +22,25 @@ export function ArtifactsPage({
   profileGroupLabel = () => null,
   profileGroups = [],
 }: {
-  resources: ResourceRow[];
-  page: (r: ResourceRow) => string;
-  isExample?: (r: ResourceRow) => boolean;
+  resources: CycleResource[];
+  page: (r: CycleResource) => string;
+  isExample?: (r: CycleResource) => boolean;
   profileGroupLabel?: (id: string) => string | null;
-  profileGroups?: ProfileGroup[];
+  profileGroups?: readonly ProfileGroup[];
 }) {
   const profileGroupRank = new Map<string, number>();
   for (const [i, group] of profileGroups.entries()) {
     for (const id of group.ids) profileGroupRank.set(id, i);
   }
-  const orderRows = (rows: ResourceRow[], title: string) => {
+  const orderRows = (rows: CycleResource[], title: string) => {
     if (title !== 'Profiles' || !profileGroups.length) return rows;
     return [...rows].sort((a, b) =>
-      (profileGroupRank.get(a.Id) ?? 100000) - (profileGroupRank.get(b.Id) ?? 100000)
+      (profileGroupRank.get(a.id) ?? 100000) - (profileGroupRank.get(b.id) ?? 100000)
     );
   };
-  const detail = (r: ResourceRow) => (
+  const detail = (r: CycleResource) => (
     <div className="art-detail">
-      {r.Description || <em>No description.</em>}
+      {r.description || <em>No description.</em>}
       <div style={{ marginTop: 8 }}>
         <span className="art-action">Open →</span>
       </div>
@@ -58,7 +58,7 @@ export function ArtifactsPage({
       </section>
 
       {GROUPS.map((g) => {
-        const rows = orderRows(resources.filter((r) => g.examples ? isExample(r) : g.types.includes(r.Type)), g.title);
+        const rows = orderRows(resources.filter((r) => g.examples ? isExample(r) : g.types.includes(r.type)), g.title);
         if (!rows.length) return null;
         return (
           <section key={g.title} id={g.title.toLowerCase().replace(/\s+/g, '-')} style={{ marginTop: 30 }}>
@@ -69,16 +69,16 @@ export function ArtifactsPage({
             </div>
             <div className="art-card">
               {rows.map((r, i) => {
-                const groupLabel = g.title === 'Profiles' ? profileGroupLabel(r.Id) : null;
-                const priorGroupLabel = g.title === 'Profiles' && i > 0 ? profileGroupLabel(rows[i - 1].Id) : null;
+                const groupLabel = g.title === 'Profiles' ? profileGroupLabel(r.id) : null;
+                const priorGroupLabel = g.title === 'Profiles' && i > 0 ? profileGroupLabel(rows[i - 1].id) : null;
                 return (
-                  <React.Fragment key={r.Id}>
+                  <React.Fragment key={r.id}>
                     {groupLabel && groupLabel !== priorGroupLabel && <div className="art-subgroup">{groupLabel}</div>}
-                    <a className="art-row" href={page(r)} aria-label={`Open ${r.Title || r.Name || r.Id}`}>
+                    <a className="art-row" href={page(r)} aria-label={`Open ${r.title || r.name || r.id}`}>
                       <div className="art-summary">
-                        <span className="art-name">{r.Title || r.Name || r.Id}</span>
-                        <span className="art-kind"><Tag>{r.sdType || r.Type}</Tag></span>
-                        <span className="art-short">{shortOf(r.Description ?? undefined)}</span>
+                        <span className="art-name">{r.title || r.name || r.id}</span>
+                        <span className="art-kind"><Tag>{r.sdType || r.type}</Tag></span>
+                        <span className="art-short">{shortOf(r.description ?? undefined)}</span>
                       </div>
                       {detail(r)}
                     </a>

@@ -5,20 +5,15 @@ set -uo pipefail
 cd "$(dirname "$0")/.."
 
 echo "== build =="
-# renderer smoke test: use the committed-by-convention fixture DB unless a real
-# output/package.db (or PKG_DB) is present.
-export SITE_GEN_USE_FIXTURE="${SITE_GEN_USE_FIXTURE:-1}"
-export SITE_DB="${SITE_DB:-temp/site-gen/site.db}"
 # The harness intentionally replaces its prior verified smoke-test output. The
 # renderer itself refuses an existing destination unless this policy is named.
 export SITE_GEN_REPLACE_OUTPUT="${SITE_GEN_REPLACE_OUTPUT:-1}"
-bun site-gen/ingest.ts >/dev/null 2>&1 || { echo "INGEST FAILED"; exit 1; }
-bun test site-gen/core/semantic-site-build.test.ts site-gen/core/renderer.test.tsx \
+if [ -z "${SITE_BUILD_DIR:-}" ]; then
+  echo "SITE_BUILD_DIR must name a fig prepare --target cycle-site/v2 bundle"
+  exit 1
+fi
+bun test site-gen/core \
   || { echo "RENDERER/SEMANTIC TESTS FAILED"; exit 1; }
-# A caller may supply a real portable Fig bundle for the native end-to-end
-# build while the renderer hash tests above continue using the small SQLite
-# fixture. The build accepts exactly one input transport.
-if [ -n "${SITE_BUILD_DIR:-}" ]; then unset SITE_DB; fi
 BUILD=$(bun site-gen/build.tsx 2>&1) || { echo "$BUILD"; echo "BUILD FAILED"; exit 1; }
 echo "$BUILD" | grep -E "Rendered|bundle|output|link check"
 

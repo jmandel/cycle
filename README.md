@@ -28,7 +28,8 @@ content-addressed handoff used in the browser:
 ```text
 authored IG + exact package cache
     -> fig prepare --target cycle-site/v2
-    -> ClosedBuildHandle + SemanticSiteBuildView
+    -> ClosedBuildHandle + typed semantic SiteBuild
+    + authenticated renderer package (design/client ContentRefs)
     -> shared CycleSiteRenderer + shared Cycle content policy
     -> verified inner renderer output
     -> project viewers/SHL/skill/QA + final link check
@@ -36,36 +37,33 @@ authored IG + exact package cache
     -> one atomic site-gen/out publication
 ```
 
-The existing Publisher `package.db` → `site.db` path remains an explicit legacy
-fallback for validation/fixture workflows; neither database is the published
-site.
-
 The Rust engine emits a verified, content-addressed `ClosedSiteBuild` with typed
 resource, terminology, navigation, and config roots plus raw authored asset
 roots. Browser and native hosts validate the manifest/read graph and verify
-every reachable body, preload the same `SiteBuildView`, and call the same
-`CycleSiteRenderer` and content policy. The v1 aggregate row reader remains for
-migration but is not the preferred handoff.
+every reachable body, open the authenticated renderer package, then open the
+same v2-only `CycleGenerator`. Its immutable output catalog includes pages,
+machine outputs, authored assets, design files, fonts, marks, project CSS, and
+the client runtime. Its direct-path renderer uses the same React and LiquidJS
+content policy in both hosts.
 
 Native publication hashes the complete staged output tree into a receipt bound
 to the input SiteBuild id and Cycle renderer version. For a reusable
-`site-gen/build.tsx` invocation that tree is the renderer, design/project assets,
-and client bundle. The repository's whole-publication wrapper runs that build in
+`site-gen/build.tsx` invocation every one of those files is declared in the
+generator catalog before rendering; there is no later static-asset append. The
+repository's whole-publication wrapper runs that build in
 an inner disposable directory, verifies its receipt, copies only declared bytes
 into one outer staging tree, adds the viewers, SHL files, skill, CNAME, redirect,
 and the Publisher's complete independently checked output under `publisher/`
 (`qa.html` redirects to its QA entry point), then seals and publishes that
 complete tree once. The
 browser-compatible receipt core can compute or compare the same identity from
-`listOutputs()` / `renderOutput()` and corresponding host assets. Publication
+the closed generator catalog and direct-path render operation. Publication
 re-verifies every byte before the atomic rename; the receipt file is excluded
 from its own file list to avoid self-reference.
 
 The input contract and output renderer have independent version labels.
-`cycle-site/v2` / render-target producer `2` names the typed handoff; the current
-receipt names output renderer `cycle-site@1`, shared by both v1 and v2 adapters.
-Thus adapter-parity builds can have identical ordinary files but must have
-different receipt ids because `inputBuildId` is part of the receipt.
+`cycle-site/v2` names the typed handoff; the current receipt names output
+renderer `cycle-site@1`. Every receipt binds the exact SiteBuild id.
 
 See [`site-gen/README.md`](site-gen/README.md) for the renderer layers and
 contracts.
@@ -78,9 +76,7 @@ browser Cycle rendering use it; there is no editor-specific Cycle Liquid
 implementation.
 
 Includes, `site.data`, generated fragments, and resource fragments resolve from
-the explicit view/content context. The native SQLite workflow may inject a
-legacy read-only SQL executor. Portable/browser rendering supplies no SQL
-capability and fails loudly if authored content uses it.
+the explicit closed content context. Cycle has no SQL or database capability.
 
 This is separate from the Rust `render_liquid` implementation used by native
 Publisher templates in `sushi-rs`; the two renderers have different template
@@ -106,8 +102,8 @@ bun run verify:viewer
 ## Build the native custom site
 
 The preferred path needs Bun, `fig`, and an exact materialized FHIR package
-cache. Java 17 and the IG Publisher are needed only for the legacy validation /
-`package.db` workflow.
+cache. Java 17 and the IG Publisher are used independently for validation and
+the namespaced QA artifact in the complete Cycle publication.
 
 Preferred closed native build (the package cache contains exact materialized
 `id#version/package` directories):
@@ -134,13 +130,12 @@ prepare` directly when all semantic inputs are already authored on disk.
 `site-gen/out` only after its replacement has rendered and passed link checks;
 omit it when publishing to a new destination.
 
-The existing whole-publication orchestrator still runs the Java validation and
-legacy database path:
+The whole-publication orchestrator runs Java validation, closes a separate v2
+SiteBuild with the pinned `FIG_BIN`, and composes both authenticated outputs:
 
 ```sh
 ./_updatePublisher.sh       # only when the local Publisher jar must be updated
-./_genonce.sh               # FSH/Publisher intermediate, including package.db
-bun run build:sitegen       # custom publication plus viewer/SHL/skill artifacts
+FIG_BIN=/path/to/pinned/fig bun run build:sitegen
 ```
 
 `build:sitegen` does not mutate a renderer publication in place. It treats the
@@ -150,19 +145,10 @@ shipped receipt immediately before the sole canonical rename. The intentional
 agent-package append to `llms.txt` is represented as a wrapper-produced file in
 that final receipt.
 
-For legacy renderer work with the committed fixture:
-
-```sh
-bun run typecheck:renderer
-SITE_GEN_USE_FIXTURE=1 bun site-gen/ingest.ts
-SITE_DB=temp/site-gen/site.db SITE_GEN_REPLACE_OUTPUT=1 bun site-gen/build.tsx
-bun test site-gen/core/renderer.test.tsx
-```
-
 The full site-gen harness is:
 
 ```sh
-bun run test:sitegen
+SITE_BUILD_DIR=/path/to/closed-v2-build bun run test:sitegen
 ```
 
 It includes output/link expectations and deliberately fails on unresolved

@@ -1,234 +1,180 @@
-# site-gen
+# Cycle site generator
 
-A static-site renderer for FHIR Implementation Guides. Site-gen renders a
-callback-free `SiteBuildView` with React SSR + island hydration. The browser
-and preferred native path construct that view from the same verified
-`ClosedSiteBuild`. `SqliteSiteBuildView` remains an explicitly selected legacy
-compatibility adapter over `site.db`.
-No Jekyll output is deployed, and the published site has no dependency on the
-Publisher's generated HTML or template assets.
+Cycle is an external FHIR IG site generator. It accepts one immutable,
+authenticated `cycle-site/v2` SiteBuild and emits a complete deterministic
+output catalog. It never opens a database, calls a compiler, or asks the Rust
+engine to fill a missing fragment during rendering.
 
-In the legacy validation/fixture workflow, the Publisher is invoked through
-`ig-gh-actions.ini` with `fhir2.base.template` only to produce
-`output/package.db`. The preferred Fig pipeline does not invoke it. The visual
-source for the published site lives under `site-gen/designs/`,
-`site-gen/chrome/`, and `site-gen/project/`.
-
-## Preferred native pipeline
+## Execution flow
 
 ```text
-authored IG + exact package cache
-   → fig prepare --target cycle-site/v2
-   → site-build.json + objects/sha256/<digest>
-   → ClosedBuildHandle + openCycleSiteBuild
-   → SemanticSiteBuildView (four typed data roots + raw asset roots)
-   → CycleSiteRenderer   (pure page manifest + SSR + auxiliary outputs)
-   → site-gen/build.tsx  (writes outputs/assets, bundles client, checks links)
-   → site-output.json + atomic publication
+authored guide + exact packages
+  -> fig prepare --target cycle-site/v2
+  -> site-build.json + objects/sha256/<digest>
+  -> ClosedBuildHandle
+  + authenticated Cycle renderer package (design, fonts, marks, client runtime)
+  -> openCycleGenerator(handle, rendererPackage)
+  -> outputs() / render(path)
+  -> SiteOutput receipt
+  -> atomic publication or browser preview
 ```
 
-Produce a new bundle (the output directory must not already exist), then render
-it without any compiler callback or embedded WASM engine:
+The SiteBuild contains four strict `cycle.semantic.* /v1` JSON roots:
+
+- resources and explicit primary ImplementationGuide metadata;
+- terminology expansions;
+- recursive pages and menu navigation; and
+- parsed guide configuration.
+
+Every authored asset is an ordinary content-addressed render-plan root. The
+semantic payload schema revisions are `/v1`; the Cycle target remains
+`cycle-site/v2`.
+
+## Public generator seam
+
+```ts
+interface CycleGenerator {
+  readonly buildId: string;
+  outputs(): CycleGeneratorOutput[];
+  render(path: string): RenderedOutput;
+}
+
+openCycleGenerator(
+  build: ClosedBuildHandle,
+  rendererPackage: CycleRendererPackage,
+): Promise<CycleGenerator>
+```
+
+`openCycleGenerator` accepts exactly an external-builder target whose renderer
+is `cycle-site@2` and contract is `cycle-site/v2`. Opening verifies and decodes
+the complete requirement before returning. The generator captures that build
+and renderer together, so a catalog from one build cannot be rendered against
+another.
+
+`outputs()` returns the complete generator-owned namespace: HTML, resolved
+Markdown, FHIR JSON, `llms.txt`, authored assets, design CSS, fonts, marks,
+project CSS, and the browser runtime. Page entries also contain their title and
+page kind. Every semantic, authored, and renderer-package path is merged and
+collision-checked before the generator opens. `render(path)` is the only
+byte-producing renderer operation and each path is independent.
+
+The second argument is a private renderer-implementation input, not guide data
+or an editor asset API. Its strict `cycle-renderer-package/v1` manifest contains
+UTF-8-ordered `{ path, mediaType, producer, content: ContentRef }` entries and a
+`crp1-sha256` identity. Opening verifies the manifest identity plus every body
+digest and length once. `outputs()` copies metadata only; `render(path)` copies
+only the requested body. Native Bun constructs this package in memory from the
+selected design/project files and exact production client bundle. A browser
+host bakes the same manifest and CAS bodies, opens it internally during worker
+preparation, and never exposes a parallel static asset tree to the editor API.
+
+Transport is host-owned byte plumbing:
+
+- native Bun uses `FilesystemContentStore` and
+  `openFilesystemClosedBuild()` over a Fig bundle;
+- the browser constructs the same `ClosedBuildHandle` over its content store.
+
+Cycle does not define a second JSON/base64 handoff or a renderer-specific
+storage tier.
+
+## Native build
+
+Prepare the closed input before starting the renderer:
 
 ```sh
-rm -rf input/resources temp/cycle.fig-build temp/fig-sushi
-mkdir -p input/resources
-EXAMPLE_OUT=input/resources/Bundle-period-tracking-longitudinal-example.json \
-  bun scripts/gen-example.ts
 SOURCE_DATE_EPOCH=1783555200 fig prepare . \
   --target cycle-site/v2 \
   --sushi-out temp/fig-sushi \
   --cache /path/to/fhir-package-cache \
   --out temp/cycle.fig-build
-SITE_BUILD_DIR=temp/cycle.fig-build SITE_GEN_REPLACE_OUTPUT=1 \
+
+SITE_BUILD_DIR=temp/cycle.fig-build \
+SITE_GEN_REPLACE_OUTPUT=1 \
   bun site-gen/build.tsx
 ```
 
-The first three lines are a Cycle-guide preprocessing step, not part of the
-generic site-gen/Fig contract. This guide's pages link to its generated
-longitudinal Bundle, so the Bundle and five standalone Observations must exist
-under `input/resources` before Fig compiles and closes the semantic input.
-A guide with no project-specific input generator starts at `fig prepare`.
+This guide generates its longitudinal example under `input/resources` before
+`fig prepare`; that is a project input stage, not part of the Cycle API.
 
-`SITE_BUILD_DIR` and `SITE_DB` are mutually exclusive. The portable path omits
-the native SQL capability and fails the build if authored Liquid uses a SQL tag.
+`site-gen/build.tsx` requires `SITE_BUILD_DIR`. Before opening the generator it
+builds and authenticates the renderer package in memory. It then renders every
+member of the one closed catalog into private sibling staging, checks internal
+links, seals `site-output.json`, and only then renames the complete tree. No
+design/client output is appended outside the catalog. It rejects
+source-overlapping or symlinked destinations. Replacing an existing destination
+requires `SITE_GEN_REPLACE_OUTPUT=1`.
 
-Native publication is fail-closed. `OUT_DIR` is resolved and checked against
-filesystem root, the working tree, source/input paths, and symlink traversal.
-An existing destination is rejected unless `SITE_GEN_REPLACE_OUTPUT=1` is set
-explicitly. Rendering, decoded asset writes, client bundling, and strict link
-checking all happen in a real sibling staging directory. Only a completed tree
-is renamed into place; a pre-commit failure removes staging and leaves any prior
-output untouched. A replacement retires the old tree and then renames the new
-tree, so readers may observe a brief absent destination during those two
-same-filesystem operations, but never a partially written tree. The flag in the example is appropriate for the canonical repeatable
-`site-gen/out` build and can be omitted for a fresh `OUT_DIR`.
-`CycleSiteRenderer.listOutputs()` is enforced as the complete generator-owned
-namespace before publication; the native host also rejects collisions with
-design files, project CSS, or the client bundle. After link checking, the host
-hashes every declared renderer and host output and writes `site-output.json`.
-Its `sok1-sha256:` cache key binds the exact input build, renderer recipe digest,
-output schema, runtime/toolchain options; its `so1-sha256:` output id additionally
-binds every declared path and content reference. The host then re-reads the manifest and every staged file
-immediately before publication; a missing, extra, changed, non-regular, or
-symlinked output fails closed. The receipt itself is the sole excluded path so
-that its identity is not recursively self-referential.
-
-The repository-wide `bun run build:sitegen` adds guide-specific outputs beyond
-this reusable builder. It therefore creates one outer
-`AtomicOutputPublication`, points `site-gen/build.tsx` at an inner disposable
-directory, verifies the inner receipt, and copies only its declared files into
-outer staging. Viewers, SHL payloads, the agent package, `package-list.json`,
-`CNAME`, the compatibility redirect, and the complete Publisher output are added
-and declared there; the latter lives under `publisher/`, with root `qa.html`
-redirecting to its QA entry point. All inherited renderer files are hash-checked
-again (with the deliberate agent-package append to `llms.txt` recorded as a
-wrapper transformation). Cycle/wrapper pages pass the final link check, the
-Publisher subtree retains its own Publisher validation semantics, and every byte
-in both artifacts is sealed before `site-gen/out` is published once. The inner
-receipt is proof consumed by the wrapper; it is not the receipt shipped beside a
-larger, mutated tree.
-
-## Legacy SQLite fallback
-
-The existing Publisher/fixture workflow remains available only when `SITE_DB`
-is named explicitly:
-
-```text
-FSH → SUSHI → IG Publisher (→ output/package.db)
-   → site-gen/ingest.ts → temp/site-gen/site.db
-   → SqliteSiteBuildView → the same renderer/content code
-```
-
-Local renderer-only development can use the committed fixture:
+The repository-wide publication uses:
 
 ```sh
-SITE_GEN_USE_FIXTURE=1 bun site-gen/ingest.ts
-SITE_DB=temp/site-gen/site.db SITE_GEN_REPLACE_OUTPUT=1 bun site-gen/build.tsx
-bash site-gen/test.sh        # build + link-check + headless-chrome smoke
+FIG_BIN=/path/to/pinned/fig bun run build:sitegen
 ```
 
-The ingest input resolution is explicit (`PKG_DB` → `output/package.db` →
-opt-in fixture), and the renderer requires either `SITE_BUILD_DIR` or `SITE_DB`;
-it never silently selects a stale database.
+The wrapper runs the Java IG Publisher independently for validation and QA,
+prepares the v2 Cycle SiteBuild with `FIG_BIN`, verifies the inner Cycle output,
+then adds viewers, SMART Health Link files, the agent package, deployment files,
+and the complete Publisher artifact under `publisher/`. Root `qa.html` redirects
+to `publisher/qa.html`. The wrapper seals and publishes the combined tree once.
+The Publisher's `package.db` is not a Cycle input.
 
-## Layers (the rule of thumb: where would a future adopter need to change things?)
+## Rendering and Liquid
 
-- **`core/`** — shared static-site mechanics: `closed-build` (verified manifest +
-  read-only object-store handle), `site-build` (callback-free view contract),
-  `semantic-site-build` (strict v2 decoder/preloaded view), `json-site-build`
-  (v1 canonical-row adapter), `open-site-build` (exact contract dispatch and
-  generic WASM CAS transport), `renderer` (the one
-  CLI/browser semantic preparation + page/SSR implementation), `content` (the
-  one CLI/browser closed narrative policy), `db` (legacy native SQLite adapter),
-  `filesystem-closed-build` (Node/Bun-only Fig CAS reader), `markdown`,
-  `link-check` (href/src/srcset), `output-receipt` (browser-compatible canonical
-  output identity), `output-receipt-node` (native tree verification), and
-  `liquid` (safe LiquidJS evaluator).
-- **`fhir/`** — reusable FHIR IG rendering: profile / value-set / code-system /
-  example pages, `ElementTable`, `MachineFormats`. Reads the typed row shapes
-  exposed by `SiteBuildView`, not a SQLite connection.
-- **`chrome/`** — site shell/UI: `Layout`, `Menu`, `Footer`, `Parts`, `Tabs`, `Island`.
-- **`project/`** — everything another IG would replace: `cycle.ts` (the visible
-  contract — brand, externalLinks, cname, paths), `includes.ts` (the Liquid
-  include registry), `cycle.css` (project-only CSS like `.ptmvp-diagram`).
-- **`ds/`** — design-system primitives (Badge, Tag, Callout, CodeBlock, Cardinality, Icon).
-- **`client/`** — the hydration entry + island registry (bundled to `assets/app.js`).
-- **`designs/cycle/`** — the visual design drop-in (tokens, base.css, fonts, marks).
-  Swap the look by pointing `SITE_DESIGN_DIR` at another design directory.
+Cycle uses LiquidJS. `core/content.ts` is the single native/browser content
+policy. Includes resolve from the explicit project registry or a text asset in
+the closed SiteBuild. Resource fragments and generated fragments resolve from
+the already prepared semantic context. Unknown includes and unsupported tags
+fail the build.
 
-## Public seams
+Cycle has no SQL tag, database adapter, lenient fallback, filesystem include, or
+compiler callback. The Rust Liquid implementation used by Publisher templates
+is a separate renderer with a different contract.
 
-| API | Role |
-| --- | --- |
-| `ClosedBuildHandle` | validates the manifest/read graph and eagerly verifies every reachable ready-artifact body, then exposes immutable scoped reads |
-| `ContentStore` | read-only content-addressed byte transport; never a compiler/materialization callback |
-| `FilesystemContentStore` / `openFilesystemClosedBuild` | Node/Bun-only reader for a native `fig prepare` bundle; not imported by browser renderer modules |
-| `AtomicOutputPublication` | Bun-only validated sibling staging, failure cleanup, kernel-level no-replace rename, and completed-tree publication; not imported by browser modules |
-| `createCycleOutputReceipt` / `verifyCycleOutputReceipt` | pure Web-Crypto API that computes or verifies a complete output set in Bun or a browser |
-| `createCycleRendererOutputReceipt` | browser convenience that consumes `listOutputs()` / `renderOutput()`; optional host materials allow it to reproduce a native complete-tree receipt |
-| `sealCycleOutputTree` / `verifyCycleOutputTree` | Node/Bun-only regular-file traversal and receipt adapter used by atomic publication |
-| `scripts/final-publication.ts` | verifies and imports an inner receipt into outer staging, preserves inherited provenance, and audits inherited bytes after wrapper work |
-| `SiteBuildView` | synchronous, callback-free semantic and asset queries for one closed Cycle build |
-| `CYCLE_RENDER_PLAN_V2` | names `cycle-site/v2`: four `cycle.semantic/v1` JSON roots plus every raw authored asset root |
-| `openCycleSiteBuild` | dispatches only by the exact target; malformed v2 inputs never fall back to v1 by artifact presence |
-| `openCycleSiteBuildPayload` | strictly decodes the generic digest-to-base64 WASM CAS transport, verifies the build, and dispatches its view |
-| `SemanticSiteBuildView` | preloads strict resource/terminology/navigation/config payloads and raw assets; legacy numeric row keys exist only in memory |
-| `CYCLE_RENDER_PLAN_V1` / `JsonSiteBuildView` | readable v1 fallback over the one verified `compat.site_db/rows.json` artifact; the sole `ImplementationGuide` row whose `Web` is `index.html` is its explicit primary marker |
-| `CycleContentRenderer` | injected narrative transformation over one explicit content context |
-| `createCycleContentRenderer` | shared LiquidJS/include/fragment/site-data policy used by CLI and browser |
-| `CycleSiteRenderer.listPages()` | deterministic page manifest |
-| `CycleSiteRenderer.listOutputs()` | collision-checked generator output namespace (pages, narrative Markdown, machine JSON, `llms.txt`, and row assets) |
-| `CycleSiteRenderer.renderPage(file)` | pure React SSR for one page plus auxiliary outputs |
-| `CycleSiteRenderer.renderOutput(file)` | lazy direct-path access to HTML, narrative Markdown, machine JSON, or `llms.txt`; browser and native hosts do not synthesize these separately |
-| `SqliteSiteBuildView` | native legacy adapter over `site.db`; the only shared-renderer module that opens SQLite |
+## SiteOutput
 
-`AtomicOutputPublication` intentionally remains useful to generic callers that
-do not need a receipt. Its `publish()` permits an unsealed tree; if
-`sealOutputReceipt()` was called it always re-verifies before rename. The native
-Cycle builder unconditionally calls `sealOutputReceipt()` after link checking,
-so its publication path cannot skip receipt verification. The whole-publication
-wrapper independently seals its outer tree and performs the only rename to the
-canonical `site-gen/out`; the builder's verified inner directory is removed
-before that outer seal.
+The browser-neutral SiteOutput receipt binds:
 
-Both browser and native portable hosts call `openCycleSiteBuild` only through a
-`ClosedBuildHandle`, after the required artifact closure and every ready body
-has been verified. The v2 view reads parsed FHIR JSON rather than a `Json`
-column, derives concept/menu/page surrogate keys only in memory, and exposes raw
-asset bytes. Source/package read references are validated against the manifest
-but are not downloaded again by a renderer. `JsonSiteBuildView.encodedAssets()`
-exists only for the v1 browser compatibility transport; ordinary
-`SiteBuildView.assets()` always returns bytes.
+- the exact `sb1-sha256` input build id;
+- renderer identity and recipe digest;
+- output schema and runtime options; and
+- every declared path, media type, producer, owner, length, and SHA-256 digest.
 
-The resources root explicitly identifies its primary ImplementationGuide.
-Only that entry receives the compatibility `packageId`/canonical/`index.html`
-row identity. Additional ImplementationGuide resources retain their own ids,
-URLs, and `ImplementationGuide-<id>.html` pages; duplicate compatibility
-references fail before renderer maps are built.
+Its pre-render key is `sok1-sha256`; its material output identity is
+`so1-sha256`. `site-output.json` is excluded from its own file set to avoid
+self-reference. Native publication re-reads every staged byte before rename.
 
-Recursive v2 page roots flatten to compatibility depth zero. A positive depth
-offset left behind when a producer omits a structural page such as `toc.html`
-is normalized before the wire; only the relative page hierarchy is semantic.
+## Source layout
 
-`cycle-site/v2` identifies this input adapter contract. The receipt's
-`cycle-site@1` renderer identity is deliberately independent and currently
-shared with v1. Receipt ids still differ across v1/v2 parity builds because the
-receipt commits `inputBuildId` as well as all output bytes.
+- `core/closed-build.ts`: host-neutral verified SiteBuild handle.
+- `core/semantic-site-build.ts`: strict v2 decoder and typed renderer input.
+- `core/open-site-build.ts`: the one `openCycleGenerator` facade.
+- `core/renderer-package.ts`: authenticated renderer-owned static output package.
+- `core/renderer.tsx`: output catalog and direct-path React SSR.
+- `core/content.ts` and `core/liquid.ts`: shared closed LiquidJS policy.
+- `core/filesystem-closed-build.ts`: Bun filesystem ContentStore adapter.
+- `core/output-receipt.ts`: browser-neutral SiteOutput identity.
+- `core/atomic-output.ts`: native staged publication.
+- `native-renderer-package.ts`: Bun preparation of design/client package bytes.
+- `fhir/`: FHIR resource page components.
+- `chrome/`: shared site shell.
+- `project/`: replaceable guide-specific brand, includes, and visible config.
+- `designs/`: replaceable visual assets and tokens.
 
-The portable verified handle and native Fig handoff are documented in
-[`FIG-INTEGRATION.md`](FIG-INTEGRATION.md).
+Renderer components consume typed semantic resources, recursive navigation,
+configuration, terminology, and asset bytes directly. No database-shaped row
+projection sits between the closed SiteBuild and rendering.
 
-Cycle uses LiquidJS; Publisher-template rendering in the Rust engine uses a
-separate Rust Liquid implementation. See [`liquid-subset.md`](liquid-subset.md)
-for the implemented Cycle contract and the native-only SQL capability.
+## Verification
 
-## Security / trust model
+```sh
+bun run typecheck:renderer
+bun test site-gen/core
 
-- **Liquid includes never read from disk during render**. They resolve either to
-  a computed registry entry (`project/includes.ts`) or to a same-named text asset
-  that `ingest.ts` already copied into the DB from trusted project/Publisher
-  outputs. An **unknown include fails the build**.
-- **Liquid SQL tags are a native legacy capability only**. They accept only
-  `SELECT` / `WITH` statements over the local generated `site.db`, reject
-  semicolons and mutation keywords, and exist only for trusted first-party
-  markdown authoring. The portable/browser closed renderer supplies no SQL
-  executor and fails loudly if a page attempts to use one.
-- **Asset names are validated** before ingest/write; absolute paths, `..`, and
-  empty path segments are rejected.
-- **Native output is staged and published as a completed tree**. Dangerous or
-  source-overlapping paths and symlink traversal are rejected; replacing an
-  existing output requires `SITE_GEN_REPLACE_OUTPUT=1`.
-- **The final staged tree is content-addressed before publication**. Receipt
-  paths use the same UTF-8 byte ordering as SiteBuild identities; every file's
-  media type, length, SHA-256, producer, and available source/owner identity is
-  bound to the input build id and Cycle renderer version.
-- A **Liquid/include error fails the build** (set `SITE_GEN_LENIENT=1` only for
-  local dev) — a broken directive must never silently publish.
-- The **link checker rejects `javascript:` links** and flags dangling internal refs.
-- **Raw HTML in markdown is enabled** (`core/markdown`, `html: true`). This is a
-  deliberate choice: IG narrative is *trusted, first-party* content authored in
-  this repo. Directive-generated HTML escapes dynamic text (`esc()` in
-  `project/includes.ts`); React escapes component-rendered data by default. If
-  site-gen is ever pointed at **untrusted** markdown, add sanitization or disable
-  raw HTML before doing so.
+# Complete native/browser-output smoke over a real closed bundle:
+SITE_BUILD_DIR=/path/to/closed-v2-build bun run test:sitegen
+```
+
+The unit suite covers closure verification, strict semantic decoding, exact
+target rejection, generator catalog/direct rendering, assets, LiquidJS,
+receipts, atomic output, and link checking. CI additionally builds a real v2
+bundle with a pinned Fig commit and deploys only after the complete publication
+passes.

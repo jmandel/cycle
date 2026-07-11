@@ -186,8 +186,8 @@ async function prefixedHash(prefix: string, value: unknown): Promise<string> {
 
 function assertInputBuildId(value: unknown): asserts value is string {
   if (typeof value !== 'string'
-    || !/^(?:sb1|legacy-site-db)-sha256:[0-9a-f]{64}$/.test(value)) {
-    throw new Error('SiteOutput inputBuildId must be a SiteBuild or explicit legacy SQLite SHA-256 id');
+    || !/^sb1-sha256:[0-9a-f]{64}$/.test(value)) {
+    throw new Error('SiteOutput inputBuildId must be a SiteBuild SHA-256 id');
   }
 }
 

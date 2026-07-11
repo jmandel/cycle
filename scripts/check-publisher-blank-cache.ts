@@ -13,7 +13,6 @@ const LABEL = Bun.env.PUBLISHER_SMOKE_LABEL || (SUSHI_PROJECT === ROOT ? 'cycle'
 const OUT_DIR = resolve(ROOT, Bun.env.PUBLISHER_BLANK_CACHE_OUT_DIR || `temp/site-gen/blank-cache-${LABEL}`);
 const EXPECTED_DB = resolve(ROOT, Bun.env.EXPECTED_DB || join(SUSHI_PROJECT, 'output/package.db'));
 const CACHE_ROOT = mkdtempSync(join(tmpdir(), `${LABEL}-fhir-cache-`));
-const RENDER_SMOKE = Bun.env.PUBLISHER_SITE_RENDER_SMOKE !== '0';
 
 function run(label: string, args: string[], env: Record<string, string>) {
   console.log(`\n== ${label}`);
@@ -28,10 +27,6 @@ function run(label: string, args: string[], env: Record<string, string>) {
 
 function optionalEnv(name: string, value: string | undefined): Record<string, string> {
   return value ? { [name]: value } : {};
-}
-
-function existingPath(...parts: string[]): string {
-  return join(...parts);
 }
 
 function readJson(path: string): Json {
@@ -52,28 +47,6 @@ function checkManifest(path: string, expectedSources: Set<string>) {
     assert(String(pkg.packageDir || '').startsWith(CACHE_ROOT), `package not resolved from temp cache: ${pkg.packageDir}`);
   }
   return manifest;
-}
-
-function renderSiteSmoke(packageDb: string) {
-  if (!RENDER_SMOKE) return;
-  const siteDb = join(OUT_DIR, 'site.db');
-  const siteOut = join(OUT_DIR, 'site');
-  const siteProject = Bun.env.PUBLISHER_SITE_PROJECT || (SUSHI_PROJECT === ROOT ? 'cycle' : 'generic');
-  const commonEnv = {
-    SITE_PROJECT: siteProject,
-    PKG_DB: packageDb,
-    SITE_DB: siteDb,
-    OUT_DIR: siteOut,
-    SUSHI_CONFIG: Bun.env.SUSHI_CONFIG || existingPath(SUSHI_PROJECT, 'sushi-config.yaml'),
-    SITE_CONTENT_DIR: Bun.env.SITE_CONTENT_DIR || existingPath(SUSHI_PROJECT, 'input/pagecontent'),
-    SITE_IMAGE_DIR: Bun.env.SITE_IMAGE_DIR || existingPath(SUSHI_PROJECT, 'input/images'),
-    SITE_LIQUID_ASSET_DIRS: Bun.env.SITE_LIQUID_ASSET_DIRS || [
-      existingPath(SUSHI_PROJECT, 'input/includes'),
-      existingPath(SUSHI_PROJECT, 'template/includes'),
-    ].join(','),
-  };
-  run('ingest offline DB for site-render smoke', ['bun', 'site-gen/ingest.ts'], commonEnv);
-  run('render site from offline DB', ['bun', 'site-gen/build.tsx'], commonEnv);
 }
 
 try {
@@ -121,8 +94,6 @@ try {
   } else {
     console.warn(`Skipping compare: expected DB is not present at ${relative(ROOT, EXPECTED_DB)}.`);
   }
-
-  renderSiteSmoke(offlineDb);
 
   console.log('\nBlank-cache publisher smoke passed.');
   console.log(`  project: ${relative(ROOT, SUSHI_PROJECT) || '.'}`);

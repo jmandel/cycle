@@ -1,22 +1,22 @@
 import React from 'react';
 import { CodeBlock } from '../ds/CodeBlock';
 import { PageHeader, Tag, SectionHeading } from '../chrome/Parts';
-import type { ResourceRow } from '../core/site-build';
+import type { CycleResource } from '../core/semantic-site-build';
 
-export function ResourcePage({ r, data }: { r: ResourceRow; data: any }) {
+export function ResourcePage({ r, data }: { r: CycleResource; data: any }) {
   const json = JSON.stringify(data, null, 2);
-  const jsonFile = `${r.Type}-${r.Id}.json`;
+  const jsonFile = `${r.type}-${r.id}.json`;
   return (
     <>
       <PageHeader
-        eyebrow={`FHIR ${data.resourceType || r.Type}`}
+        eyebrow={`FHIR ${data.resourceType || r.type}`}
         eyebrowColor="var(--ovulatory-deep)"
-        title={r.Title || r.Name || r.Id}
-        lead={r.Description}
+        title={r.title || r.name || r.id}
+        lead={r.description}
         meta={[
-          ['Type', <Tag>{data.resourceType || r.Type}</Tag>],
-          ['Id', <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-sm)' }}>{r.Id}</span>],
-          ...(r.Url ? [['Canonical', <code>{r.Url}</code>] as [string, React.ReactNode]] : []),
+          ['Type', <Tag>{data.resourceType || r.type}</Tag>],
+          ['Id', <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-sm)' }}>{r.id}</span>],
+          ...(r.url ? [['Canonical', <code>{r.url}</code>] as [string, React.ReactNode]] : []),
         ]}
       />
       <section className="art-section" id="source">

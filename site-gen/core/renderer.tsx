@@ -1,9 +1,9 @@
 /**
  * Pure Cycle site renderer shared by the native CLI and browser worker.
  *
- * The renderer consumes a callback-free SiteBuildView. It performs semantic
- * preparation, page selection, and React SSR without opening SQLite, touching
- * the filesystem, consulting global state, or asking a compiler for artifacts.
+ * The renderer consumes a callback-free CycleSiteBuild. It performs semantic
+ * preparation, page selection, and React SSR without touching the filesystem,
+ * consulting global state, or asking a compiler for artifacts.
  * Content policy is injected explicitly; the standard CLI and browser policy
  * is shared by `core/content.ts` over the same closed inputs.
  */
@@ -20,9 +20,14 @@ import { ExamplePage } from '../fhir/ExamplePage';
 import { ResourcePage } from '../fhir/ResourcePage';
 import type { ResolveType } from '../fhir/ElementTable';
 import { renderMarkdown, sanitizeMarkdownSource } from './markdown';
-import type { MenuRow, PageRow, ResourceRow, SiteBuildView } from './site-build';
+import type {
+  CyclePage,
+  CycleResource,
+  SemanticMenuNode,
+  CycleSiteBuild,
+} from './semantic-site-build';
 import { compareText } from './order';
-import { CYCLE_OUTPUT_RECEIPT_PATH } from './output-receipt';
+import { assertCycleOutputPath } from './output-receipt';
 
 export type IncludeGenerator = (ig: unknown, params: Record<string, string>) => string;
 export type IncludeRegistry = Record<string, IncludeGenerator>;
@@ -35,7 +40,6 @@ export interface CycleProjectView {
 /** All closed data a Liquid implementation may read. None of these functions
  * resolves a missing artifact through a compiler or renderer callback. */
 export interface CycleContentContext {
-  view: SiteBuildView;
   ig: any;
   siteData: Record<string, any>;
   includes: IncludeRegistry;
@@ -53,8 +57,6 @@ export interface CycleContentRequest {
 }
 
 export interface CycleContentRenderer {
-  /** Called once after the immutable semantic context has been prepared. */
-  prepare?(context: CycleContentContext): void;
   renderLiquid(source: string, request: CycleContentRequest): string;
 }
 
@@ -76,7 +78,7 @@ export type PageKind =
   | 'example'
   | 'generic';
 
-export interface PageDescriptor {
+interface PageDescriptor {
   file: string;
   title: string;
   kind: PageKind;
@@ -88,11 +90,11 @@ export interface RenderedOutput {
   mime: string;
 }
 
-export interface RenderedPage {
+interface RenderedPage {
   file: string;
   html: string;
   /** Non-HTML siblings (resolved Markdown and machine JSON). These are members
-   * of `listOutputs()` and therefore required generator outputs. */
+   * of `outputs()` and therefore required generator outputs. */
   outputs: RenderedOutput[];
 }
 
@@ -102,6 +104,8 @@ export interface CycleOutputDescriptor {
   kind: 'page' | 'auxiliary' | 'asset';
   producer: string;
   owner?: string;
+  title?: string;
+  pageKind?: PageKind;
 }
 
 const RESOURCE_SORT = 'http://hl7.org/fhir/tools/StructureDefinition/resource-sort';
@@ -182,20 +186,19 @@ function esc(value: unknown): string {
 
 class SiteContext {
   readonly meta: Record<string, string>;
-  readonly all: ResourceRow[];
+  readonly all: CycleResource[];
   readonly igResource: any;
-  readonly menuRows: MenuRow[];
+  readonly menu: SemanticMenuNode[];
   readonly liquidSiteData: Record<string, any>;
   readonly byUrl = new Map<string, string>();
   readonly artifactHrefByLocalTarget = new Map<string, string>();
-  readonly resourcesByReference = new Map<string, ResourceRow>();
+  readonly resourcesByReference = new Map<string, CycleResource>();
   readonly sortRanks = new Map<string, number>();
   readonly exampleRefs = new Set<string>();
   readonly exampleProfilesByReference = new Map<string, string[]>();
   readonly navMap: Record<string, string> = { index: 'Home', artifacts: 'Artifacts' };
-  readonly menuById: Map<number, MenuRow>;
-  readonly structureDefinitions: ResourceRow[];
-  readonly structureDefinitionRowsByUrl = new Map<string, ResourceRow>();
+  readonly structureDefinitions: CycleResource[];
+  readonly structureDefinitionsByUrl = new Map<string, CycleResource>();
   readonly structureDefinitionDataByUrl = new Map<string, any>();
   readonly derivedProfiles = new Map<string, string[]>();
   readonly artifactsNav: string;
@@ -203,23 +206,23 @@ class SiteContext {
   readonly coreDocsBase: string;
 
   constructor(
-    readonly view: SiteBuildView,
+    readonly site: CycleSiteBuild,
     private readonly project: CycleProjectView,
   ) {
-    this.meta = view.metadata();
-    this.all = view.resources();
-    this.igResource = view.ig();
+    this.meta = site.metadata();
+    this.all = site.resources();
+    this.igResource = site.ig();
     this.fhirVersion = firstFhirVersion(this.igResource, this.meta);
     this.coreDocsBase = coreDocumentationBase(this.fhirVersion);
     for (const row of this.all) {
       const href = this.page(row);
-      if (row.Url) this.byUrl.set(row.Url, href);
-      this.artifactHrefByLocalTarget.set(`${row.Type}-${row.Id}`, href);
-      this.artifactHrefByLocalTarget.set(`${row.Type}/${row.Id}`, href);
-      this.resourcesByReference.set(`${row.Type}/${row.Id}`, row);
-      if (row.Type === 'ImplementationGuide' && row.Web === 'index.html') {
-        const authoredId = this.view.parse(row)?.id;
-        if (typeof authoredId === 'string' && authoredId && authoredId !== row.Id) {
+      if (row.url) this.byUrl.set(row.url, href);
+      this.artifactHrefByLocalTarget.set(`${row.type}-${row.id}`, href);
+      this.artifactHrefByLocalTarget.set(`${row.type}/${row.id}`, href);
+      this.resourcesByReference.set(`${row.type}/${row.id}`, row);
+      if (row.type === 'ImplementationGuide' && row.page === 'index.html') {
+        const authoredId = row.resource.id;
+        if (typeof authoredId === 'string' && authoredId && authoredId !== row.id) {
           this.artifactHrefByLocalTarget.set(`ImplementationGuide-${authoredId}`, href);
           this.artifactHrefByLocalTarget.set(`ImplementationGuide/${authoredId}`, href);
           this.resourcesByReference.set(`ImplementationGuide/${authoredId}`, row);
@@ -244,53 +247,53 @@ class SiteContext {
       if (profiles.size) this.exampleProfilesByReference.set(reference, [...profiles]);
     }
     this.liquidSiteData = this.publisherStyleSiteData(this.igResource, this.meta);
-    this.menuRows = view.menu();
-    this.menuById = new Map(this.menuRows.map((row) => [row.Id, row]));
-    for (const row of this.menuRows) {
-      if (!row.Href) continue;
-      const slug = row.Href.split('#')[0].replace(/\.html$/, '');
-      if (slug) this.navMap[slug] = this.topMenuLabel(row);
-    }
+    this.menu = site.menu();
+    const indexMenu = (nodes: readonly SemanticMenuNode[], topLabel?: string): void => {
+      for (const node of nodes) {
+        const top = topLabel || node.label;
+        if (node.href) {
+          const slug = node.href.split('#')[0].replace(/\.html$/, '');
+          if (slug) this.navMap[slug] = top;
+        }
+        indexMenu(node.items, top);
+      }
+    };
+    indexMenu(this.menu);
     this.artifactsNav = this.navMap.artifacts || 'Artifacts';
     this.structureDefinitions = this.artifactResources('StructureDefinition');
-    this.structureDefinitionRowsByUrl = new Map(
-      this.structureDefinitions.filter((row) => row.Url).map((row) => [row.Url!, row]),
+    this.structureDefinitionsByUrl = new Map(
+      this.structureDefinitions.filter((row) => row.url).map((row) => [row.url!, row]),
     );
     for (const row of this.structureDefinitions) {
-      if (!row.Url) continue;
+      if (!row.url) continue;
       const data = this.structureDefinitionData(row);
       const base = data.baseDefinition;
       if (!base || !this.byUrl.has(base)) continue;
-      this.derivedProfiles.set(base, [...(this.derivedProfiles.get(base) || []), row.Url]);
+      this.derivedProfiles.set(base, [...(this.derivedProfiles.get(base) || []), row.url]);
     }
   }
 
-  page(row: ResourceRow): string { return row.Web || `${row.Type}-${row.Id}.html`; }
-  resourceReference(row: ResourceRow): string { return `${row.Type}/${row.Id}`; }
-  topMenuLabel(row: MenuRow): string {
-    let current = row;
-    while (current.ParentId != null && this.menuById.has(current.ParentId)) current = this.menuById.get(current.ParentId)!;
-    return current.Label;
+  page(row: CycleResource): string { return row.page || `${row.type}-${row.id}.html`; }
+  resourceReference(row: CycleResource): string { return `${row.type}/${row.id}`; }
+  isExampleRow(row: CycleResource): boolean {
+    return !PRIMARY_RESOURCE_TYPES.has(row.type) && this.exampleRefs.has(this.resourceReference(row));
   }
-  isExampleRow(row: ResourceRow): boolean {
-    return !PRIMARY_RESOURCE_TYPES.has(row.Type) && this.exampleRefs.has(this.resourceReference(row));
+  isGenericResourcePage(row: CycleResource): boolean {
+    if (row.type === 'ImplementationGuide') return row.page !== 'index.html';
+    return !PRIMARY_RESOURCE_TYPES.has(row.type) && !this.isExampleRow(row);
   }
-  isGenericResourcePageRow(row: ResourceRow): boolean {
-    if (row.Type === 'ImplementationGuide') return row.Web !== 'index.html';
-    return !PRIMARY_RESOURCE_TYPES.has(row.Type) && !this.isExampleRow(row);
-  }
-  artifactRank(row: ResourceRow): number { return this.sortRanks.get(this.resourceReference(row)) ?? 100000; }
-  byArtifactOrder = (left: ResourceRow, right: ResourceRow): number =>
+  artifactRank(row: CycleResource): number { return this.sortRanks.get(this.resourceReference(row)) ?? 100000; }
+  byArtifactOrder = (left: CycleResource, right: CycleResource): number =>
     this.artifactRank(left) - this.artifactRank(right)
-      || compareText(left.Title || left.Name || left.Id, right.Title || right.Name || right.Id);
-  artifactResources(type?: string): ResourceRow[] {
-    return this.all.filter((row) => !type || row.Type === type).sort(this.byArtifactOrder);
+      || compareText(left.title || left.name || left.id, right.title || right.name || right.id);
+  artifactResources(type?: string): CycleResource[] {
+    return this.all.filter((row) => !type || row.type === type).sort(this.byArtifactOrder);
   }
-  exampleResources(): ResourceRow[] { return this.artifactResources().filter((row) => this.isExampleRow(row)); }
-  structureDefinitionData(row: ResourceRow): any {
-    if (row.Url && this.structureDefinitionDataByUrl.has(row.Url)) return this.structureDefinitionDataByUrl.get(row.Url);
-    const data = this.view.parse(row);
-    if (row.Url) this.structureDefinitionDataByUrl.set(row.Url, data);
+  exampleResources(): CycleResource[] { return this.artifactResources().filter((row) => this.isExampleRow(row)); }
+  structureDefinitionData(row: CycleResource): any {
+    if (row.url && this.structureDefinitionDataByUrl.has(row.url)) return this.structureDefinitionDataByUrl.get(row.url);
+    const data = row.resource;
+    if (row.url) this.structureDefinitionDataByUrl.set(row.url, data);
     return data;
   }
   localAuthoredElementChain(data: any): any[] {
@@ -302,7 +305,7 @@ class SiteContext {
         if (seen.has(url)) return;
         seen.add(url);
       }
-      const baseRow = definition?.baseDefinition ? this.structureDefinitionRowsByUrl.get(definition.baseDefinition) : undefined;
+      const baseRow = definition?.baseDefinition ? this.structureDefinitionsByUrl.get(definition.baseDefinition) : undefined;
       if (baseRow) visit(this.structureDefinitionData(baseRow));
       chain.push(...(definition?.differential?.element || []));
     };
@@ -330,18 +333,18 @@ class SiteContext {
     for (const row of this.exampleResources()) {
       const profiles = this.exampleProfilesByReference.get(this.resourceReference(row)) || [];
       if (!profiles.some((profile) => accepted.has(profile))) continue;
-      const data = this.view.parse(row);
+      const data = row.resource;
       const code = JSON.stringify(data, null, 2);
       const direct = profiles.includes(profileUrl);
-      const inlineable = direct && row.Type !== 'Bundle' && code.length <= 16000;
+      const inlineable = direct && row.type !== 'Bundle' && code.length <= 16000;
       examples.push({
-        title: row.Title || row.Name || row.Id,
+        title: row.title || row.name || row.id,
         href: this.page(row),
-        jsonHref: `${row.Type}-${row.Id}.json`,
+        jsonHref: `${row.type}-${row.id}.json`,
         count: 1,
         direct,
-        resourceTypes: [row.Type],
-        ...(inlineable ? { preview: { filename: `${row.Type}-${row.Id}.json`, code } } : {}),
+        resourceTypes: [row.type],
+        ...(inlineable ? { preview: { filename: `${row.type}-${row.id}.json`, code } } : {}),
       });
     }
     return examples;
@@ -358,31 +361,31 @@ class SiteContext {
   profileGroupLabel(id: string): string | null {
     return this.configuredProfileGroups.find((group) => group.ids.includes(id))?.label || null;
   }
-  emittedPageForResource(row: ResourceRow): string | null {
-    if (PRIMARY_RESOURCE_TYPES.has(row.Type) && row.Type !== 'ImplementationGuide') return this.page(row);
-    if (this.isExampleRow(row) || this.isGenericResourcePageRow(row)) return this.page(row);
+  emittedPageForResource(row: CycleResource): string | null {
+    if (PRIMARY_RESOURCE_TYPES.has(row.type) && row.type !== 'ImplementationGuide') return this.page(row);
+    if (this.isExampleRow(row) || this.isGenericResourcePage(row)) return this.page(row);
     return null;
   }
-  listRowsForType(type: string): ResourceRow[] {
+  resourcesForType(type: string): CycleResource[] {
     if (type === 'StructureDefinition' || type === 'ValueSet' || type === 'CodeSystem') return this.artifactResources(type);
     return this.artifactResources(type).filter((row) => this.isExampleRow(row));
   }
   simpleNameList(type: string): string {
-    const rows = this.listRowsForType(type);
+    const rows = this.resourcesForType(type);
     if (!rows.length) return '<li class="muted">None.</li>';
     return rows.map((row) => {
-      const title = esc(row.Title || row.Name || row.Id);
+      const title = esc(row.title || row.name || row.id);
       const href = this.emittedPageForResource(row);
       return `<li>${href ? `<a href="${esc(href)}">${title}</a>` : title}</li>`;
     }).join('\n');
   }
-  artifactTable(type: string, rows: ResourceRow[]): string {
+  artifactTable(type: string, rows: CycleResource[]): string {
     if (!rows.length) return '<p class="muted">None.</p>';
     const body = rows.map((row) => {
-      const title = esc(row.Title || row.Name || row.Id);
+      const title = esc(row.title || row.name || row.id);
       const href = this.emittedPageForResource(row);
       const label = href ? `<a href="${esc(href)}">${title}</a>` : title;
-      return `<tr><td>${label}</td><td>${esc(row.Description || '')}</td></tr>`;
+      return `<tr><td>${label}</td><td>${esc(row.description || '')}</td></tr>`;
     }).join('');
     return `<div class="table-scroll"><table class="cycle-table"><thead><tr><th>${esc(type)}</th><th>Description</th></tr></thead><tbody>${body}</tbody></table></div>`;
   }
@@ -398,7 +401,7 @@ class SiteContext {
   }
   resolveFragmentResource(type: string, id: string): any | null {
     const row = this.resourcesByReference.get(`${type}/${id}`);
-    return row ? this.view.parse(row) : null;
+    return row ? row.resource : null;
   }
   rewriteCoreFhirDocLinks(markdown: string): string {
     return markdown.replace(/(\]\(|href=["'])(\.\/)?([a-z][a-z0-9-]+\.html)(#[^)\'" ]+)?/gi, (match, prefix, _dot, pageName, anchor = '') => {
@@ -470,28 +473,28 @@ function ArtifactSidebar({ context, current }: { context: SiteContext; current: 
   const definitions = context.artifactResources('StructureDefinition');
   const terminology = [...context.artifactResources('ValueSet'), ...context.artifactResources('CodeSystem')];
   const configured = context.configuredProfileGroups;
-  const groups = configured.length ? configured : [{ label: 'Profiles', ids: definitions.map((row) => row.Id) }];
+  const groups = configured.length ? configured : [{ label: 'Profiles', ids: definitions.map((row) => row.id) }];
   return <>
     <div className="side-group">
       <div className="side-title">Profiles</div>
       {groups.map((group) => {
         const rows = configured.length
-          ? definitions.filter((row) => context.profileGroupLabel(row.Id) === group.label)
+          ? definitions.filter((row) => context.profileGroupLabel(row.id) === group.label)
           : definitions;
         if (!rows.length) return null;
         return <React.Fragment key={group.label}>
           {configured.length ? <div className="side-subtitle">{group.label}</div> : null}
-          {rows.map((row) => <a key={row.Id} href={context.page(row)} {...(context.page(row) === current ? { 'aria-current': 'page' } : {})}>
-            <span style={{ flex: 1 }}>{row.Title || row.Name || row.Id}</span>
+          {rows.map((row) => <a key={row.id} href={context.page(row)} {...(context.page(row) === current ? { 'aria-current': 'page' } : {})}>
+            <span style={{ flex: 1 }}>{row.title || row.name || row.id}</span>
           </a>)}
         </React.Fragment>;
       })}
     </div>
     <div className="side-group">
       <div className="side-title">Terminology</div>
-      {terminology.map((row) => <a key={row.Id} href={context.page(row)} {...(context.page(row) === current ? { 'aria-current': 'page' } : {})}>
-        <span style={{ flex: 1 }}>{row.Title || row.Name || row.Id}</span>
-        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-2xs)', color: 'var(--ink-300)' }}>{row.Type === 'ValueSet' ? 'VS' : 'CS'}</span>
+      {terminology.map((row) => <a key={row.id} href={context.page(row)} {...(context.page(row) === current ? { 'aria-current': 'page' } : {})}>
+        <span style={{ flex: 1 }}>{row.title || row.name || row.id}</span>
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-2xs)', color: 'var(--ink-300)' }}>{row.type === 'ValueSet' ? 'VS' : 'CS'}</span>
       </a>)}
     </div>
   </>;
@@ -506,30 +509,28 @@ export class CycleSiteRenderer {
   private outputManifest: CycleOutputDescriptor[] | null = null;
 
   constructor(
-    readonly view: SiteBuildView,
+    readonly site: CycleSiteBuild,
     private readonly options: CycleRendererOptions,
   ) {
     this.includes = options.includes || {};
     this.project = options.project || {};
-    this.context = new SiteContext(view, this.project);
+    this.context = new SiteContext(site, this.project);
     this.contentContext = {
-      view,
       ig: this.context.igResource,
       siteData: this.context.liquidSiteData,
       includes: this.includes,
       fhirVersion: this.context.meta.version || this.context.igResource.fhirVersion?.[0] || '4.0.1',
       generatedFragment: (name) => this.context.generatedFragment(name),
-      textAsset: (name) => view.textAsset(name),
+      textAsset: (name) => site.textAsset(name),
       resolveFragmentResource: (type, id) => this.context.resolveFragmentResource(type, id),
     };
-    options.content.prepare?.(this.contentContext);
   }
 
-  listPages(): PageDescriptor[] {
+  private listPages(): PageDescriptor[] {
     if (this.pageManifest) return this.pageManifest.map((page) => ({ ...page }));
     const result: PageDescriptor[] = [];
-    for (const page of this.view.pages()) {
-      if (page.Body) result.push({ file: `${page.Slug}.html`, title: page.Title, kind: 'narrative' });
+    for (const page of this.site.pages()) {
+      if (page.body) result.push({ file: `${page.slug}.html`, title: page.title, kind: 'narrative' });
     }
     result.push(
       { file: 'artifacts.html', title: 'Artifacts', kind: 'artifacts' },
@@ -537,17 +538,17 @@ export class CycleSiteRenderer {
       { file: 'validation.html', title: 'Validation', kind: 'validation' },
     );
     for (const row of this.context.artifactResources('StructureDefinition')) {
-      const title = row.Title || row.Name || row.Id;
+      const title = row.title || row.name || row.id;
       result.push({ file: this.context.page(row), title, kind: 'profile' });
-      result.push({ file: `StructureDefinition-${row.Id}-definitions.html`, title: `${title} Definitions`, kind: 'profile-companion' });
-      result.push({ file: `StructureDefinition-${row.Id}-mappings.html`, title: `${title} Mappings`, kind: 'profile-companion' });
+      result.push({ file: `StructureDefinition-${row.id}-definitions.html`, title: `${title} Definitions`, kind: 'profile-companion' });
+      result.push({ file: `StructureDefinition-${row.id}-mappings.html`, title: `${title} Mappings`, kind: 'profile-companion' });
     }
-    for (const row of this.context.artifactResources('ValueSet')) result.push({ file: this.context.page(row), title: row.Title || row.Name || row.Id, kind: 'valueset' });
-    for (const row of this.context.artifactResources('CodeSystem')) result.push({ file: this.context.page(row), title: row.Title || row.Name || row.Id, kind: 'codesystem' });
-    for (const row of this.context.artifactResources().filter((candidate) => this.context.isGenericResourcePageRow(candidate))) {
-      result.push({ file: this.context.page(row), title: row.Title || row.Name || row.Id, kind: 'generic' });
+    for (const row of this.context.artifactResources('ValueSet')) result.push({ file: this.context.page(row), title: row.title || row.name || row.id, kind: 'valueset' });
+    for (const row of this.context.artifactResources('CodeSystem')) result.push({ file: this.context.page(row), title: row.title || row.name || row.id, kind: 'codesystem' });
+    for (const row of this.context.artifactResources().filter((candidate) => this.context.isGenericResourcePage(candidate))) {
+      result.push({ file: this.context.page(row), title: row.title || row.name || row.id, kind: 'generic' });
     }
-    for (const row of this.context.exampleResources()) result.push({ file: this.context.page(row), title: row.Title || row.Name || row.Id, kind: 'example' });
+    for (const row of this.context.exampleResources()) result.push({ file: this.context.page(row), title: row.title || row.name || row.id, kind: 'example' });
     const seen = new Map<string, PageDescriptor>();
     for (const page of result) {
       this.assertSafeOutputPath(page.file);
@@ -563,11 +564,9 @@ export class CycleSiteRenderer {
     return result.map((page) => ({ ...page }));
   }
 
-  /** Complete generator-owned output namespace. Design-system files copied by
-   * the CLI/browser host remain host assets, but every page, row asset, machine
-   * file, narrative source, and llms.txt path is declared and collision-checked
-   * here before publication. */
-  listOutputs(): CycleOutputDescriptor[] {
+  /** Complete semantic/authored namespace. The facade merges the immutable
+   * renderer package into this catalog before exposing it to a host. */
+  outputs(): CycleOutputDescriptor[] {
     if (this.outputManifest) return this.outputManifest.map((output) => ({ ...output }));
     const pages = this.listPages();
     const pageFiles = new Set(pages.map((page) => page.file));
@@ -583,42 +582,49 @@ export class CycleSiteRenderer {
       outputs.push(output);
     };
     for (const page of pages) {
-      add({ file: page.file, mime: 'text/html', kind: 'page', producer: `${page.kind} page` });
-    }
-    for (const page of this.view.pages().filter((candidate) => candidate.Body)) {
       add({
-        file: `${page.Slug}.md`,
+        file: page.file,
+        mime: 'text/html',
+        kind: 'page',
+        producer: `${page.kind} page`,
+        title: page.title,
+        pageKind: page.kind,
+      });
+    }
+    for (const page of this.site.pages().filter((candidate) => candidate.body)) {
+      add({
+        file: `${page.slug}.md`,
         mime: 'text/markdown',
         kind: 'auxiliary',
-        producer: `narrative source ${page.Slug}`,
-        owner: `${page.Slug}.html`,
+        producer: `narrative source ${page.slug}`,
+        owner: `${page.slug}.html`,
       });
     }
     for (const row of this.context.all) {
       const owner = this.context.page(row);
       if (!pageFiles.has(owner)) continue;
       add({
-        file: `${row.Type}-${row.Id}.json`,
+        file: `${row.type}-${row.id}.json`,
         mime: 'application/fhir+json',
         kind: 'auxiliary',
-        producer: `resource ${row.Type}/${row.Id}`,
+        producer: `resource ${row.type}/${row.id}`,
         owner,
       });
     }
     add({ file: 'llms.txt', mime: 'text/plain', kind: 'auxiliary', producer: 'LLM site index' });
-    for (const asset of this.view.assets()) {
-      add({ file: asset.Name, mime: asset.Mime, kind: 'asset', producer: `row asset ${asset.Name}` });
+    for (const asset of this.site.assetCatalog()) {
+      add({ file: asset.path, mime: asset.mediaType, kind: 'asset', producer: `authored asset ${asset.path}` });
     }
     outputs.sort((left, right) => compareText(left.file, right.file));
     this.outputManifest = outputs.map((output) => ({ ...output }));
     return outputs.map((output) => ({ ...output }));
   }
 
-  renderPage(file: string): RenderedPage {
+  private renderPage(file: string): RenderedPage {
     // Validate the complete page namespace even for a direct render call.
     this.listPages();
     const slug = file.replace(/\.html$/, '');
-    const narrative = this.view.pages().find((page) => page.Slug === slug && page.Body);
+    const narrative = this.site.pages().find((page) => page.slug === slug && page.body);
     if (narrative) return this.renderNarrative(file, narrative);
     if (file === 'artifacts.html') return { file, html: this.renderArtifacts(), outputs: [] };
     if (file === 'toc.html') return { file, html: this.renderToc(), outputs: [] };
@@ -626,10 +632,10 @@ export class CycleSiteRenderer {
 
     const companion = /^StructureDefinition-(.+)-(definitions|mappings)\.html$/.exec(file);
     if (companion) {
-      const row = this.context.artifactResources('StructureDefinition').find((candidate) => candidate.Id === companion[1]);
+      const row = this.context.artifactResources('StructureDefinition').find((candidate) => candidate.id === companion[1]);
       if (!row) throw new Error(`Cycle renderer: no page '${file}'`);
       const label = companion[2] === 'definitions' ? 'Definitions' : 'Mappings';
-      const title = row.Title || row.Name || row.Id;
+      const title = row.title || row.name || row.id;
       return {
         file,
         html: this.emit(
@@ -653,12 +659,13 @@ export class CycleSiteRenderer {
    * read directly from the matching resource because the primary IG and its
    * authored home narrative intentionally share `index.html`; other auxiliary
    * outputs continue to resolve through their owning page. */
-  renderOutput(file: string): RenderedOutput {
-    const descriptor = this.listOutputs().find((candidate) => candidate.file === file);
+  render(file: string): RenderedOutput {
+    const descriptor = this.outputs().find((candidate) => candidate.file === file);
     if (!descriptor) throw new Error(`Cycle renderer: no output '${file}'`);
     if (descriptor.kind === 'asset') {
-      const asset = this.view.assets().find((candidate) => candidate.Name === file)!;
-      return { file, content: asset.Content, mime: asset.Mime };
+      const asset = this.site.asset(file);
+      if (!asset) throw new Error(`Cycle renderer: missing authored asset '${file}'`);
+      return { file, content: asset.bytes, mime: asset.mediaType };
     }
     if (file === 'llms.txt') {
       return { file, content: this.renderLlmsTxt(), mime: 'text/plain' };
@@ -669,9 +676,9 @@ export class CycleSiteRenderer {
     }
 
     if (descriptor.mime === 'application/fhir+json') {
-      const row = this.context.all.find((candidate) => `${candidate.Type}-${candidate.Id}.json` === file);
+      const row = this.context.all.find((candidate) => `${candidate.type}-${candidate.id}.json` === file);
       if (row) {
-        return { file, content: JSON.stringify(this.view.parse(row), null, 2), mime: descriptor.mime };
+        return { file, content: JSON.stringify(row.resource, null, 2), mime: descriptor.mime };
       }
     }
 
@@ -683,19 +690,10 @@ export class CycleSiteRenderer {
   }
 
   private assertSafeOutputPath(file: string): void {
-    if (!file || file.startsWith('/') || file.includes('\\') || file.includes('\0')) {
-      throw new Error(`Cycle renderer produced unsafe output path '${file}'`);
-    }
-    const parts = file.split('/');
-    if (parts.some((part) => !part || part === '.' || part === '..')) {
-      throw new Error(`Cycle renderer produced unsafe output path '${file}'`);
-    }
-    if (file === CYCLE_OUTPUT_RECEIPT_PATH) {
-      throw new Error(`Cycle renderer output collides with reserved receipt path '${file}'`);
-    }
+    assertCycleOutputPath(file, 'Cycle renderer output path');
   }
 
-  renderLlmsTxt(): string {
+  private renderLlmsTxt(): string {
     const ig = this.context.igResource;
     const siteBase = (() => {
       try {
@@ -714,28 +712,27 @@ export class CycleSiteRenderer {
       `- Resolve relative links in this file against: ${siteBase}`,
       '', '## Pages (site navigation; .md = liquid-resolved source)',
     ];
-    const pageSlugs = new Set(this.view.pages().filter((page) => page.Body).map((page) => page.Slug));
-    const menuChildren = this.menuChildren();
+    const pageSlugs = new Set(this.site.pages().filter((page) => page.body).map((page) => page.slug));
     const markdownHref = (href: string) => {
       const [path, anchor] = href.split('#');
       const page = path.replace(/\.html$/, '');
       return pageSlugs.has(page) ? `${page}.md${anchor ? `#${anchor}` : ''}` : href;
     };
-    const writeMenu = (parentId: number | null, depth: number) => {
-      for (const item of menuChildren.get(parentId) || []) {
+    const writeMenu = (items: readonly SemanticMenuNode[], depth: number) => {
+      for (const item of items) {
         const prefix = '  '.repeat(depth);
-        lines.push(item.Href ? `${prefix}- [${item.Label}](${markdownHref(item.Href)})` : `${prefix}- ${item.Label}`);
-        writeMenu(item.Id, depth + 1);
+        lines.push(item.href ? `${prefix}- [${item.label}](${markdownHref(item.href)})` : `${prefix}- ${item.label}`);
+        writeMenu(item.items, depth + 1);
       }
     };
-    writeMenu(null, 0);
+    writeMenu(this.context.menu, 0);
     const group = (label: string, type: string) => {
       const rows = this.context.artifactResources(type);
       if (!rows.length) return;
       lines.push('', `## ${label}`);
       for (const row of rows) {
-        const description = (row.Description || '').replace(/\s+/g, ' ').split(/(?<=[.?!])\s/)[0];
-        lines.push(`- [${row.Title || row.Name || row.Id}](${row.Type}-${row.Id}.html): ${description} | JSON: ${row.Type}-${row.Id}.json`);
+        const description = (row.description || '').replace(/\s+/g, ' ').split(/(?<=[.?!])\s/)[0];
+        lines.push(`- [${row.title || row.name || row.id}](${row.type}-${row.id}.html): ${description} | JSON: ${row.type}-${row.id}.json`);
       }
     };
     group('Profiles', 'StructureDefinition');
@@ -745,40 +742,40 @@ export class CycleSiteRenderer {
     if (examples.length) {
       lines.push('', '## Examples');
       for (const row of examples) {
-        const description = (row.Description || '').replace(/\s+/g, ' ').split(/(?<=[.?!])\s/)[0];
-        lines.push(`- [${row.Title || row.Name || row.Id}](${row.Type}-${row.Id}.html): ${description} | JSON: ${row.Type}-${row.Id}.json`);
+        const description = (row.description || '').replace(/\s+/g, ' ').split(/(?<=[.?!])\s/)[0];
+        lines.push(`- [${row.title || row.name || row.id}](${row.type}-${row.id}.html): ${description} | JSON: ${row.type}-${row.id}.json`);
       }
     }
     return `${lines.join('\n')}\n`;
   }
 
-  private renderNarrative(file: string, page: PageRow): RenderedPage {
-    let markdown = this.options.content.renderLiquid(page.Body!, {
+  private renderNarrative(file: string, page: CyclePage): RenderedPage {
+    let markdown = this.options.content.renderLiquid(page.body!, {
       file,
-      slug: page.Slug,
-      title: page.Title,
+      slug: page.slug,
+      title: page.title,
       context: this.contentContext,
     });
     markdown = sanitizeMarkdownSource(this.context.rewriteKnownArtifactLinks(this.context.rewriteCoreFhirDocLinks(markdown)));
     const rendered = renderMarkdown(markdown);
     const html = this.emit(<div className="cycle-prose" dangerouslySetInnerHTML={{ __html: rendered.html }} />, {
-      title: page.Title,
-      navActive: this.context.navMap[page.Slug],
+      title: page.title,
+      navActive: this.context.navMap[page.slug],
       toc: rendered.toc.filter((item: any) => item.level === 2).map((item: any) => ({ id: item.id, label: item.label })),
-      crumbs: page.Slug === 'index' ? undefined : [{ label: 'Home', href: 'index.html' }, { label: page.Title }],
-      aiSource: `${page.Slug}.md`,
+      crumbs: page.slug === 'index' ? undefined : [{ label: 'Home', href: 'index.html' }, { label: page.title }],
+      aiSource: `${page.slug}.md`,
     });
-    return { file, html, outputs: [{ file: `${page.Slug}.md`, content: markdown, mime: 'text/markdown' }] };
+    return { file, html, outputs: [{ file: `${page.slug}.md`, content: markdown, mime: 'text/markdown' }] };
   }
 
   private renderArtifacts(): string {
     return this.emit(
       <ArtifactsPage
-        resources={this.context.artifactResources() as any}
-        page={(row: any) => this.context.page(row)}
-        isExample={(row: any) => this.context.isExampleRow(row)}
+        resources={this.context.artifactResources()}
+        page={(resource) => this.context.page(resource)}
+        isExample={(resource) => this.context.isExampleRow(resource)}
         profileGroupLabel={(id: string) => this.context.profileGroupLabel(id)}
-        profileGroups={this.context.configuredProfileGroups as any}
+        profileGroups={this.context.configuredProfileGroups}
       />,
       {
         title: 'Artifacts', navActive: this.context.artifactsNav,
@@ -790,16 +787,17 @@ export class CycleSiteRenderer {
   }
 
   private renderToc(): string {
-    const children = this.menuChildren();
-    const renderList = (parentId: number | null): React.ReactNode => {
-      const rows = children.get(parentId) || [];
-      if (!rows.length) return null;
-      return <ul>{rows.map((row) => <li key={row.Id}>
-        {row.Href ? <a href={row.Href}>{row.Label}</a> : <span>{row.Label}</span>}
-        {renderList(row.Id)}
-      </li>)}</ul>;
+    const renderList = (items: readonly SemanticMenuNode[], path = ''): React.ReactNode => {
+      if (!items.length) return null;
+      return <ul>{items.map((item) => {
+        const key = path ? `${path}/${item.label}` : item.label;
+        return <li key={key}>
+          {item.href ? <a href={item.href}>{item.label}</a> : <span>{item.label}</span>}
+          {renderList(item.items, key)}
+        </li>;
+      })}</ul>;
     };
-    return this.emit(<div className="cycle-prose"><h1>Table of Contents</h1>{renderList(null)}</div>, {
+    return this.emit(<div className="cycle-prose"><h1>Table of Contents</h1>{renderList(this.context.menu)}</div>, {
       title: 'Table of Contents', navActive: this.context.navMap.toc,
       crumbs: [{ label: 'Home', href: 'index.html' }, { label: 'Table of Contents' }],
     });
@@ -814,54 +812,54 @@ export class CycleSiteRenderer {
     });
   }
 
-  private renderResourcePage(file: string, row: ResourceRow): RenderedPage {
-    const title = row.Title || row.Name || row.Id;
-    const machineBase = `${row.Type}-${row.Id}`;
-    const output = { file: `${machineBase}.json`, content: JSON.stringify(this.view.parse(row), null, 2), mime: 'application/fhir+json' };
-    if (row.Type === 'StructureDefinition') {
+  private renderResourcePage(file: string, row: CycleResource): RenderedPage {
+    const title = row.title || row.name || row.id;
+    const machineBase = `${row.type}-${row.id}`;
+    const output = { file: `${machineBase}.json`, content: JSON.stringify(row.resource, null, 2), mime: 'application/fhir+json' };
+    if (row.type === 'StructureDefinition') {
       const data = this.context.structureDefinitionData(row);
       const rootType = row.sdType || data.type;
-      const examples = this.context.profileExamples(row.Url || '');
+      const examples = this.context.profileExamples(row.url || '');
       return { file, html: this.emit(
-        <ProfilePage r={row as any} data={data} resolve={this.context.resolve} requirements={this.context.profileRootRequirements(data, rootType)} examples={examples} authoredElementChain={this.context.localAuthoredElementChain(data)} />,
+        <ProfilePage r={row} data={data} resolve={this.context.resolve} requirements={this.context.profileRootRequirements(data, rootType)} examples={examples} authoredElementChain={this.context.localAuthoredElementChain(data)} />,
         {
           title, navActive: this.context.artifactsNav,
-          crumbs: [{ label: 'Artifacts', href: 'artifacts.html' }, { label: 'Profiles', href: 'artifacts.html#profiles' }, { label: row.Title || row.Id }],
+          crumbs: [{ label: 'Artifacts', href: 'artifacts.html' }, { label: 'Profiles', href: 'artifacts.html#profiles' }, { label: row.title || row.id }],
           toc: [{ id: 'overview', label: 'Overview' }, ...(examples.length ? [{ id: 'examples', label: 'Examples' }] : []), { id: 'elements', label: 'Formal definition' }],
           sidebar: <ArtifactSidebar context={this.context} current={file} />, machineBase,
         },
       ), outputs: [output] };
     }
-    if (row.Type === 'ValueSet') {
-      const data = this.view.parse(row);
-      return { file, html: this.emit(<ValueSetPage r={row as any} data={data} resolve={this.context.resolve} expansion={this.view.valueSetCodes(row.Url || '')} />, {
+    if (row.type === 'ValueSet') {
+      const data = row.resource;
+      return { file, html: this.emit(<ValueSetPage r={row} data={data} resolve={this.context.resolve} expansion={this.site.valueSetCodes(row.url || '')} />, {
         title, navActive: this.context.artifactsNav,
-        crumbs: [{ label: 'Artifacts', href: 'artifacts.html' }, { label: 'Value sets', href: 'artifacts.html#value-sets' }, { label: row.Title || row.Id }],
+        crumbs: [{ label: 'Artifacts', href: 'artifacts.html' }, { label: 'Value sets', href: 'artifacts.html#value-sets' }, { label: row.title || row.id }],
         toc: [{ id: 'overview', label: 'Overview' }, { id: 'definition', label: 'Composition' }],
         sidebar: <ArtifactSidebar context={this.context} current={file} />, machineBase,
       }), outputs: [output] };
     }
-    if (row.Type === 'CodeSystem') {
-      const data = this.view.parse(row);
-      return { file, html: this.emit(<CodeSystemPage r={row as any} data={data} concepts={this.view.concepts(row.Key) as any} />, {
+    if (row.type === 'CodeSystem') {
+      const data = row.resource;
+      return { file, html: this.emit(<CodeSystemPage r={row} data={data} concepts={this.site.concepts(row)} />, {
         title, navActive: this.context.artifactsNav,
-        crumbs: [{ label: 'Artifacts', href: 'artifacts.html' }, { label: 'Code systems', href: 'artifacts.html#code-systems' }, { label: row.Title || row.Id }],
+        crumbs: [{ label: 'Artifacts', href: 'artifacts.html' }, { label: 'Code systems', href: 'artifacts.html#code-systems' }, { label: row.title || row.id }],
         toc: [{ id: 'overview', label: 'Overview' }, { id: 'concepts', label: 'Concepts' }],
         sidebar: <ArtifactSidebar context={this.context} current={file} />, machineBase,
       }), outputs: [output] };
     }
-    const data = this.view.parse(row);
+    const data = row.resource;
     if (this.context.isExampleRow(row)) {
-      return { file, html: this.emit(<ExamplePage r={row as any} data={data} />, {
+      return { file, html: this.emit(<ExamplePage r={row} data={data} />, {
         title, navActive: this.context.artifactsNav,
-        crumbs: [{ label: 'Artifacts', href: 'artifacts.html' }, { label: 'Examples', href: 'artifacts.html#examples' }, { label: row.Title || row.Id }],
+        crumbs: [{ label: 'Artifacts', href: 'artifacts.html' }, { label: 'Examples', href: 'artifacts.html#examples' }, { label: row.title || row.id }],
         toc: [{ id: 'overview', label: 'Overview' }, { id: 'source', label: 'Source' }],
         sidebar: <ArtifactSidebar context={this.context} current={file} />, machineBase,
       }), outputs: [output] };
     }
-    return { file, html: this.emit(<ResourcePage r={row as any} data={data} />, {
+    return { file, html: this.emit(<ResourcePage r={row} data={data} />, {
       title, navActive: this.context.artifactsNav,
-      crumbs: [{ label: 'Artifacts', href: 'artifacts.html' }, { label: row.Type }, { label: row.Title || row.Id }],
+      crumbs: [{ label: 'Artifacts', href: 'artifacts.html' }, { label: row.type }, { label: row.title || row.id }],
       toc: [{ id: 'overview', label: 'Overview' }, { id: 'source', label: 'Source' }],
       sidebar: <ArtifactSidebar context={this.context} current={file} />, machineBase,
     }), outputs: [output] };
@@ -875,17 +873,8 @@ export class CycleSiteRenderer {
       <Layout
         meta={this.context.meta} title={options.title} crumbs={options.crumbs} toc={options.toc}
         navActive={options.navActive} sidebar={options.sidebar} machineBase={options.machineBase}
-        aiSource={options.aiSource} ig={this.context.igResource} menu={this.context.menuRows}
+        aiSource={options.aiSource} ig={this.context.igResource} menu={this.context.menu}
       >{node}</Layout>,
     );
-  }
-
-  private menuChildren(): Map<number | null, MenuRow[]> {
-    const children = new Map<number | null, MenuRow[]>();
-    for (const row of this.context.menuRows) {
-      const key = row.ParentId ?? null;
-      children.set(key, [...(children.get(key) || []), row]);
-    }
-    return children;
   }
 }

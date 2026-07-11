@@ -17,6 +17,10 @@ permissions:
   pages: write
   id-token: write
 
+env:
+  # Exact Rust producer for the closed cycle-site/v2 handoff.
+  FIG_COMMIT: 198fb878053582554011ad8e1e9f623ef6e5a675
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'schedule' && 'publisher-safety' || 'pages' }}
   cancel-in-progress: true
@@ -121,11 +125,20 @@ jobs:
           sudo apt-get install -y graphviz zip
       - name: Install deps
         run: bun install --frozen-lockfile
+      - name: Build pinned Fig producer
+        run: |
+          FIG_SRC="$RUNNER_TEMP/sushi-rs"
+          git init "$FIG_SRC"
+          git -C "$FIG_SRC" remote add origin https://github.com/jmandel/sushi-rs.git
+          git -C "$FIG_SRC" fetch --depth 1 origin "$FIG_COMMIT"
+          git -C "$FIG_SRC" checkout --detach FETCH_HEAD
+          cargo build --manifest-path "$FIG_SRC/Cargo.toml" --release -p fig
+          echo "FIG_BIN=$FIG_SRC/target/release/fig" >> "$GITHUB_ENV"
       - name: Install Jekyll
         run: gem install jekyll --no-document
       - name: Run publisher unit tests
         run: bun run test:publisher
-      - name: Build static site (site-gen renderer from the Publisher's package.db)
+      - name: Build static site (Cycle v2 closed SiteBuild)
         run: bun run build:sitegen
         env:
           GRAPHVIZ_DOT: /usr/bin/dot
@@ -147,8 +160,8 @@ jobs:
       - name: Upload site as Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          # site-gen/out is the root static site; the Publisher's output/ is now an
-          # intermediate validation + package.db source only.
+          # site-gen/out is the root static site; Publisher output remains only
+          # an independent namespaced QA artifact.
           path: site-gen/out
 
   deploy:

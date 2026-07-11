@@ -29,12 +29,5 @@ site-gen/package.db
 
 site-gen/.shots/
 
-# site-gen build products / working DBs (regenerated; never commit)
+# site-gen build products
 temp/site-gen/
-site-gen/site.db
-site-gen/site.db-wal
-site-gen/site.db-shm
-site-gen/fixtures/*.db
-site-gen/fixtures/*.db-wal
-site-gen/fixtures/*.db-shm
-!site-gen/fixtures/package.db

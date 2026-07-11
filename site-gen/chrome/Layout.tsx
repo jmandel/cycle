@@ -3,7 +3,7 @@ import { Menu } from './Menu';
 import { MachineFormats } from '../fhir/MachineFormats';
 import { Footer } from './Footer';
 import { project } from '../project';
-import type { MenuRow } from '../core/site-build';
+import type { SemanticMenuNode } from '../core/semantic-site-build';
 
 const brand = project.brand;
 const BRAND_MARK = brand.mark
@@ -25,7 +25,7 @@ export function Layout({
   machineBase?: string;
   aiSource?: string;
   ig?: any;
-  menu: readonly MenuRow[];
+  menu: readonly SemanticMenuNode[];
   children: React.ReactNode;
 }) {
   const css = ['fonts', 'colors', 'typography', 'spacing', 'effects'];
@@ -52,7 +52,7 @@ export function Layout({
               <span className="cycle-wordmark">{brand.wordmark}{brand.tld && <span className="cycle-tld">{brand.tld}</span>}</span>
             </a>
             <span className="cycle-badge">{meta.igVer} · {meta.releaseLabel || 'draft'}</span>
-            <Menu active={navActive} rows={menu} />
+            <Menu active={navActive} items={menu} />
             <button type="button" className="cycle-menu-btn" aria-label="Menu" data-toggle="mobile-nav">≡</button>
           </div>
         </header>

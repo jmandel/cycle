@@ -5,7 +5,7 @@ import { CopyValue } from '../ds/CopyValue';
 import { Icon } from '../ds/Icon';
 import { ElementTable, elementViews, ResolveType } from './ElementTable';
 import { Tabs } from '../chrome/Tabs';
-import type { ResourceRow } from '../core/site-build';
+import type { CycleResource } from '../core/semantic-site-build';
 
 export interface ProfileRequirement {
   key: string;
@@ -97,7 +97,7 @@ function ProfileExamplesSection({ examples }: { examples: ProfileExampleUse[] })
 export function ProfilePage({
   r, data, resolve, requirements = [], examples = [], authoredElementChain,
 }: {
-  r: ResourceRow;
+  r: CycleResource;
   data: any;
   resolve: ResolveType;
   requirements?: ProfileRequirement[];
@@ -110,13 +110,13 @@ export function ProfilePage({
     <>
       <PageHeader
         eyebrow={`Profile · ${rootType}`}
-        title={r.Title || r.Name || r.Id}
-        badges={<><StatusBadge status={r.Status ?? undefined} /><Badge tone="neutral" variant="outline">{r.derivation === 'constraint' ? 'Constraint' : r.derivation || 'Profile'}</Badge></>}
-        lead={r.Description}
+        title={r.title || r.name || r.id}
+        badges={<><StatusBadge status={r.status ?? undefined} /><Badge tone="neutral" variant="outline">{r.derivation === 'constraint' ? 'Constraint' : r.derivation || 'Profile'}</Badge></>}
+        lead={r.description}
         meta={[
-          ['Official URL', <CopyValue value={r.Url ?? undefined} label="official URL" truncate="middle" />],
-          ['Computable', <CopyValue value={r.Name ?? undefined} label="computable name" />],
-          ['Status', `${r.Status} · v${r.Version}`],
+          ['Official URL', <CopyValue value={r.url ?? undefined} label="official URL" truncate="middle" />],
+          ['Computable', <CopyValue value={r.name ?? undefined} label="computable name" />],
+          ['Status', `${r.status} · v${r.version}`],
           ['Base', <Tag tone="luteal" href={resolve(rootType!, r.base ?? undefined)}>{baseName}</Tag>],
         ]}
       />

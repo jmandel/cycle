@@ -4,81 +4,129 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test } from 'bun:test';
 import { computeSiteBuildId } from './closed-build';
-import type { ClosedSiteBuild, ContentRef } from './closed-build';
+import type { ArtifactKey, ClosedSiteBuild, ContentRef } from './closed-build';
 import { openFilesystemClosedBuild } from './filesystem-closed-build';
-import { JsonSiteBuildView, type SiteDbRows } from './json-site-build';
-import { CYCLE_SITE_DB_ARTIFACT } from './site-build';
+import { openCycleGenerator } from './open-site-build';
+import { fixtureRendererPackage } from './renderer-package.test-support';
+import {
+  CYCLE_SEMANTIC_CONFIG_ARTIFACT,
+  CYCLE_SEMANTIC_NAVIGATION_ARTIFACT,
+  CYCLE_SEMANTIC_RESOURCES_ARTIFACT,
+  CYCLE_SEMANTIC_TERMINOLOGY_ARTIFACT,
+} from './site-build';
 
-const rows: SiteDbRows = {
-  metadata: [{ Key: 1, Name: 'version', Value: '4.0.1' }],
-  resources: [{
-    Key: 1,
-    Type: 'ImplementationGuide',
-    Id: 'filesystem-fixture',
-    Web: 'index.html',
-    Json: JSON.stringify({ resourceType: 'ImplementationGuide', id: 'filesystem-fixture', contact: [] }),
-  }],
-  concepts: [],
-  valueSetCodes: [],
-  pages: [],
-  menu: [],
-  siteConfig: [],
-  assets: [{ Name: 'image.bin', Mime: 'application/octet-stream', Content: btoa('\u0000\u0001\u0002') }],
+const assetKey: ArtifactKey = {
+  kind: 'asset',
+  namespace: { kind: 'authored' },
+  path: 'image.bin',
 };
 
-async function writeSyntheticBundle(root: string): Promise<ContentRef> {
-  const bytes = new TextEncoder().encode(JSON.stringify(rows));
-  const content: ContentRef = {
-    sha256: createHash('sha256').update(bytes).digest('hex'),
-    byteLength: bytes.byteLength,
+const values: Array<{ key: ArtifactKey; value: unknown; mediaType: string }> = [
+  { key: assetKey, value: new Uint8Array([0, 1, 2]), mediaType: 'application/octet-stream' },
+  {
+    key: CYCLE_SEMANTIC_CONFIG_ARTIFACT,
+    value: { schema: 'cycle.semantic.config/v1', sushiConfig: { id: 'filesystem-fixture' } },
     mediaType: 'application/json',
-  };
+  },
+  {
+    key: CYCLE_SEMANTIC_NAVIGATION_ARTIFACT,
+    value: { schema: 'cycle.semantic.navigation/v1', pages: [], menu: [] },
+    mediaType: 'application/json',
+  },
+  {
+    key: CYCLE_SEMANTIC_RESOURCES_ARTIFACT,
+    value: {
+      schema: 'cycle.semantic.resources/v1',
+      guide: {
+        implementationGuide: { resourceType: 'ImplementationGuide', id: 'filesystem-fixture' },
+        packageId: 'filesystem-fixture',
+        fhirVersion: '4.0.1',
+        fhirPublicationBase: 'http://hl7.org/fhir/R4/',
+        generated: { epochSeconds: 1, date: '1970-01-01T00:00:01Z', day: '19700101' },
+      },
+      resources: [{
+        key: { resourceType: 'ImplementationGuide', id: 'filesystem-fixture' },
+        resource: {
+          resourceType: 'ImplementationGuide',
+          id: 'filesystem-fixture',
+          packageId: 'filesystem-fixture',
+          status: 'draft',
+          fhirVersion: ['4.0.1'],
+          contact: [],
+        },
+      }],
+    },
+    mediaType: 'application/json',
+  },
+  {
+    key: CYCLE_SEMANTIC_TERMINOLOGY_ARTIFACT,
+    value: { schema: 'cycle.semantic.terminology/v1', expansions: [] },
+    mediaType: 'application/json',
+  },
+];
+
+function bytesOf(value: unknown): Uint8Array {
+  return value instanceof Uint8Array
+    ? value
+    : new TextEncoder().encode(JSON.stringify(value));
+}
+
+async function writeSyntheticBundle(root: string): Promise<ContentRef[]> {
+  const contents = values.map(({ value, mediaType }) => {
+    const bytes = bytesOf(value);
+    return {
+      sha256: createHash('sha256').update(bytes).digest('hex'),
+      byteLength: bytes.byteLength,
+      mediaType,
+    };
+  });
   const manifest: ClosedSiteBuild = {
     schemaVersion: 'site-build/v1',
     buildId: 'pending',
     project: { projectId: 'filesystem-fixture', revision: 'sources:fixture', sources: {} },
     packageLock: {},
     renderTarget: {
-      renderer: { id: 'cycle-site', version: '1' },
+      renderer: { id: 'cycle-site', version: '2' },
       mode: 'external_builder',
       fhirVersion: '4.0.1',
-      parameters: { contract: 'cycle-site/v1' },
+      parameters: { contract: 'cycle-site/v2' },
     },
-    renderPlan: { requiredArtifacts: [CYCLE_SITE_DB_ARTIFACT] },
-    artifacts: [{
-      key: CYCLE_SITE_DB_ARTIFACT,
-      state: { status: 'ready', content },
+    renderPlan: { requiredArtifacts: values.map(({ key }) => key) },
+    artifacts: values.map(({ key }, index) => ({
+      key,
+      state: { status: 'ready', content: contents[index] },
       provenance: { producer: { id: 'fixture', version: '1' }, recipe: 'fixture' },
-    }],
+    })),
     diagnostics: [],
   };
   manifest.buildId = await computeSiteBuildId(manifest);
   await mkdir(join(root, 'objects/sha256'), { recursive: true });
   await writeFile(join(root, 'site-build.json'), JSON.stringify(manifest));
-  await writeFile(join(root, 'objects/sha256', content.sha256), bytes);
-  return content;
+  await Promise.all(contents.map((content, index) => (
+    writeFile(join(root, 'objects/sha256', content.sha256), bytesOf(values[index].value))
+  )));
+  return contents;
 }
 
-test('filesystem bundle opens through the portable verified handle and yields decoded assets', async () => {
+test('filesystem v2 bundle opens through the verified generator facade', async () => {
   const root = await mkdtemp(join(tmpdir(), 'cycle-fig-build-'));
   try {
-    const content = await writeSyntheticBundle(root);
+    await writeSyntheticBundle(root);
     const handle = await openFilesystemClosedBuild(root);
-    const view = await JsonSiteBuildView.fromClosedBuild(handle);
-    expect(handle.manifest.project.projectId).toBe('filesystem-fixture');
-    expect(handle.artifactRecord(CYCLE_SITE_DB_ARTIFACT).state).toEqual({ status: 'ready', content });
-    expect(view.ig().id).toBe('filesystem-fixture');
-    expect([...view.assets()[0].Content as Uint8Array]).toEqual([0, 1, 2]);
+    const generator = await openCycleGenerator(handle, await fixtureRendererPackage());
+    expect(generator.buildId).toBe(handle.manifest.buildId);
+    expect(generator.outputs()).toContainEqual(expect.objectContaining({ file: 'image.bin', kind: 'asset' }));
+    expect([...generator.render('image.bin').content as Uint8Array]).toEqual([0, 1, 2]);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
 });
 
-test('filesystem bundle fails closed when its addressed object is absent', async () => {
+test('filesystem bundle fails closed when an addressed object is absent', async () => {
   const root = await mkdtemp(join(tmpdir(), 'cycle-fig-build-missing-'));
   try {
-    const content = await writeSyntheticBundle(root);
-    await rm(join(root, 'objects/sha256', content.sha256));
+    const contents = await writeSyntheticBundle(root);
+    await rm(join(root, 'objects/sha256', contents[0].sha256));
     await expect(openFilesystemClosedBuild(root)).rejects.toThrow('Content store is missing');
   } finally {
     await rm(root, { recursive: true, force: true });

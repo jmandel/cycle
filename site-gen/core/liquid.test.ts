@@ -21,10 +21,10 @@ describe('renderLiquid', () => {
     expect(rendered).toBe('{{context.patientId}}');
   });
 
-  test('fails loudly on SQL when a portable host supplies no capability', () => {
+  test('fails loudly on unsupported authored tags', () => {
     expect(() => renderLiquid('{% sql SELECT Name FROM Metadata %}', {
       includes: {},
       ig: {},
-    })).toThrow('SQL tag used, but no SQL executor was provided');
+    })).toThrow();
   });
 });
