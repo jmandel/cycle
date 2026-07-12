@@ -47,9 +47,11 @@ export interface ArtifactRecord {
   reads?: ReadDependency[];
 }
 
-/** Runtime-facing shape of the Rust `site-build/v1` wire value. */
+export const PREPARED_PACKAGE_MEDIA_TYPE = 'application/vnd.fhir.package.prepared.v3';
+
+/** Runtime-facing shape of the Rust `site-build/v2` wire value. */
 export interface ClosedSiteBuild {
-  schemaVersion: 'site-build/v1';
+  schemaVersion: 'site-build/v2';
   buildId: string;
   project: {
     projectId: string;
@@ -556,6 +558,9 @@ function verifyManifestReferences(build: ClosedSiteBuild, records: Map<string, A
       throw new Error(`SiteBuild package key ${coordinate} disagrees with embedded coordinate ${String(pkg.coordinate)}`);
     }
     assertContentRef(pkg.content, `SiteBuild package ${coordinate} content`);
+    if (pkg.content.mediaType !== PREPARED_PACKAGE_MEDIA_TYPE) {
+      throw new Error(`SiteBuild package ${coordinate} carrier media type is invalid: ${String(pkg.content.mediaType)}`);
+    }
     if (pkg.dependencies !== undefined && !Array.isArray(pkg.dependencies)) {
       throw new Error(`SiteBuild package ${coordinate} dependencies must be an array`);
     }
@@ -681,7 +686,7 @@ export class ClosedBuildHandle {
   ): Promise<ClosedBuildHandle> {
     const frozen = cloneAndFreeze(manifest);
     assertRecord(frozen, 'SiteBuild');
-    if (frozen.schemaVersion !== 'site-build/v1') {
+    if (frozen.schemaVersion !== 'site-build/v2') {
       throw new Error(`Unsupported SiteBuild schema ${String(frozen.schemaVersion)}`);
     }
     const handle = new ClosedBuildHandle(frozen);

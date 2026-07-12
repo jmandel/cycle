@@ -88,7 +88,7 @@ async function closedHandle(
   }).sort((left, right) => keyOrder(left.key, right.key));
   roots.sort(keyOrder);
   const manifest: ClosedSiteBuild = {
-    schemaVersion: 'site-build/v1',
+    schemaVersion: 'site-build/v2',
     buildId: 'pending',
     project: { projectId: 'fixture.ig', revision: 'fixture', sources: {} },
     packageLock: {},

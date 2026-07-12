@@ -81,7 +81,7 @@ async function writeSyntheticBundle(root: string): Promise<ContentRef[]> {
     };
   });
   const manifest: ClosedSiteBuild = {
-    schemaVersion: 'site-build/v1',
+    schemaVersion: 'site-build/v2',
     buildId: 'pending',
     project: { projectId: 'filesystem-fixture', revision: 'sources:fixture', sources: {} },
     packageLock: {},

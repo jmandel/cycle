@@ -3,6 +3,7 @@ import { describe, expect, test } from 'bun:test';
 import {
   ClosedBuildHandle,
   computeSiteBuildId,
+  PREPARED_PACKAGE_MEDIA_TYPE,
   type ArtifactKey,
   type ArtifactRecord,
   type ClosedSiteBuild,
@@ -39,7 +40,7 @@ async function build(records: ArtifactRecord[], roots: ArtifactKey[] = [rootKey]
   records.sort((left, right) => byDataName(left.key, right.key));
   roots.sort(byDataName);
   const manifest: ClosedSiteBuild = {
-    schemaVersion: 'site-build/v1',
+    schemaVersion: 'site-build/v2',
     buildId: 'pending',
     project: { projectId: 'test', revision: 'sources:test', sources: {} },
     packageLock: {},
@@ -64,7 +65,7 @@ class MapStore implements ContentStore {
 }
 
 describe('ClosedBuildHandle', () => {
-  test('matches the Rust v1 canonical build-id golden', async () => {
+  test('matches the Rust v2 canonical build-id golden', async () => {
     const core = 'hl7.fhir.r4.core#4.0.1';
     const template = 'hl7.fhir.template#1.0.0';
     const resourceKey: ArtifactKey = {
@@ -78,7 +79,7 @@ describe('ClosedBuildHandle', () => {
     };
     const provenance = { producer: { id: 'test.renderer', version: '1.0.0' }, recipe: 'fixture' };
     const manifest: ClosedSiteBuild = {
-      schemaVersion: 'site-build/v1',
+      schemaVersion: 'site-build/v2',
       buildId: 'pending',
       project: {
         projectId: 'demo.ig',
@@ -89,10 +90,10 @@ describe('ClosedBuildHandle', () => {
         },
       },
       packageLock: {
-        [core]: { coordinate: core, content: { ...content(encoder.encode('core')), mediaType: 'application/gzip' } },
+        [core]: { coordinate: core, content: { ...content(encoder.encode('core')), mediaType: PREPARED_PACKAGE_MEDIA_TYPE } },
         [template]: {
           coordinate: template,
-          content: { ...content(encoder.encode('template')), mediaType: 'application/gzip' },
+          content: { ...content(encoder.encode('template')), mediaType: PREPARED_PACKAGE_MEDIA_TYPE },
           dependencies: [core],
         },
       },
@@ -130,7 +131,7 @@ describe('ClosedBuildHandle', () => {
       ],
     };
     expect(await computeSiteBuildId(manifest)).toBe(
-      'sb1-sha256:11e155b59fbd1a934559c07cbb5e4e35e7cf29c7c9ce5302f8321e2f98834311',
+      'sb1-sha256:0490a3e4add53e3246b0865ddf07cf757fb8181b6d82beee088781fceefb1cd5',
     );
   });
 
@@ -148,7 +149,7 @@ describe('ClosedBuildHandle', () => {
       recipe: 'fixture',
     };
     expect(await computeSiteBuildId(manifest)).toBe(
-      'sb1-sha256:64c14aa10cf7f0597222c274ba47d1afd9aaf81691f3c09b04ec53c2e2cc3638',
+      'sb1-sha256:4b560ddd18498b28623af0a4608727cd6831ab8fdb22c549bbd52073877f9333',
     );
   });
 
@@ -226,6 +227,17 @@ describe('ClosedBuildHandle', () => {
     await expect(ClosedBuildHandle.open(packageManifest, new MapStore(new Map()))).rejects.toThrow('coordinate is invalid');
   });
 
+  test('rejects a v2 package lock that does not root a prepared carrier', async () => {
+    const manifest = await build([]);
+    const coordinate = 'example.fhir#1.0.0';
+    manifest.packageLock[coordinate] = {
+      coordinate,
+      content: { ...content(encoder.encode('legacy payload')), mediaType: 'application/octet-stream' },
+    };
+    manifest.buildId = await computeSiteBuildId(manifest);
+    await expect(ClosedBuildHandle.open(manifest, new MapStore(new Map()))).rejects.toThrow('carrier media type is invalid');
+  });
+
   test('rejects malformed ready content, provenance, and noncanonical sets even with a self-hash', async () => {
     const bytes = encoder.encode('root');
 
@@ -270,7 +282,7 @@ describe('ClosedBuildHandle', () => {
     };
     manifest.packageLock['example.fhir#1.0.0'] = {
       coordinate: 'example.fhir#1.0.0',
-      content: content(pkg),
+      content: { ...content(pkg), mediaType: PREPARED_PACKAGE_MEDIA_TYPE },
     };
     manifest.buildId = await computeSiteBuildId(manifest);
 
