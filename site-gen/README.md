@@ -104,6 +104,16 @@ design/client output is appended outside the catalog. It rejects
 source-overlapping or symlinked destinations. Replacing an existing destination
 requires `SITE_GEN_REPLACE_OUTPUT=1`.
 
+The native host first asks the pinned Fig engine for the exact pre-render
+`SiteOutput` cache key using that closed build and authenticated renderer
+recipe. A verified hit fills the already-private `AtomicOutputPublication`
+staging directory, whose JavaScript SiteOutput implementation rechecks the
+receipt and all files before the normal atomic rename; Liquid rendering is not
+opened. A miss follows the render/link-check/seal path above and imports the
+sealed tree into Fig's `FileSiteOutputCache` + `FileContentStore` before
+publication. `FIG_OUTPUT_CACHE` selects the cache root and defaults to
+`temp/fig-output-cache`; `FIG_BIN` selects Fig.
+
 The repository-wide publication uses:
 
 ```sh

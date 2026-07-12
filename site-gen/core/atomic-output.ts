@@ -1,12 +1,13 @@
 /** Bun-only staging and publication for a completed static-site tree. */
 import { randomUUID } from 'node:crypto';
-import { lstat, mkdtemp, open, realpath, rm, writeFile } from 'node:fs/promises';
+import { lstat, mkdtemp, open, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, normalize, parse, relative, resolve } from 'node:path';
 import { sealCycleOutputTree, verifyCycleOutputTree } from './output-receipt-node';
-import type {
-  CycleOutputDeclaration,
-  CycleOutputReceipt,
-  CycleRendererImplementation,
+import {
+  validateCycleOutputReceipt,
+  type CycleOutputDeclaration,
+  type CycleOutputReceipt,
+  type CycleRendererImplementation,
 } from './output-receipt';
 import { renameDirectoryNoReplace } from './no-replace-rename';
 
@@ -215,6 +216,41 @@ export class AtomicOutputPublication {
       outputSchema: options.outputSchema,
       options: options.options,
       declarations,
+    });
+    this.sealedDeclarations = declarations;
+    this.sealedReceipt = receipt;
+    return receipt;
+  }
+
+  /**
+   * Adopt a canonical SiteOutput already materialized into this private
+   * staging tree by the native verified output cache. The receipt supplies the
+   * same declarations `sealOutputReceipt` would have captured. Re-read and
+   * verify every byte now, then retain those declarations so `publish()` does
+   * the ordinary final verification immediately before its atomic rename.
+   */
+  async adoptCachedOutputReceipt(): Promise<CycleOutputReceipt> {
+    if (this.closed) throw new Error('Atomic output publication is already closed');
+    if (this.sealedReceipt) throw new Error('Atomic output publication already has an output receipt');
+    const serialized = await readFile(join(this.stagingDirectory, 'site-output.json'), 'utf8');
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(serialized);
+    } catch (error) {
+      throw new Error(`Invalid cached SiteOutput JSON: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    const receipt = await validateCycleOutputReceipt(parsed);
+    const declarations = receipt.files.map((file): CycleOutputDeclaration => ({
+      path: file.path,
+      mediaType: file.content.mediaType,
+      producer: { ...file.producer },
+      ...(file.source === undefined ? {} : { source: file.source }),
+      ...(file.owner === undefined ? {} : { owner: file.owner }),
+    }));
+    await verifyCycleOutputTree({
+      root: this.stagingDirectory,
+      declarations,
+      expected: receipt,
     });
     this.sealedDeclarations = declarations;
     this.sealedReceipt = receipt;

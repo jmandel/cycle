@@ -363,7 +363,10 @@ export async function equalCycleOutputReceipts(left: unknown, right: unknown): P
 }
 
 export function serializeCycleOutputReceipt(receipt: CycleOutputReceipt): string {
-  return `${canonicalJson(receipt)}\n`;
+  // Match Rust `SiteOutput::canonical_bytes()` exactly. The receipt is one
+  // shared wire value; native cache publication must not need a newline-
+  // tolerant parallel serialization.
+  return canonicalJson(receipt);
 }
 
 export function rendererOutputDeclaration(output: {

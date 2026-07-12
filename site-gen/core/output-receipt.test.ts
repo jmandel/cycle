@@ -5,6 +5,7 @@ import {
   createCycleOutputReceipt,
   createSiteOutputCacheKey,
   equalCycleOutputReceipts,
+  serializeCycleOutputReceipt,
   validateCycleOutputReceipt,
   verifyCycleOutputReceipt,
   verifySiteOutputStore,
@@ -158,4 +159,7 @@ test('canonical ids match the independent Rust SiteOutput fixture', async () => 
   });
   expect(receipt.cacheKey).toBe('sok1-sha256:52a6568c5df7d5db15d43a1c5c1ce4eb0a64cffad5f4c2dc53ba09335180af2b');
   expect(receipt.outputId).toBe('so1-sha256:5c395c8bde04a11939c040de1bb920dc720db9e859453dea647560b46b18f0c1');
+  const serialized = serializeCycleOutputReceipt(receipt);
+  expect(serialized.endsWith('\n')).toBe(false);
+  expect(JSON.parse(serialized)).toEqual(receipt);
 });

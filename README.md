@@ -122,6 +122,15 @@ SITE_BUILD_DIR=temp/cycle.fig-build SITE_GEN_REPLACE_OUTPUT=1 \
   bun site-gen/build.tsx
 ```
 
+Native builds reuse complete verified outputs by default from
+`temp/fig-output-cache`; set `FIG_OUTPUT_CACHE=/another/cache` to relocate it
+and `FIG_BIN=/path/to/pinned/fig` to select the engine binary. The cache lookup
+binds the exact closed build, renderer package/code recipe, output schema, and
+runtime options. A hit is materialized into the same private publication
+transaction and independently re-verified before atomic publication; a miss
+runs the ordinary renderer, seals `site-output.json`, and imports its declared
+bytes before publication. Browser rendering is unchanged.
+
 The `gen-example.ts` step is specific to this guide: its authored narratives
 link to a deterministic example that must be compiled into the closed build.
 Cycle itself does not require a preprocessor. Other guides can call `fig

@@ -12,10 +12,25 @@ if [ -z "${SITE_BUILD_DIR:-}" ]; then
   echo "SITE_BUILD_DIR must name a fig prepare --target cycle-site/v2 bundle"
   exit 1
 fi
+CACHE_SMOKE_ROOT=$(mktemp -d)
+trap 'rm -rf "$CACHE_SMOKE_ROOT"' EXIT
+export FIG_OUTPUT_CACHE="$CACHE_SMOKE_ROOT"
 bun test site-gen/core \
   || { echo "RENDERER/SEMANTIC TESTS FAILED"; exit 1; }
 BUILD=$(bun site-gen/build.tsx 2>&1) || { echo "$BUILD"; echo "BUILD FAILED"; exit 1; }
 echo "$BUILD" | grep -E "Rendered|bundle|output|link check"
+FIRST_OUTPUT_ID=$(bun -e "console.log(JSON.parse(await Bun.file('site-gen/out/site-output.json').text()).outputId)")
+
+echo "== unchanged complete-output cache hit =="
+CACHED_BUILD=$(bun site-gen/build.tsx 2>&1) || { echo "$CACHED_BUILD"; echo "CACHED BUILD FAILED"; exit 1; }
+echo "$CACHED_BUILD" | grep "skipped Cycle rendering" \
+  || { echo "$CACHED_BUILD"; echo "UNCHANGED BUILD DID NOT SKIP RENDERING"; exit 1; }
+SECOND_OUTPUT_ID=$(bun -e "console.log(JSON.parse(await Bun.file('site-gen/out/site-output.json').text()).outputId)")
+if [ "$FIRST_OUTPUT_ID" != "$SECOND_OUTPUT_ID" ]; then
+  echo "CACHED BUILD CHANGED SITE OUTPUT: $FIRST_OUTPUT_ID != $SECOND_OUTPUT_ID"
+  exit 1
+fi
+echo "  ✓ $SECOND_OUTPUT_ID restored without Liquid rendering"
 
 O="$PWD/site-gen/out"
 SHOTS="site-gen/.shots"; mkdir -p "$SHOTS"

@@ -25,9 +25,20 @@ import {
 import { project } from './project';
 import { prepareNativeCycleRendererPackage } from './native-renderer-package';
 import type { CycleRendererPackage } from './core/renderer-package';
+import {
+  nativeOutputCacheRoot,
+  publishNativeOutput,
+  restoreNativeOutput,
+  type NativeOutputDerivation,
+} from './core/native-output-cache';
 
 const OUT = project.outDir;
 const DESIGN = project.designDir;
+const BUILD_DIRECTORY = process.env.SITE_BUILD_DIR?.trim();
+if (!BUILD_DIRECTORY) {
+  throw new Error('No native Cycle input selected. Set SITE_BUILD_DIR to a `fig prepare --target cycle-site/v2` bundle.');
+}
+const OUTPUT_CACHE = nativeOutputCacheRoot();
 
 const RENDERER_RECIPE_INPUTS = [...new Set([
   'site-gen/build.tsx',
@@ -77,11 +88,7 @@ function rendererRecipeSha256(paths: readonly string[], rendererPackageId: strin
 }
 
 async function openNativeInput(rendererPackage: CycleRendererPackage) {
-  const buildDirectory = process.env.SITE_BUILD_DIR?.trim();
-  if (!buildDirectory) {
-    throw new Error('No native Cycle input selected. Set SITE_BUILD_DIR to a `fig prepare --target cycle-site/v2` bundle.');
-  }
-  const handle = await openFilesystemClosedBuild(buildDirectory);
+  const handle = await openFilesystemClosedBuild(BUILD_DIRECTORY);
   return openCycleGenerator(handle, rendererPackage);
 }
 
@@ -90,8 +97,20 @@ const rendererPackage = await prepareNativeCycleRendererPackage({
   projectCss: project.projectCss,
   clientEntry: 'site-gen/client/entry.tsx',
 });
-const generator = await openNativeInput(rendererPackage);
-console.log(`✓ verified closed SiteBuild ${generator.buildId} from ${process.env.SITE_BUILD_DIR}`);
+const recipeSha256 = rendererRecipeSha256(RENDERER_RECIPE_INPUTS, rendererPackage.packageId);
+const outputOptions = Object.freeze({
+  bunVersion: Bun.version,
+  clientMinify: 'true',
+  clientTarget: 'browser',
+  nodeEnv: 'production',
+  platform: process.platform,
+  architecture: process.arch,
+});
+const outputDerivation: NativeOutputDerivation = Object.freeze({
+  renderer: Object.freeze({ ...CYCLE_RENDERER_IDENTITY, recipeSha256 }),
+  outputSchema: CYCLE_OUTPUT_SCHEMA,
+  options: outputOptions,
+});
 
 const publication = await AtomicOutputPublication.create({
   destination: OUT,
@@ -105,7 +124,8 @@ const publication = await AtomicOutputPublication.create({
     'input',
     DESIGN,
     project.projectCss,
-    ...(process.env.SITE_BUILD_DIR?.trim() ? [process.env.SITE_BUILD_DIR.trim()] : []),
+    BUILD_DIRECTORY,
+    OUTPUT_CACHE,
     // Native renderer/client source roots read while the staging tree is built.
     'site-gen/build.tsx',
     'site-gen/client',
@@ -164,66 +184,89 @@ function assertGeneratorManifest(expected: readonly string[], actual: Set<string
 }
 
 try {
-  const outputManifest = generator.outputs();
-  const descriptors = outputManifest.filter((output) => output.kind === 'page');
-  const outputDescriptors = new Map(outputManifest.map((output) => [output.file, output]));
-  const generatorEmitted = new Set<string>();
-  const writeRendererOutput = (file: string, content: string | Uint8Array, mime: string): void => {
-    const descriptor = outputDescriptors.get(file);
-    if (!descriptor) throw new Error(`Cycle renderer emitted undeclared output '${file}'`);
-    if (descriptor.mime !== mime) {
-      throw new Error(`Cycle renderer emitted '${file}' as ${mime}; manifest declares ${descriptor.mime}`);
+  const cached = restoreNativeOutput({
+    buildDirectory: BUILD_DIRECTORY,
+    cacheDirectory: OUTPUT_CACHE,
+    stagingDirectory: WORK,
+    derivation: outputDerivation,
+  });
+  if (cached) {
+    const receipt = await publication.adoptCachedOutputReceipt();
+    if (receipt.cacheKey !== cached.cacheKey || receipt.outputId !== cached.outputId) {
+      throw new Error(
+        `Fig cache result does not match materialized SiteOutput: `
+        + `${cached.cacheKey}/${cached.outputId} != ${receipt.cacheKey}/${receipt.outputId}`,
+      );
     }
-    writeOutput(rendererOutputDeclaration(descriptor), content, descriptor.producer);
-    generatorEmitted.add(file);
-  };
-  // Materialize the declared namespace through the same direct-path API used
-  // by browser hosts. This keeps host code independent of whether an auxiliary
-  // output belongs to a distinct page (ordinary resources), shares a page with
-  // another producer (the primary IG and index narrative), or has no page at
-  // all (assets and llms.txt).
-  for (const descriptor of outputManifest) {
-    const rendered = generator.render(descriptor.file);
-    writeRendererOutput(rendered.file, rendered.content, rendered.mime);
-  }
-  assertGeneratorManifest(outputManifest.map((output) => output.file), generatorEmitted);
+    await publication.publish();
+    console.log(
+      `✓ verified SiteOutput cache hit ${receipt.outputId} `
+      + `(${receipt.files.length} files; ${Number(cached.timings.totalMs || 0).toFixed(1)} ms); skipped Cycle rendering`,
+    );
+  } else {
+    const generator = await openNativeInput(rendererPackage);
+    console.log(`✓ verified closed SiteBuild ${generator.buildId} from ${BUILD_DIRECTORY}`);
+    const outputManifest = generator.outputs();
+    const descriptors = outputManifest.filter((output) => output.kind === 'page');
+    const outputDescriptors = new Map(outputManifest.map((output) => [output.file, output]));
+    const generatorEmitted = new Set<string>();
+    const writeRendererOutput = (file: string, content: string | Uint8Array, mime: string): void => {
+      const descriptor = outputDescriptors.get(file);
+      if (!descriptor) throw new Error(`Cycle renderer emitted undeclared output '${file}'`);
+      if (descriptor.mime !== mime) {
+        throw new Error(`Cycle renderer emitted '${file}' as ${mime}; manifest declares ${descriptor.mime}`);
+      }
+      writeOutput(rendererOutputDeclaration(descriptor), content, descriptor.producer);
+      generatorEmitted.add(file);
+    };
+    // Materialize the declared namespace through the same direct-path API used
+    // by browser hosts. This keeps host code independent of whether an auxiliary
+    // output belongs to a distinct page (ordinary resources), shares a page with
+    // another producer (the primary IG and index narrative), or has no page at
+    // all (assets and llms.txt).
+    for (const descriptor of outputManifest) {
+      const rendered = generator.render(descriptor.file);
+      writeRendererOutput(rendered.file, rendered.content, rendered.mime);
+    }
+    assertGeneratorManifest(outputManifest.map((output) => output.file), generatorEmitted);
 
-  // Strict link checking runs against the complete private tree. A late failure
-  // therefore cannot expose a partial site or disturb a previous publication.
-  const broken = checkInternalLinks({
-    outDir: WORK,
-    emitted,
-    files: outputManifest.filter((output) => output.kind === 'page').map((output) => output.file),
-    isExternalLink,
-  });
-  if (broken.length) {
-    console.error(`\n✗ ${broken.length} broken internal links:`);
-    for (const item of [...new Set(broken)].slice(0, 40)) console.error(`  ${item}`);
-    throw new Error('Strict link check failed; staged site was not published');
-  }
+    // Strict link checking runs against the complete private tree. A late failure
+    // therefore cannot expose a partial site or disturb a previous publication.
+    const broken = checkInternalLinks({
+      outDir: WORK,
+      emitted,
+      files: outputManifest.filter((output) => output.kind === 'page').map((output) => output.file),
+      isExternalLink,
+    });
+    if (broken.length) {
+      console.error(`\n✗ ${broken.length} broken internal links:`);
+      for (const item of [...new Set(broken)].slice(0, 40)) console.error(`  ${item}`);
+      throw new Error('Strict link check failed; staged site was not published');
+    }
 
-  const recipeSha256 = rendererRecipeSha256(RENDERER_RECIPE_INPUTS, rendererPackage.packageId);
-  const receipt = await publication.sealOutputReceipt({
-    inputBuildId: generator.buildId,
-    renderer: { ...CYCLE_RENDERER_IDENTITY, recipeSha256 },
-    outputSchema: CYCLE_OUTPUT_SCHEMA,
-    options: {
-      bunVersion: Bun.version,
-      clientMinify: 'true',
-      clientTarget: 'browser',
-      nodeEnv: 'production',
-      platform: process.platform,
-      architecture: process.arch,
-    },
-    declarations: [...outputDeclarations.values()],
-  });
-  await publication.publish();
-  const count = (kind: string) => descriptors.filter((page) => page.pageKind === kind).length;
-  console.log(
-    `Rendered ${count('narrative')} narrative + artifacts/toc/validation + ${count('profile')} profiles + VS/CS + ${count('generic')} generic resources + ${count('example')} examples → ${publication.destination}/`,
-  );
-  console.log(`✓ output ${receipt.outputId} (cache ${receipt.cacheKey}; ${receipt.files.length} files) verified`);
-  console.log('✓ link check passed; completed site published atomically');
+    const receipt = await publication.sealOutputReceipt({
+      inputBuildId: generator.buildId,
+      renderer: outputDerivation.renderer,
+      outputSchema: CYCLE_OUTPUT_SCHEMA,
+      options: outputOptions,
+      declarations: [...outputDeclarations.values()],
+    });
+    const cachedPublication = publishNativeOutput({
+      buildDirectory: BUILD_DIRECTORY,
+      cacheDirectory: OUTPUT_CACHE,
+      siteDirectory: WORK,
+    });
+    if (cachedPublication.outputId !== receipt.outputId || cachedPublication.cacheKey !== receipt.cacheKey) {
+      throw new Error('Fig cached a different SiteOutput than Cycle sealed');
+    }
+    await publication.publish();
+    const count = (kind: string) => descriptors.filter((page) => page.pageKind === kind).length;
+    console.log(
+      `Rendered ${count('narrative')} narrative + artifacts/toc/validation + ${count('profile')} profiles + VS/CS + ${count('generic')} generic resources + ${count('example')} examples → ${publication.destination}/`,
+    );
+    console.log(`✓ output ${receipt.outputId} (cache ${receipt.cacheKey}; ${receipt.files.length} files) verified`);
+    console.log('✓ link check passed; completed site published atomically');
+  }
 } catch (error) {
   await publication.abort();
   throw error;
