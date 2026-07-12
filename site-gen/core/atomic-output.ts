@@ -2,12 +2,11 @@
 import { randomUUID } from 'node:crypto';
 import { lstat, mkdtemp, open, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, normalize, parse, relative, resolve } from 'node:path';
-import { sealCycleOutputTree, verifyCycleOutputTree } from './output-receipt-node';
+import { verifyCycleOutputTree } from './output-receipt-node';
 import {
   validateCycleOutputReceipt,
   type CycleOutputDeclaration,
   type CycleOutputReceipt,
-  type CycleRendererImplementation,
 } from './output-receipt';
 import { renameDirectoryNoReplace } from './no-replace-rename';
 
@@ -193,43 +192,12 @@ export class AtomicOutputPublication {
   }
 
   /**
-   * Hash and seal the complete private tree. The receipt is written inside the
-   * staging directory and is re-verified immediately before publication.
-   */
-  async sealOutputReceipt(options: {
-    inputBuildId: string;
-    renderer: CycleRendererImplementation;
-    outputSchema?: string;
-    options?: Readonly<Record<string, string>>;
-    declarations: readonly CycleOutputDeclaration[];
-  }): Promise<CycleOutputReceipt> {
-    if (this.closed) throw new Error('Atomic output publication is already closed');
-    if (this.sealedReceipt) throw new Error('Atomic output publication already has an output receipt');
-    const declarations = options.declarations.map((declaration) => ({
-      ...declaration,
-      producer: { ...declaration.producer },
-    }));
-    const receipt = await sealCycleOutputTree({
-      root: this.stagingDirectory,
-      inputBuildId: options.inputBuildId,
-      renderer: options.renderer,
-      outputSchema: options.outputSchema,
-      options: options.options,
-      declarations,
-    });
-    this.sealedDeclarations = declarations;
-    this.sealedReceipt = receipt;
-    return receipt;
-  }
-
-  /**
-   * Adopt a canonical SiteOutput already materialized into this private
-   * staging tree by the native verified output cache. The receipt supplies the
-   * same declarations `sealOutputReceipt` would have captured. Re-read and
-   * verify every byte now, then retain those declarations so `publish()` does
+   * Adopt the canonical SiteOutput that Rust finalized or restored into this
+   * private staging tree. The receipt supplies the complete declarations.
+   * Re-read and verify every byte now, then retain those declarations so `publish()` does
    * the ordinary final verification immediately before its atomic rename.
    */
-  async adoptCachedOutputReceipt(): Promise<CycleOutputReceipt> {
+  async adoptFinalizedOutputReceipt(): Promise<CycleOutputReceipt> {
     if (this.closed) throw new Error('Atomic output publication is already closed');
     if (this.sealedReceipt) throw new Error('Atomic output publication already has an output receipt');
     const serialized = await readFile(join(this.stagingDirectory, 'site-output.json'), 'utf8');
@@ -237,7 +205,7 @@ export class AtomicOutputPublication {
     try {
       parsed = JSON.parse(serialized);
     } catch (error) {
-      throw new Error(`Invalid cached SiteOutput JSON: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(`Invalid finalized SiteOutput JSON: ${error instanceof Error ? error.message : String(error)}`);
     }
     const receipt = await validateCycleOutputReceipt(parsed);
     const declarations = receipt.files.map((file): CycleOutputDeclaration => ({
@@ -272,19 +240,20 @@ export class AtomicOutputPublication {
   }
 
   /**
-   * Publish the complete staging tree. Generic callers may intentionally use
-   * this primitive without a receipt; when `sealOutputReceipt()` was called,
-   * publication always re-verifies the seal. Native Cycle always seals.
+   * Publish the complete staging tree only after adopting Rust's canonical
+   * SiteOutput. Re-verify that receipt and every declared byte immediately
+   * before the atomic rename.
    */
   async publish(): Promise<void> {
     if (this.closed) throw new Error('Atomic output publication is already closed');
-    if (this.sealedReceipt && this.sealedDeclarations) {
-      await verifyCycleOutputTree({
-        root: this.stagingDirectory,
-        declarations: this.sealedDeclarations,
-        expected: this.sealedReceipt,
-      });
+    if (!this.sealedReceipt || !this.sealedDeclarations) {
+      throw new Error('Atomic output publication requires an adopted Rust SiteOutput receipt');
     }
+    await verifyCycleOutputTree({
+      root: this.stagingDirectory,
+      declarations: this.sealedDeclarations,
+      expected: this.sealedReceipt,
+    });
     await this.assertDestinationUnchanged();
 
     let backup: string | null = null;

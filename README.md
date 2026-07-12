@@ -46,20 +46,20 @@ machine outputs, authored assets, design files, fonts, marks, project CSS, and
 the client runtime. Its direct-path renderer uses the same React and LiquidJS
 content policy in both hosts.
 
-Native publication hashes the complete staged output tree into a receipt bound
-to the input SiteBuild id and Cycle renderer version. For a reusable
+Native publication submits the complete staged output tree and declarations to
+Rust `fig finalize`, which hashes it and constructs the receipt bound to the
+input SiteBuild id and Cycle renderer version. For a reusable
 `site-gen/build.tsx` invocation every one of those files is declared in the
 generator catalog before rendering; there is no later static-asset append. The
 repository's whole-publication wrapper runs that build in
 an inner disposable directory, verifies its receipt, copies only declared bytes
 into one outer staging tree, adds the viewers, SHL files, skill, CNAME, redirect,
 and the Publisher's complete independently checked output under `publisher/`
-(`qa.html` redirects to its QA entry point), then seals and publishes that
-complete tree once. The
-browser-compatible receipt core can compute or compare the same identity from
-the closed generator catalog and direct-path render operation. Publication
-re-verifies every byte before the atomic rename; the receipt file is excluded
-from its own file list to avoid self-reference.
+(`qa.html` redirects to its QA entry point), then asks the same Rust finalizer
+to seal that complete tree and publishes it once. TypeScript independently
+validates Rust's canonical identity and every byte before the atomic rename; it
+does not construct production receipts. The receipt file is excluded from its
+own file list to avoid self-reference.
 
 The input contract and output renderer have independent version labels.
 `cycle-site/v2` names the typed handoff; the current receipt names output
@@ -109,13 +109,12 @@ Preferred closed native build (the package cache contains exact materialized
 `id#version/package` directories):
 
 ```sh
-rm -rf input/resources temp/cycle.fig-build temp/fig-sushi
+rm -rf input/resources temp/cycle.fig-build
 mkdir -p input/resources
 EXAMPLE_OUT=input/resources/Bundle-period-tracking-longitudinal-example.json \
   bun scripts/gen-example.ts
 SOURCE_DATE_EPOCH=1783555200 fig prepare . \
   --target cycle-site/v2 \
-  --sushi-out temp/fig-sushi \
   --cache /path/to/fhir-package-cache \
   --out temp/cycle.fig-build
 SITE_BUILD_DIR=temp/cycle.fig-build SITE_GEN_REPLACE_OUTPUT=1 \
@@ -128,8 +127,9 @@ and `FIG_BIN=/path/to/pinned/fig` to select the engine binary. The cache lookup
 binds the exact closed build, renderer package/code recipe, output schema, and
 runtime options. A hit is materialized into the same private publication
 transaction and independently re-verified before atomic publication; a miss
-runs the ordinary renderer, seals `site-output.json`, and imports its declared
-bytes before publication. Browser rendering is unchanged.
+runs the ordinary renderer and asks Rust `finalize` to authenticate the
+declared tree, write `site-output.json`, and publish the cache entry. Browser
+rendering is unchanged.
 
 The `gen-example.ts` step is specific to this guide: its authored narratives
 link to a deterministic example that must be compiled into the closed build.
@@ -148,9 +148,9 @@ FIG_BIN=/path/to/pinned/fig bun run build:sitegen
 ```
 
 `build:sitegen` does not mutate a renderer publication in place. It treats the
-inner renderer receipt as inherited proof, verifies inherited bytes again after
-adding project outputs, performs the whole-tree link check, and writes the sole
-shipped receipt immediately before the sole canonical rename. The intentional
+inner Rust receipt as inherited proof, verifies inherited bytes again after
+adding project outputs, performs the whole-tree link check, and asks Rust to
+write the sole shipped receipt immediately before the canonical rename. The intentional
 agent-package append to `llms.txt` is represented as a wrapper-produced file in
 that final receipt.
 

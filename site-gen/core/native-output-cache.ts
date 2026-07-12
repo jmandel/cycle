@@ -1,6 +1,7 @@
 /** Thin native host adapter for Fig's canonical SiteOutput cache seam. */
 import { resolve } from 'node:path';
 import type { CycleRendererImplementation } from './output-receipt';
+import type { CycleOutputDeclaration } from './output-receipt';
 
 interface FigEnvelope {
   apiVersion: number;
@@ -23,6 +24,28 @@ export interface NativeOutputCacheHit {
   timings: Record<string, number>;
 }
 
+export interface NativeFinalizeOutcome {
+  buildId: string;
+  cacheKey: string;
+  outputId: string;
+  out: string;
+  files: number;
+  bytes: number;
+}
+
+/** Fail closed if renderer code/assets changed after the derivation was bound. */
+export function assertNativeRecipeUnchanged(
+  expected: string,
+  current: string,
+  boundary: string,
+): void {
+  if (current !== expected) {
+    throw new Error(
+      `Native Cycle renderer recipe changed ${boundary}: ${expected} != ${current}`,
+    );
+  }
+}
+
 function figBinary(): string {
   return process.env.FIG_BIN?.trim() || 'fig';
 }
@@ -31,9 +54,13 @@ export function nativeOutputCacheRoot(): string {
   return resolve(process.env.FIG_OUTPUT_CACHE?.trim() || 'temp/fig-output-cache');
 }
 
-function invokeFig(args: string[]): Record<string, unknown> {
+function invokeFig(args: string[], stdin?: string): Record<string, unknown> {
   const command = [figBinary(), ...args, '--json'];
-  const result = Bun.spawnSync(command, { stdout: 'pipe', stderr: 'pipe' });
+  const result = Bun.spawnSync(command, {
+    stdout: 'pipe',
+    stderr: 'pipe',
+    ...(stdin === undefined ? {} : { stdin: Buffer.from(stdin) }),
+  });
   const stdout = result.stdout.toString();
   const stderr = result.stderr.toString();
   const line = stdout.trim().split('\n').at(-1) || '';
@@ -42,12 +69,12 @@ function invokeFig(args: string[]): Record<string, unknown> {
     envelope = JSON.parse(line) as FigEnvelope;
   } catch (error) {
     throw new Error(
-      `fig output-cache did not return JSON (${command.join(' ')}): `
+      `fig site operation did not return JSON (${command.join(' ')}): `
       + `${error instanceof Error ? error.message : String(error)}\n${stdout}${stderr}`,
     );
   }
   if (!envelope.ok || !envelope.result) {
-    throw new Error(`fig output-cache failed: ${envelope.error?.message || stdout || stderr}`);
+    throw new Error(`fig site operation failed: ${envelope.error?.message || stdout || stderr}`);
   }
   return envelope.result;
 }
@@ -60,7 +87,7 @@ export function restoreNativeOutput(options: {
   derivation: NativeOutputDerivation;
 }): NativeOutputCacheHit | null {
   const args = [
-    'output-cache', 'load', options.buildDirectory,
+    'outputs', options.buildDirectory,
     '--cache', options.cacheDirectory,
     '--renderer-id', options.derivation.renderer.id,
     '--renderer-version', options.derivation.renderer.version,
@@ -74,7 +101,7 @@ export function restoreNativeOutput(options: {
   const result = invokeFig(args);
   if (result.cacheHit !== true) return null;
   if (typeof result.cacheKey !== 'string' || typeof result.outputId !== 'string' || typeof result.files !== 'number') {
-    throw new Error('fig output-cache hit returned an invalid result');
+    throw new Error('fig outputs cache hit returned an invalid result');
   }
   return {
     cacheKey: result.cacheKey,
@@ -84,15 +111,51 @@ export function restoreNativeOutput(options: {
   };
 }
 
-/** Import a renderer-sealed staging tree into Fig's verified native cache. */
-export function publishNativeOutput(options: {
+/** Ask Rust to authenticate the complete staging tree, create the sole
+ * canonical SiteOutput receipt, and publish the verified cache entry. */
+export function finalizeNativeOutput(options: {
   buildDirectory: string;
-  cacheDirectory: string;
+  /** Exact build identity already authenticated and rendered by this caller. */
+  inputBuildId: string;
+  cacheDirectory?: string;
   siteDirectory: string;
-}): Record<string, unknown> {
-  return invokeFig([
-    'output-cache', 'publish', options.buildDirectory,
-    '--cache', options.cacheDirectory,
+  derivation: NativeOutputDerivation;
+  declarations: readonly CycleOutputDeclaration[];
+}): NativeFinalizeOutcome {
+  const args = [
+    'finalize', options.buildDirectory,
     '--site', options.siteDirectory,
-  ]);
+    '--external-plan', '-',
+  ];
+  if (options.cacheDirectory) args.push('--cache', options.cacheDirectory);
+  const result = invokeFig(args, JSON.stringify({
+    inputBuildId: options.inputBuildId,
+    renderer: options.derivation.renderer,
+    outputSchema: options.derivation.outputSchema,
+    options: options.derivation.options,
+    files: options.declarations,
+  }));
+  if (
+    typeof result.buildId !== 'string'
+    || typeof result.cacheKey !== 'string'
+    || typeof result.outputId !== 'string'
+    || typeof result.out !== 'string'
+    || typeof result.files !== 'number'
+    || typeof result.bytes !== 'number'
+  ) {
+    throw new Error('fig finalize returned an invalid result');
+  }
+  if (result.buildId !== options.inputBuildId) {
+    throw new Error(
+      `fig finalize restored ${result.buildId}, but Cycle rendered ${options.inputBuildId}`,
+    );
+  }
+  return {
+    buildId: result.buildId,
+    cacheKey: result.cacheKey,
+    outputId: result.outputId,
+    out: result.out,
+    files: result.files,
+    bytes: result.bytes,
+  };
 }

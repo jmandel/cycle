@@ -23,6 +23,7 @@ import {
   receiptFileMatches,
 } from './final-publication.ts';
 import { AtomicOutputPublication } from '../site-gen/core/atomic-output.ts';
+import { finalizeNativeOutput } from '../site-gen/core/native-output-cache.ts';
 import { checkInternalLinks } from '../site-gen/core/link-check.ts';
 import {
   assertCycleOutputPath,
@@ -34,7 +35,6 @@ import { project } from '../site-gen/project/cycle.ts';
 const root = `${import.meta.dir}/..`;
 const OUT = `${root}/site-gen/out`;
 const SITE_BUILD_DIR = `${root}/temp/site-gen/cycle.fig-build`;
-const FIG_SUSHI_OUT = `${root}/temp/site-gen/fig-sushi`;
 const SAMPLE_SHL_DIR = `${root}/temp/site-gen/sample-shl`;
 const exampleDir = `${root}/input/resources`;
 const exampleOut = `${root}/input/resources/Bundle-period-tracking-longitudinal-example.json`;
@@ -122,15 +122,12 @@ if (!figBin) {
   throw new Error('FIG_BIN must name a pinned fig executable for the Cycle v2 site build');
 }
 await rm(SITE_BUILD_DIR, { recursive: true, force: true });
-await rm(FIG_SUSHI_OUT, { recursive: true, force: true });
 await step('prepare closed Cycle v2 SiteBuild', [
   figBin,
   'prepare',
   root,
   '--target',
   'cycle-site/v2',
-  '--sushi-out',
-  FIG_SUSHI_OUT,
   '--cache',
   fhirCache,
   '--out',
@@ -151,7 +148,6 @@ const publication = await AtomicOutputPublication.create({
     'input',
     'output',
     SITE_BUILD_DIR,
-    FIG_SUSHI_OUT,
     SAMPLE_SHL_DIR,
     project.projectCss,
     project.packageList,
@@ -381,34 +377,42 @@ try {
     throw new Error('Final whole-site link check failed; canonical output was not published');
   }
 
-  const receipt = await publication.sealOutputReceipt({
+  const finalized = finalizeNativeOutput({
+    buildDirectory: SITE_BUILD_DIR,
     inputBuildId: base.receipt.inputBuildId,
-    renderer: {
-      id: 'cycle-project-publication',
-      version: '1',
-      // This project wrapper has external QA/viewer inputs beyond SiteBuild.
-      // Conservatively bind its exact completed composition into the recipe so
-      // it can never collide with a stale reusable base-renderer entry.
-      recipeSha256: createHash('sha256').update(JSON.stringify({
-        schema: 'cycle-project-publication-recipe/v1',
-        // SiteOutput binds every final byte. The derivation recipe instead
-        // binds the upstream authenticated output, wrapper implementation, and
-        // explicit composition options; rereading the completed tree here only
-        // duplicated finalization and caused a whole-site memory spike.
-        baseOutputId: base.receipt.outputId,
-        baseRecipe: base.receipt.renderer.recipeSha256,
-        wrapper: createHash('sha256').update(await readFile(import.meta.path)).digest('hex'),
-        options: {
-          sourceDateEpoch: Bun.env.SOURCE_DATE_EPOCH || '1783555200',
-          viewerBase,
-          cname: Bun.env.PAGES_CNAME || project.cname,
-        },
-      })).digest('hex'),
+    siteDirectory: WORK,
+    derivation: {
+      renderer: {
+        id: 'cycle-project-publication',
+        version: '1',
+        // This project wrapper has external QA/viewer inputs beyond SiteBuild.
+        // Conservatively bind its exact completed composition into the recipe so
+        // it can never collide with a stale reusable base-renderer entry.
+        recipeSha256: createHash('sha256').update(JSON.stringify({
+          schema: 'cycle-project-publication-recipe/v1',
+          // SiteOutput binds every final byte. The derivation recipe instead
+          // binds the upstream authenticated output, wrapper implementation, and
+          // explicit composition options; rereading the completed tree here only
+          // duplicated finalization and caused a whole-site memory spike.
+          baseOutputId: base.receipt.outputId,
+          baseRecipe: base.receipt.renderer.recipeSha256,
+          wrapper: createHash('sha256').update(await readFile(import.meta.path)).digest('hex'),
+          options: {
+            sourceDateEpoch: Bun.env.SOURCE_DATE_EPOCH || '1783555200',
+            viewerBase,
+            cname: Bun.env.PAGES_CNAME || project.cname,
+          },
+        })).digest('hex'),
+      },
+      outputSchema: 'cycle-project-publication/v1',
+      options: { baseOutputId: base.receipt.outputId },
     },
-    outputSchema: 'cycle-project-publication/v1',
-    options: { baseOutputId: base.receipt.outputId },
     declarations: [...outputDeclarations.values()],
   });
+  const receipt = await publication.adoptFinalizedOutputReceipt();
+  if (finalized.outputId !== receipt.outputId || finalized.cacheKey !== receipt.cacheKey) {
+    throw new Error('Fig finalized a different project SiteOutput than Cycle independently verified');
+  }
   await publication.publish();
   console.log(`\n✓ site build complete: ${relative(root, OUT)}/ (${files.length} pages, links OK; Publisher QA at qa.html)`);
   console.log(`✓ complete output ${receipt.outputId} (${receipt.files.length} files) verified`);

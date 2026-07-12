@@ -1,19 +1,17 @@
 /** Node/Bun-only filesystem adapter for the browser-compatible receipt core. */
-import { lstat, readFile, readdir, writeFile } from 'node:fs/promises';
+import { lstat, readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { compareUtf8 } from './order';
 import {
   CYCLE_OUTPUT_RECEIPT_PATH,
   CYCLE_OUTPUT_RECEIPT_SCHEMA,
   assertCycleOutputPath,
-  createCycleOutputReceipt,
   serializeCycleOutputReceipt,
   validateCycleOutputReceipt,
   verifyCycleOutputReceipt,
   type CycleOutputDeclaration,
   type CycleOutputMaterial,
   type CycleOutputReceipt,
-  type CycleRendererImplementation,
 } from './output-receipt';
 
 async function listRegularFiles(root: string): Promise<string[]> {
@@ -89,31 +87,6 @@ async function readDeclaredTree(
         content: new Uint8Array(await readFile(absolute)),
       };
     }));
-}
-
-/** Hash every declared staged file, then write the non-recursive receipt file. */
-export async function sealCycleOutputTree(options: {
-  root: string;
-  inputBuildId: string;
-  renderer: CycleRendererImplementation;
-  outputSchema?: string;
-  options?: Readonly<Record<string, string>>;
-  declarations: readonly CycleOutputDeclaration[];
-}): Promise<CycleOutputReceipt> {
-  const outputs = await readDeclaredTree(options.root, options.declarations, false);
-  const receipt = await createCycleOutputReceipt({
-    inputBuildId: options.inputBuildId,
-    renderer: options.renderer,
-    outputSchema: options.outputSchema,
-    options: options.options,
-    outputs,
-  });
-  await writeFile(join(options.root, CYCLE_OUTPUT_RECEIPT_PATH), serializeCycleOutputReceipt(receipt), {
-    encoding: 'utf8',
-    flag: 'wx',
-  });
-  await verifyCycleOutputTree({ root: options.root, declarations: options.declarations, expected: receipt });
-  return receipt;
 }
 
 /** Re-read the receipt and every output byte; reject missing, extra, or changed files. */

@@ -4,7 +4,11 @@ import { dirname, join } from 'node:path';
 import { expect, test } from 'bun:test';
 import { AtomicOutputPublication } from './atomic-output';
 import { renameDirectoryNoReplace } from './no-replace-rename';
-import { CYCLE_OUTPUT_RECEIPT_PATH, validateCycleOutputReceipt } from './output-receipt';
+import { serializeCycleOutputReceipt } from './output-receipt';
+import {
+  RUST_SITE_OUTPUT_BYTES,
+  RUST_SITE_OUTPUT_RECEIPT,
+} from './output-receipt.fixture';
 
 async function tempWorkspace(): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), 'cycle-publication-'));
@@ -52,11 +56,12 @@ test('completed staging tree is invisible until atomic publication', async () =>
   try {
     const publication = await AtomicOutputPublication.create({ destination: 'site-gen/out', cwd });
     expect(() => publication.outputPath('../escape.html')).toThrow('Unsafe output name');
-    await writeFile(publication.outputPath('index.html'), 'complete');
+    await writeRustReceipt(publication);
+    await publication.adoptFinalizedOutputReceipt();
     await expect(readFile(join(destination, 'index.html'), 'utf8')).rejects.toThrow();
 
     await publication.publish();
-    expect(await readFile(join(destination, 'index.html'), 'utf8')).toBe('complete');
+    expect(await readFile(join(destination, 'index.html'), 'utf8')).toBe('hello');
     expect((await readdir(join(cwd, 'site-gen'))).filter((name) => name.includes('.staging-'))).toEqual([]);
   } finally {
     await rm(root, { recursive: true, force: true });
@@ -97,11 +102,12 @@ test('explicit replacement retires the old tree only after completion', async ()
     const publication = await AtomicOutputPublication.create({
       destination: 'site-gen/out', cwd, replaceExisting: true,
     });
-    await writeFile(publication.outputPath('new.txt'), 'new');
+    await writeRustReceipt(publication);
+    await publication.adoptFinalizedOutputReceipt();
     expect(await readFile(join(destination, 'old.txt'), 'utf8')).toBe('old');
 
     await publication.publish();
-    expect(await readFile(join(destination, 'new.txt'), 'utf8')).toBe('new');
+    expect(await readFile(join(destination, 'index.html'), 'utf8')).toBe('hello');
     await expect(readFile(join(destination, 'old.txt'), 'utf8')).rejects.toThrow();
     expect((await readdir(dirname(destination))).filter((name) => name.includes('.previous-'))).toEqual([]);
   } finally {
@@ -115,7 +121,8 @@ test('a destination created during staging is preserved and publication fails cl
   const destination = join(cwd, 'site-gen/out');
   try {
     const publication = await AtomicOutputPublication.create({ destination: 'site-gen/out', cwd });
-    await writeFile(publication.outputPath('new.txt'), 'new');
+    await writeRustReceipt(publication);
+    await publication.adoptFinalizedOutputReceipt();
     await mkdir(destination);
     await writeFile(join(destination, 'intruder.txt'), 'intruder');
 
@@ -143,55 +150,63 @@ test('native no-replace rename preserves even an empty destination directory', a
   }
 });
 
-const receiptIdentity = {
-  inputBuildId: `sb1-sha256:${'a'.repeat(64)}`,
-  renderer: { id: 'cycle-site', version: '1', recipeSha256: 'b'.repeat(64) },
-} as const;
+async function writeRustReceipt(publication: AtomicOutputPublication, includeOutput = true): Promise<void> {
+  if (includeOutput) {
+    await writeFile(publication.outputPath('index.html'), RUST_SITE_OUTPUT_BYTES);
+  }
+  await writeFile(
+    publication.outputPath('site-output.json'),
+    serializeCycleOutputReceipt(RUST_SITE_OUTPUT_RECEIPT),
+  );
+}
 
-test('sealed atomic publication emits and verifies a non-recursive output receipt', async () => {
+test('atomic publication refuses a tree without an adopted Rust receipt', async () => {
   const root = await tempWorkspace();
   const cwd = join(root, 'work');
-  const destination = join(cwd, 'site-gen/out');
   try {
     const publication = await AtomicOutputPublication.create({ destination: 'site-gen/out', cwd });
-    await writeFile(publication.outputPath('index.html'), 'complete');
-    const receipt = await publication.sealOutputReceipt({
-      ...receiptIdentity,
-      declarations: [{
-        path: 'index.html',
-        mediaType: 'text/html',
-        producer: { id: 'cycle-site', version: '1' },
-        source: 'fixture page',
-      }],
-    });
-    expect(receipt.files.map((file) => file.path)).toEqual(['index.html']);
-    expect(receipt.files.some((file) => file.path === CYCLE_OUTPUT_RECEIPT_PATH)).toBe(false);
-    await publication.publish();
-
-    const written = await validateCycleOutputReceipt(JSON.parse(
-      await readFile(join(destination, CYCLE_OUTPUT_RECEIPT_PATH), 'utf8'),
-    ));
-    expect(written.outputId).toBe(receipt.outputId);
+    await writeFile(publication.outputPath('index.html'), 'unsealed');
+    await expect(publication.publish()).rejects.toThrow('requires an adopted Rust SiteOutput receipt');
+    await publication.abort();
   } finally {
     await rm(root, { recursive: true, force: true });
   }
 });
 
-test('receipt sealing rejects missing and extra staged outputs', async () => {
-  for (const scenario of ['missing', 'extra'] as const) {
+test('atomic publication adopts and publishes the independently produced Rust receipt', async () => {
+  const root = await tempWorkspace();
+  const cwd = join(root, 'work');
+  const destination = join(cwd, 'site-gen/out');
+  try {
+    const publication = await AtomicOutputPublication.create({ destination: 'site-gen/out', cwd });
+    await writeRustReceipt(publication);
+    expect(await publication.adoptFinalizedOutputReceipt()).toEqual(RUST_SITE_OUTPUT_RECEIPT);
+    await publication.publish();
+    expect(await readFile(join(destination, 'index.html'), 'utf8')).toBe('hello');
+    expect(await readFile(join(destination, 'site-output.json'), 'utf8'))
+      .toBe(serializeCycleOutputReceipt(RUST_SITE_OUTPUT_RECEIPT));
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('receipt adoption rejects missing, extra, and symlinked staged outputs', async () => {
+  for (const scenario of ['missing', 'extra', 'symlink'] as const) {
     const root = await tempWorkspace();
     const cwd = join(root, 'work');
     try {
       const publication = await AtomicOutputPublication.create({ destination: 'site-gen/out', cwd });
-      if (scenario === 'extra') await writeFile(publication.outputPath('extra.txt'), 'extra');
-      await expect(publication.sealOutputReceipt({
-        ...receiptIdentity,
-        declarations: scenario === 'missing' ? [{
-          path: 'missing.txt',
-          mediaType: 'text/plain',
-          producer: { id: 'fixture', version: '1' },
-        }] : [],
-      })).rejects.toThrow('output tree mismatch');
+      if (scenario === 'symlink') {
+        const source = join(root, 'outside.txt');
+        await writeFile(source, RUST_SITE_OUTPUT_BYTES);
+        await symlink(source, publication.outputPath('index.html'));
+        await writeRustReceipt(publication, false);
+      } else {
+        await writeRustReceipt(publication, scenario !== 'missing');
+        if (scenario === 'extra') await writeFile(publication.outputPath('extra.txt'), 'extra');
+      }
+      const expected = scenario === 'symlink' ? 'may not contain symlinks' : 'output tree mismatch';
+      await expect(publication.adoptFinalizedOutputReceipt()).rejects.toThrow(expected);
       await publication.abort();
     } finally {
       await rm(root, { recursive: true, force: true });
@@ -199,44 +214,15 @@ test('receipt sealing rejects missing and extra staged outputs', async () => {
   }
 });
 
-test('receipt sealing rejects a symlinked staged output', async () => {
+test('publication re-verifies adopted bytes and rejects post-adoption corruption', async () => {
   const root = await tempWorkspace();
   const cwd = join(root, 'work');
   try {
     const publication = await AtomicOutputPublication.create({ destination: 'site-gen/out', cwd });
-    const source = join(root, 'source.txt');
-    await writeFile(source, 'outside');
-    await symlink(source, publication.outputPath('linked.txt'));
-    await expect(publication.sealOutputReceipt({
-      ...receiptIdentity,
-      declarations: [{
-        path: 'linked.txt',
-        mediaType: 'text/plain',
-        producer: { id: 'fixture', version: '1' },
-      }],
-    })).rejects.toThrow('may not contain symlinks');
-    await publication.abort();
-  } finally {
-    await rm(root, { recursive: true, force: true });
-  }
-});
-
-test('publication re-verifies sealed bytes and rejects post-receipt corruption', async () => {
-  const root = await tempWorkspace();
-  const cwd = join(root, 'work');
-  try {
-    const publication = await AtomicOutputPublication.create({ destination: 'site-gen/out', cwd });
-    await writeFile(publication.outputPath('index.html'), 'complete');
-    await publication.sealOutputReceipt({
-      ...receiptIdentity,
-      declarations: [{
-        path: 'index.html',
-        mediaType: 'text/html',
-        producer: { id: 'fixture', version: '1' },
-      }],
-    });
+    await writeRustReceipt(publication);
+    await publication.adoptFinalizedOutputReceipt();
     await writeFile(publication.outputPath('index.html'), 'corrupt');
-    await expect(publication.publish()).rejects.toThrow('SiteOutput mismatch');
+    await expect(publication.publish()).rejects.toThrow('do not match');
     await publication.abort();
     await expect(readFile(join(cwd, 'site-gen/out/index.html'), 'utf8')).rejects.toThrow();
   } finally {

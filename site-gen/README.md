@@ -84,7 +84,6 @@ Prepare the closed input before starting the renderer:
 ```sh
 SOURCE_DATE_EPOCH=1783555200 fig prepare . \
   --target cycle-site/v2 \
-  --sushi-out temp/fig-sushi \
   --cache /path/to/fhir-package-cache \
   --out temp/cycle.fig-build
 
@@ -99,20 +98,34 @@ This guide generates its longitudinal example under `input/resources` before
 `site-gen/build.tsx` requires `SITE_BUILD_DIR`. Before opening the generator it
 builds and authenticates the renderer package in memory. It then renders every
 member of the one closed catalog into private sibling staging, checks internal
-links, seals `site-output.json`, and only then renames the complete tree. No
+links, asks Rust `fig finalize` to authenticate the tree and write
+`site-output.json`, independently verifies it, and only then renames the complete tree. No
 design/client output is appended outside the catalog. It rejects
 source-overlapping or symlinked destinations. Replacing an existing destination
 requires `SITE_GEN_REPLACE_OUTPUT=1`.
 
+The external-finalization plan names the exact `inputBuildId` already opened by
+the Cycle generator. Fig restores the bundle independently and rejects the
+operation before inspecting the staged output unless that identity still
+matches; Cycle also verifies the build id returned by Fig. The repository-wide
+wrapper carries forward the inherited receipt's `inputBuildId` when it seals
+the composed outer publication.
+
 The native host first asks the pinned Fig engine for the exact pre-render
 `SiteOutput` cache key using that closed build and authenticated renderer
 recipe. A verified hit fills the already-private `AtomicOutputPublication`
-staging directory, whose JavaScript SiteOutput implementation rechecks the
+staging directory, whose JavaScript validator rechecks the
 receipt and all files before the normal atomic rename; Liquid rendering is not
-opened. A miss follows the render/link-check/seal path above and imports the
-sealed tree into Fig's `FileSiteOutputCache` + `FileContentStore` before
+opened. A miss follows the render/link-check/Rust-finalize path above; Fig
+publishes the authenticated tree into `FileSiteOutputCache` + `FileContentStore` before
 publication. `FIG_OUTPUT_CACHE` selects the cache root and defaults to
 `temp/fig-output-cache`; `FIG_BIN` selects Fig.
+
+The renderer recipe inputs are re-hashed before and after fresh finalization,
+and again immediately before publishing a cache hit. Any drift aborts the
+private transaction. `AtomicOutputPublication.publish()` likewise refuses to
+rename any tree until it has adopted and independently verified Rust's receipt;
+there is no unsealed publication mode.
 
 The repository-wide publication uses:
 
@@ -124,7 +137,8 @@ The wrapper runs the Java IG Publisher independently for validation and QA,
 prepares the v2 Cycle SiteBuild with `FIG_BIN`, verifies the inner Cycle output,
 then adds viewers, SMART Health Link files, the agent package, deployment files,
 and the complete Publisher artifact under `publisher/`. Root `qa.html` redirects
-to `publisher/qa.html`. The wrapper seals and publishes the combined tree once.
+to `publisher/qa.html`. Rust seals the combined tree; the wrapper independently
+verifies and publishes it once.
 The Publisher's `package.db` is not a Cycle input.
 
 ## Rendering and Liquid
@@ -161,7 +175,7 @@ self-reference. Native publication re-reads every staged byte before rename.
 - `core/renderer.tsx`: output catalog and direct-path React SSR.
 - `core/content.ts` and `core/liquid.ts`: shared closed LiquidJS policy.
 - `core/filesystem-closed-build.ts`: Bun filesystem ContentStore adapter.
-- `core/output-receipt.ts`: browser-neutral SiteOutput identity.
+- `core/output-receipt.ts`: browser-neutral independent SiteOutput validation.
 - `core/atomic-output.ts`: native staged publication.
 - `native-renderer-package.ts`: Bun preparation of design/client package bytes.
 - `fhir/`: FHIR resource page components.

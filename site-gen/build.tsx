@@ -26,8 +26,9 @@ import { project } from './project';
 import { prepareNativeCycleRendererPackage } from './native-renderer-package';
 import type { CycleRendererPackage } from './core/renderer-package';
 import {
+  assertNativeRecipeUnchanged,
   nativeOutputCacheRoot,
-  publishNativeOutput,
+  finalizeNativeOutput,
   restoreNativeOutput,
   type NativeOutputDerivation,
 } from './core/native-output-cache';
@@ -40,7 +41,7 @@ if (!BUILD_DIRECTORY) {
 }
 const OUTPUT_CACHE = nativeOutputCacheRoot();
 
-const RENDERER_RECIPE_INPUTS = [...new Set([
+const RENDERER_RECIPE_CANDIDATES = [...new Set([
   'site-gen/build.tsx',
   'site-gen/client',
   'site-gen/chrome',
@@ -56,7 +57,7 @@ const RENDERER_RECIPE_INPUTS = [...new Set([
   project.contentDir,
   project.imageDir,
   ...project.liquidAssetDirs,
-])].filter(existsSync);
+])];
 
 /** Hash exact renderer code/assets plus the runtime facts that affect output. */
 function rendererRecipeSha256(paths: readonly string[], rendererPackageId: string): string {
@@ -97,7 +98,16 @@ const rendererPackage = await prepareNativeCycleRendererPackage({
   projectCss: project.projectCss,
   clientEntry: 'site-gen/client/entry.tsx',
 });
-const recipeSha256 = rendererRecipeSha256(RENDERER_RECIPE_INPUTS, rendererPackage.packageId);
+function currentRendererRecipeSha256(): string {
+  return rendererRecipeSha256(
+    RENDERER_RECIPE_CANDIDATES.filter(existsSync),
+    rendererPackage.packageId,
+  );
+}
+const recipeSha256 = currentRendererRecipeSha256();
+function assertRendererRecipeUnchanged(boundary: string): void {
+  assertNativeRecipeUnchanged(recipeSha256, currentRendererRecipeSha256(), boundary);
+}
 const outputOptions = Object.freeze({
   bunVersion: Bun.version,
   clientMinify: 'true',
@@ -191,13 +201,14 @@ try {
     derivation: outputDerivation,
   });
   if (cached) {
-    const receipt = await publication.adoptCachedOutputReceipt();
+    const receipt = await publication.adoptFinalizedOutputReceipt();
     if (receipt.cacheKey !== cached.cacheKey || receipt.outputId !== cached.outputId) {
       throw new Error(
         `Fig cache result does not match materialized SiteOutput: `
         + `${cached.cacheKey}/${cached.outputId} != ${receipt.cacheKey}/${receipt.outputId}`,
       );
     }
+    assertRendererRecipeUnchanged('before cached output publication');
     await publication.publish();
     console.log(
       `✓ verified SiteOutput cache hit ${receipt.outputId} `
@@ -244,20 +255,19 @@ try {
       throw new Error('Strict link check failed; staged site was not published');
     }
 
-    const receipt = await publication.sealOutputReceipt({
-      inputBuildId: generator.buildId,
-      renderer: outputDerivation.renderer,
-      outputSchema: CYCLE_OUTPUT_SCHEMA,
-      options: outputOptions,
-      declarations: [...outputDeclarations.values()],
-    });
-    const cachedPublication = publishNativeOutput({
+    assertRendererRecipeUnchanged('before fresh finalization');
+    const finalized = finalizeNativeOutput({
       buildDirectory: BUILD_DIRECTORY,
+      inputBuildId: generator.buildId,
       cacheDirectory: OUTPUT_CACHE,
       siteDirectory: WORK,
+      derivation: outputDerivation,
+      declarations: [...outputDeclarations.values()],
     });
-    if (cachedPublication.outputId !== receipt.outputId || cachedPublication.cacheKey !== receipt.cacheKey) {
-      throw new Error('Fig cached a different SiteOutput than Cycle sealed');
+    assertRendererRecipeUnchanged('during fresh finalization');
+    const receipt = await publication.adoptFinalizedOutputReceipt();
+    if (finalized.outputId !== receipt.outputId || finalized.cacheKey !== receipt.cacheKey) {
+      throw new Error('Fig finalized a different SiteOutput than Cycle independently verified');
     }
     await publication.publish();
     const count = (kind: string) => descriptors.filter((page) => page.pageKind === kind).length;

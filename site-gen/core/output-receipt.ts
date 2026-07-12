@@ -54,14 +54,6 @@ export interface CycleOutputReceipt {
   outputId: string;
 }
 
-export interface CreateCycleOutputReceiptOptions {
-  inputBuildId: string;
-  renderer: CycleRendererImplementation;
-  outputSchema?: string;
-  options?: Readonly<Record<string, string>>;
-  outputs: readonly CycleOutputMaterial[];
-}
-
 type CacheKeyPayload = Omit<CycleOutputReceipt, 'cacheKey' | 'files' | 'outputId'>;
 type OutputIdPayload = Omit<CycleOutputReceipt, 'outputId'>;
 
@@ -138,10 +130,6 @@ function copyProducer(value: CycleProducerIdentity): CycleProducerIdentity {
   return { id: value.id, version: value.version };
 }
 
-function copyRenderer(value: CycleRendererImplementation): CycleRendererImplementation {
-  return { ...copyProducer(value), recipeSha256: value.recipeSha256 };
-}
-
 function copyOptions(value: Readonly<Record<string, string>>): Record<string, string> {
   const result: Record<string, string> = {};
   for (const key of Object.keys(value).sort(compareUtf8)) {
@@ -191,36 +179,9 @@ function assertInputBuildId(value: unknown): asserts value is string {
   }
 }
 
-/** Compute the reusable lookup key before rendering any output bytes. */
-export async function createSiteOutputCacheKey(options: {
-  inputBuildId: string;
-  renderer: CycleRendererImplementation;
-  outputSchema?: string;
-  options?: Readonly<Record<string, string>>;
-}): Promise<string> {
-  assertInputBuildId(options.inputBuildId);
-  assertRenderer(options.renderer, 'SiteOutput renderer');
-  const outputSchema = nonEmptyString(options.outputSchema || CYCLE_OUTPUT_SCHEMA, 'SiteOutput outputSchema');
-  const normalizedOptions = copyOptions(options.options || {});
-  const payload: CacheKeyPayload = {
-    schemaVersion: SITE_OUTPUT_SCHEMA,
-    inputBuildId: options.inputBuildId,
-    renderer: copyRenderer(options.renderer),
-    outputSchema,
-    options: normalizedOptions,
-  };
-  return prefixedHash('sok1-sha256:', payload);
-}
-
-export async function createCycleOutputReceipt(
-  options: CreateCycleOutputReceiptOptions,
-): Promise<CycleOutputReceipt> {
-  assertInputBuildId(options.inputBuildId);
-  assertRenderer(options.renderer, 'SiteOutput renderer');
-  const outputSchema = nonEmptyString(options.outputSchema || CYCLE_OUTPUT_SCHEMA, 'SiteOutput outputSchema');
-  const normalizedOptions = copyOptions(options.options || {});
+async function receiptFiles(outputs: readonly CycleOutputMaterial[]): Promise<CycleOutputReceiptFile[]> {
   const seen = new Set<string>();
-  const files = await Promise.all(options.outputs.map(async (output, index): Promise<CycleOutputReceiptFile> => {
+  const files = await Promise.all(outputs.map(async (output, index): Promise<CycleOutputReceiptFile> => {
     const { content, mediaType, ...rest } = output;
     assertDeclaration({ ...rest, mediaType }, `SiteOutput file[${index}]`);
     if (seen.has(rest.path)) throw new Error(`Duplicate Cycle output path '${rest.path}'`);
@@ -241,21 +202,7 @@ export async function createCycleOutputReceipt(
       throw new Error(`SiteOutput '${file.path}' names missing owner '${file.owner}'`);
     }
   }
-  const cachePayload: CacheKeyPayload = {
-    schemaVersion: SITE_OUTPUT_SCHEMA,
-    inputBuildId: options.inputBuildId,
-    renderer: copyRenderer(options.renderer),
-    outputSchema,
-    options: normalizedOptions,
-  };
-  const cacheKey = await createSiteOutputCacheKey({
-    inputBuildId: options.inputBuildId,
-    renderer: options.renderer,
-    outputSchema,
-    options: normalizedOptions,
-  });
-  const outputPayload: OutputIdPayload = { ...cachePayload, cacheKey, files };
-  return { ...outputPayload, outputId: await prefixedHash('so1-sha256:', outputPayload) };
+  return files;
 }
 
 function assertReceiptFile(value: unknown, label: string): asserts value is CycleOutputReceiptFile {
@@ -325,14 +272,10 @@ export async function verifyCycleOutputReceipt(
   outputs: readonly CycleOutputMaterial[],
 ): Promise<void> {
   const receipt = await validateCycleOutputReceipt(receiptValue);
-  const actual = await createCycleOutputReceipt({
-    inputBuildId: receipt.inputBuildId,
-    renderer: receipt.renderer,
-    outputSchema: receipt.outputSchema,
-    options: receipt.options,
-    outputs,
-  });
-  if (actual.outputId !== receipt.outputId) throw new Error(`SiteOutput mismatch: ${actual.outputId} != ${receipt.outputId}`);
+  const files = await receiptFiles(outputs);
+  if (canonicalJson(files) !== canonicalJson(receipt.files)) {
+    throw new Error('SiteOutput files do not match the authenticated output bytes and declarations');
+  }
 }
 
 export interface SiteOutputContentStore {
@@ -384,43 +327,9 @@ export function rendererOutputDeclaration(output: {
   };
 }
 
-export interface CycleRendererOutputProvider {
-  listOutputs(): Array<{ file: string; mime: string; producer: string; owner?: string }>;
-  renderOutput(file: string): { file: string; mime: string; content: string | Uint8Array };
-}
-
-export async function createCycleRendererOutputReceipt(options: {
-  inputBuildId: string;
-  rendererRecipeSha256: string;
-  renderer: CycleRendererOutputProvider;
-  outputSchema?: string;
-  outputOptions?: Readonly<Record<string, string>>;
-  additionalOutputs?: readonly CycleOutputMaterial[];
-}): Promise<CycleOutputReceipt> {
-  const outputs: CycleOutputMaterial[] = [];
-  for (const descriptor of options.renderer.listOutputs()) {
-    const rendered = options.renderer.renderOutput(descriptor.file);
-    if (rendered.file !== descriptor.file || rendered.mime !== descriptor.mime) {
-      throw new Error(`Cycle renderer output disagrees with declaration '${descriptor.file}'`);
-    }
-    outputs.push({ ...rendererOutputDeclaration(descriptor), content: rendered.content });
-  }
-  outputs.push(...(options.additionalOutputs || []));
-  return createCycleOutputReceipt({
-    inputBuildId: options.inputBuildId,
-    renderer: { ...CYCLE_RENDERER_IDENTITY, recipeSha256: options.rendererRecipeSha256 },
-    outputSchema: options.outputSchema,
-    options: options.outputOptions,
-    outputs,
-  });
-}
-
-// Generic names for hosts that do not otherwise depend on Cycle. The Cycle
-// names remain source-compatible for the existing renderer integration.
 export type SiteOutput = CycleOutputReceipt;
 export type SiteOutputFile = CycleOutputReceiptFile;
 export type SiteOutputMaterial = CycleOutputMaterial;
-export const createSiteOutput = createCycleOutputReceipt;
 export const validateSiteOutput = validateCycleOutputReceipt;
 export const verifySiteOutput = verifyCycleOutputReceipt;
 export const serializeSiteOutput = serializeCycleOutputReceipt;
