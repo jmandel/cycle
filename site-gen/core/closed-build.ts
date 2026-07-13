@@ -8,72 +8,37 @@
  */
 
 import { compareUtf8 } from './order';
+import { PREPARED_PACKAGE_MEDIA_TYPE } from './site-contract.generated';
+import type {
+  ArtifactKey,
+  ArtifactRecord,
+  ClosedSiteBuild,
+  ContentRef,
+  ReadDependency,
+} from './site-contract.generated';
+export type {
+  ArtifactKey,
+  ArtifactRecord,
+  ArtifactState,
+  ClosedSiteBuild,
+  ContentRef,
+  LockedPackage,
+  ReadDependency,
+  SourceEntry,
+} from './site-contract.generated';
 
-export interface ContentRef {
-  sha256: string;
-  byteLength: number;
-  mediaType?: string;
-}
-
-export interface SourceEntry {
-  content: ContentRef;
-  kind: unknown;
-}
-
-export interface LockedPackage {
-  coordinate: string;
-  content: ContentRef;
-  dependencies?: string[];
-}
-
-export type ArtifactKey = { kind: string } & Record<string, unknown>;
-
-export type ReadDependency =
-  | { kind: 'artifact'; key: ArtifactKey }
-  | { kind: 'source'; path: string }
-  | { kind: 'package'; coordinate: string }
-  | { kind: 'content'; sha256: string };
-
-export type ArtifactState =
-  | { status: 'ready'; content: ContentRef }
-  | { status: 'deferred'; reason: string }
-  | { status: 'unsupported'; capability: string; reason: string }
-  | { status: 'failed'; diagnostics: unknown[] };
-
-export interface ArtifactRecord {
-  key: ArtifactKey;
-  state: ArtifactState;
-  provenance: unknown;
-  reads?: ReadDependency[];
-}
-
-export const PREPARED_PACKAGE_MEDIA_TYPE = 'application/vnd.fhir.package.prepared.v3';
-
-/** Runtime-facing shape of the Rust `site-build/v2` wire value. */
-export interface ClosedSiteBuild {
-  schemaVersion: 'site-build/v2';
-  buildId: string;
-  project: {
-    projectId: string;
-    revision: string;
-    sources: Record<string, SourceEntry>;
-  };
-  packageLock: Record<string, LockedPackage>;
-  renderTarget: {
-    renderer: { id: string; version: string };
-    mode: 'native_template' | 'external_builder';
-    fhirVersion: string;
-    template?: string;
-    parameters?: Record<string, string>;
-  };
-  renderPlan: { requiredArtifacts: ArtifactKey[] };
-  artifacts: ArtifactRecord[];
-  diagnostics: unknown[];
-}
+export { PREPARED_PACKAGE_MEDIA_TYPE } from './site-contract.generated';
 
 /** Read-only content-addressed byte transport. Returning `null` is a miss. */
 export interface ContentStore {
   get(content: ContentRef): Promise<Uint8Array | null>;
+}
+
+/** ContentStore capability required by a renderer producing new immutable
+ * objects. Input-only stores need only `get`; browser/native output stores
+ * implement both operations. */
+export interface WritableContentStore extends ContentStore {
+  put(bytes: Uint8Array, mediaType: string): Promise<ContentRef & { mediaType: string }>;
 }
 
 export interface ClosedBuildOpenOptions {
@@ -344,34 +309,36 @@ function compareArtifactKey(left: ArtifactKey, right: ArtifactKey): number {
   const variants = ['semantic_model', 'resource', 'fragment', 'page', 'asset', 'data'];
   const variant = variants.indexOf(left.kind) - variants.indexOf(right.kind);
   if (variant) return variant;
+  const leftRecord = left as unknown as Record<string, unknown>;
+  const rightRecord = right as unknown as Record<string, unknown>;
   switch (left.kind) {
-    case 'semantic_model': return compareUtf8(String(left.name), String(right.name));
+    case 'semantic_model': return compareUtf8(String(leftRecord.name), String(rightRecord.name));
     case 'resource': return compareResourceKey(
-      left.resource as Record<string, unknown>,
-      right.resource as Record<string, unknown>,
+      leftRecord.resource as Record<string, unknown>,
+      rightRecord.resource as Record<string, unknown>,
     );
     case 'fragment':
       return compareFragmentScope(
-        left.scope as Record<string, unknown>,
-        right.scope as Record<string, unknown>,
+        leftRecord.scope as Record<string, unknown>,
+        rightRecord.scope as Record<string, unknown>,
       ) || compareNamedVariant(
-        left.fragment as Record<string, unknown>,
-        right.fragment as Record<string, unknown>,
+        leftRecord.fragment as Record<string, unknown>,
+        rightRecord.fragment as Record<string, unknown>,
         ['narrative', 'summary', 'dictionary', 'terminology', 'table', 'other'],
       ) || compareStringMap(
-        left.parameters as Record<string, unknown> | undefined,
-        right.parameters as Record<string, unknown> | undefined,
+        leftRecord.parameters as Record<string, unknown> | undefined,
+        rightRecord.parameters as Record<string, unknown> | undefined,
       );
-    case 'page': return compareUtf8(String(left.path), String(right.path));
+    case 'page': return compareUtf8(String(leftRecord.path), String(rightRecord.path));
     case 'asset':
       return compareNamedVariant(
-        left.namespace as Record<string, unknown>,
-        right.namespace as Record<string, unknown>,
+        leftRecord.namespace as Record<string, unknown>,
+        rightRecord.namespace as Record<string, unknown>,
         ['authored', 'template', 'publisher_runtime', 'generated', 'other'],
-      ) || compareUtf8(String(left.path), String(right.path));
+      ) || compareUtf8(String(leftRecord.path), String(rightRecord.path));
     case 'data':
-      return compareUtf8(String(left.namespace), String(right.namespace))
-        || compareUtf8(String(left.name), String(right.name));
+      return compareUtf8(String(leftRecord.namespace), String(rightRecord.namespace))
+        || compareUtf8(String(leftRecord.name), String(rightRecord.name));
     default: return 0;
   }
 }

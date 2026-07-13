@@ -3,15 +3,15 @@ import { lstat, readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { compareUtf8 } from './order';
 import {
-  CYCLE_OUTPUT_RECEIPT_PATH,
-  CYCLE_OUTPUT_RECEIPT_SCHEMA,
+  SITE_OUTPUT_MANIFEST_PATH,
+  SITE_OUTPUT_SCHEMA,
   assertCycleOutputPath,
-  serializeCycleOutputReceipt,
-  validateCycleOutputReceipt,
-  verifyCycleOutputReceipt,
+  serializeSiteOutput,
+  validateSiteOutput,
+  verifySiteOutput,
   type CycleOutputDeclaration,
-  type CycleOutputMaterial,
-  type CycleOutputReceipt,
+  type SiteOutput,
+  type SiteOutputMaterial,
 } from './output-receipt';
 
 async function listRegularFiles(root: string): Promise<string[]> {
@@ -45,8 +45,8 @@ function declarationMap(declarations: readonly CycleOutputDeclaration[]): Map<st
   for (const declaration of declarations) {
     assertCycleOutputPath(declaration.path, 'Cycle output declaration path');
     if (result.has(declaration.path)) throw new Error(`Duplicate Cycle output declaration '${declaration.path}'`);
-    if (declaration.path === CYCLE_OUTPUT_RECEIPT_PATH) {
-      throw new Error(`Cycle output declaration collides with reserved receipt path '${CYCLE_OUTPUT_RECEIPT_PATH}'`);
+    if (declaration.path === SITE_OUTPUT_MANIFEST_PATH) {
+      throw new Error(`Cycle output declaration collides with reserved SiteOutput path '${SITE_OUTPUT_MANIFEST_PATH}'`);
     }
     result.set(declaration.path, declaration);
   }
@@ -57,16 +57,16 @@ async function readDeclaredTree(
   root: string,
   declarations: readonly CycleOutputDeclaration[],
   receiptExpected: boolean,
-): Promise<CycleOutputMaterial[]> {
+): Promise<SiteOutputMaterial[]> {
   const byPath = declarationMap(declarations);
   const actual = await listRegularFiles(root);
-  const allowedActual = actual.filter((path) => path !== CYCLE_OUTPUT_RECEIPT_PATH);
-  const receiptPresent = actual.includes(CYCLE_OUTPUT_RECEIPT_PATH);
+  const allowedActual = actual.filter((path) => path !== SITE_OUTPUT_MANIFEST_PATH);
+  const receiptPresent = actual.includes(SITE_OUTPUT_MANIFEST_PATH);
   if (receiptPresent !== receiptExpected) {
     throw new Error(
       receiptExpected
-        ? `Cycle output receipt file is missing: ${CYCLE_OUTPUT_RECEIPT_PATH}`
-        : `Cycle output receipt path already exists before sealing: ${CYCLE_OUTPUT_RECEIPT_PATH}`,
+        ? `SiteOutput file is missing: ${SITE_OUTPUT_MANIFEST_PATH}`
+        : `SiteOutput path already exists before sealing: ${SITE_OUTPUT_MANIFEST_PATH}`,
     );
   }
   const missing = [...byPath.keys()].filter((path) => !allowedActual.includes(path)).sort(compareUtf8);
@@ -90,28 +90,28 @@ async function readDeclaredTree(
 }
 
 /** Re-read the receipt and every output byte; reject missing, extra, or changed files. */
-export async function verifyCycleOutputTree(options: {
+export async function verifySiteOutputTree(options: {
   root: string;
   declarations: readonly CycleOutputDeclaration[];
-  expected?: CycleOutputReceipt;
-}): Promise<CycleOutputReceipt> {
-  const serialized = await readFile(join(options.root, CYCLE_OUTPUT_RECEIPT_PATH), 'utf8');
+  expected?: SiteOutput;
+}): Promise<SiteOutput> {
+  const serialized = await readFile(join(options.root, SITE_OUTPUT_MANIFEST_PATH), 'utf8');
   let parsed: unknown;
   try {
     parsed = JSON.parse(serialized);
   } catch (error) {
     throw new Error(`Invalid Cycle output receipt JSON: ${error instanceof Error ? error.message : String(error)}`);
   }
-  const receipt = await validateCycleOutputReceipt(parsed);
-  if (serialized !== serializeCycleOutputReceipt(receipt)) {
-    throw new Error(`Cycle output receipt file is not in canonical ${CYCLE_OUTPUT_RECEIPT_SCHEMA} form`);
+  const output = await validateSiteOutput(parsed);
+  if (serialized !== serializeSiteOutput(output)) {
+    throw new Error(`SiteOutput file is not in canonical ${SITE_OUTPUT_SCHEMA} form`);
   }
-  if (options.expected && receipt.outputId !== options.expected.outputId) {
+  if (options.expected && output.outputId !== options.expected.outputId) {
     throw new Error(
-      `SiteOutput changed after sealing: ${receipt.outputId} != ${options.expected.outputId}`,
+      `SiteOutput changed after sealing: ${output.outputId} != ${options.expected.outputId}`,
     );
   }
   const outputs = await readDeclaredTree(options.root, options.declarations, true);
-  await verifyCycleOutputReceipt(receipt, outputs);
-  return receipt;
+  await verifySiteOutput(output, outputs);
+  return output;
 }

@@ -8,7 +8,9 @@ function cString(value: string): Buffer {
 }
 
 function nativeFailure(operation: string, errno: number): Error {
-  return new Error(`${operation} failed with errno ${errno}`);
+  const error = new Error(`${operation} failed with errno ${errno}`) as NodeJS.ErrnoException;
+  error.code = errno === 17 ? 'EEXIST' : `ERRNO_${errno}`;
+  return error;
 }
 
 function renameLinux(source: string, destination: string): void {
@@ -67,7 +69,7 @@ function renameMac(source: string, destination: string): void {
  * directory rename already refuses an existing destination. Other platforms
  * fail closed rather than falling back to a check-then-replace race.
  */
-export async function renameDirectoryNoReplace(source: string, destination: string): Promise<void> {
+async function renamePathNoReplace(source: string, destination: string): Promise<void> {
   if (process.platform === 'linux') {
     renameLinux(source, destination);
     return;
@@ -81,4 +83,13 @@ export async function renameDirectoryNoReplace(source: string, destination: stri
     return;
   }
   throw new Error(`Atomic no-replace directory rename is unsupported on ${process.platform}`);
+}
+
+export async function renameDirectoryNoReplace(source: string, destination: string): Promise<void> {
+  await renamePathNoReplace(source, destination);
+}
+
+/** Publish one same-filesystem regular file at an absent destination. */
+export async function renameFileNoReplace(source: string, destination: string): Promise<void> {
+  await renamePathNoReplace(source, destination);
 }

@@ -1,12 +1,13 @@
 import { createHash } from 'node:crypto';
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test } from 'bun:test';
 import { computeSiteBuildId } from './closed-build';
 import type { ArtifactKey, ClosedSiteBuild, ContentRef } from './closed-build';
-import { openFilesystemClosedBuild } from './filesystem-closed-build';
+import { FilesystemContentStore, openFilesystemClosedBuild } from './filesystem-closed-build';
 import { openCycleGenerator } from './open-site-build';
+import { MemoryContentStore } from './memory-content-store';
 import { fixtureRendererPackage } from './renderer-package.test-support';
 import {
   CYCLE_SEMANTIC_CONFIG_ARTIFACT,
@@ -113,10 +114,16 @@ test('filesystem v2 bundle opens through the verified generator facade', async (
   try {
     await writeSyntheticBundle(root);
     const handle = await openFilesystemClosedBuild(root);
-    const generator = await openCycleGenerator(handle, await fixtureRendererPackage());
-    expect(generator.buildId).toBe(handle.manifest.buildId);
+    const outputStore = new MemoryContentStore();
+    const generator = await openCycleGenerator(
+      handle,
+      await fixtureRendererPackage(),
+      outputStore,
+    );
+    expect(generator).not.toHaveProperty('buildId');
     expect(generator.outputs()).toContainEqual(expect.objectContaining({ file: 'image.bin', kind: 'asset' }));
-    expect([...generator.render('image.bin').content as Uint8Array]).toEqual([0, 1, 2]);
+    const image = await generator.render('image.bin');
+    expect([...(await outputStore.get(image))!]).toEqual([0, 1, 2]);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -128,6 +135,37 @@ test('filesystem bundle fails closed when an addressed object is absent', async 
     const contents = await writeSyntheticBundle(root);
     await rm(join(root, 'objects/sha256', contents[0].sha256));
     await expect(openFilesystemClosedBuild(root)).rejects.toThrow('Content store is missing');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('filesystem output ContentStore publishes concurrent equal bytes atomically', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'cycle-output-store-'));
+  try {
+    const store = await FilesystemContentStore.create(root);
+    const bytes = new TextEncoder().encode('one complete immutable object');
+    const [left, right] = await Promise.all([
+      store.put(bytes, 'text/plain'),
+      store.put(bytes, 'text/plain'),
+    ]);
+    expect(left).toEqual(right);
+    expect(new Uint8Array(await readFile(join(root, left.sha256)))).toEqual(bytes);
+    expect((await readdir(root)).filter((name) => name.startsWith('.content-'))).toEqual([]);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('filesystem output ContentStore rejects a partial object at a digest path', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'cycle-output-store-corrupt-'));
+  try {
+    const store = await FilesystemContentStore.create(root);
+    const bytes = new TextEncoder().encode('complete bytes');
+    const digest = createHash('sha256').update(bytes).digest('hex');
+    await writeFile(join(root, digest), bytes.slice(0, 3));
+    await expect(store.put(bytes, 'text/plain')).rejects.toThrow('does not match');
+    expect(new Uint8Array(await readFile(join(root, digest)))).toEqual(bytes.slice(0, 3));
   } finally {
     await rm(root, { recursive: true, force: true });
   }

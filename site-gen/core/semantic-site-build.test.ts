@@ -9,6 +9,7 @@ import {
   type ContentRef,
 } from './closed-build';
 import { openCycleGenerator } from './open-site-build';
+import { MemoryContentStore } from './memory-content-store';
 import { fixtureRendererPackage } from './renderer-package.test-support';
 import { CycleSiteRenderer } from './renderer';
 import {
@@ -28,7 +29,7 @@ import {
 const encoder = new TextEncoder();
 
 async function openFixtureGenerator(build: ClosedBuildHandle) {
-  return openCycleGenerator(build, await fixtureRendererPackage());
+  return openCycleGenerator(build, await fixtureRendererPackage(), new MemoryContentStore());
 }
 
 interface FixturePayloads {
@@ -355,8 +356,9 @@ test('typed authored includes are available to Liquid but are not public outputs
 
 test('v2-only generator binds its output catalog and direct renderer to one build', async () => {
   const handle = await v2Handle();
-  const generator = await openFixtureGenerator(handle);
-  expect(generator.buildId).toBe(handle.manifest.buildId);
+  const outputStore = new MemoryContentStore();
+  const generator = await openCycleGenerator(handle, await fixtureRendererPackage(), outputStore);
+  expect(generator).not.toHaveProperty('buildId');
   expect(generator.outputs()).toContainEqual(expect.objectContaining({
     file: 'index.html',
     mime: 'text/html',
@@ -369,11 +371,11 @@ test('v2-only generator binds its output catalog and direct renderer to one buil
     mime: 'text/javascript',
     kind: 'asset',
   }));
-  expect(new TextDecoder().decode(generator.render('assets/app.js').content as Uint8Array)).toContain('classList.add');
-  const rendered = generator.render('index.html');
-  expect(rendered.file).toBe('index.html');
-  expect(rendered.mime).toBe('text/html');
-  expect(String(rendered.content)).toContain('<!doctype html>');
+  const app = await generator.render('assets/app.js');
+  expect(new TextDecoder().decode((await outputStore.get(app))!)).toContain('classList.add');
+  const rendered = await generator.render('index.html');
+  expect(rendered.mediaType).toBe('text/html');
+  expect(new TextDecoder().decode((await outputStore.get(rendered))!)).toContain('<!doctype html>');
 });
 
 test('renderer-package and authored paths collide while the catalog is closing', async () => {

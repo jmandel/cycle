@@ -13,7 +13,8 @@ authored guide + exact packages
   -> site-build.json + objects/sha256/<digest>
   -> ClosedBuildHandle
   + authenticated Cycle renderer package (design, fonts, marks, client runtime)
-  -> openCycleGenerator(handle, rendererPackage)
+  + host ContentStore
+  -> openCycleGenerator(handle, rendererPackage, contentStore)
   -> outputs() / render(path)
   -> SiteOutput receipt
   -> atomic publication or browser preview
@@ -34,14 +35,14 @@ semantic payload schema revisions are `/v1`; the Cycle target remains
 
 ```ts
 interface CycleGenerator {
-  readonly buildId: string;
   outputs(): CycleGeneratorOutput[];
-  render(path: string): RenderedOutput;
+  render(path: string): Promise<ContentRef>;
 }
 
 openCycleGenerator(
   build: ClosedBuildHandle,
   rendererPackage: CycleRendererPackage,
+  outputStore: WritableContentStore,
 ): Promise<CycleGenerator>
 ```
 
@@ -56,7 +57,10 @@ Markdown, FHIR JSON, `llms.txt`, authored assets, design CSS, fonts, marks,
 project CSS, and the browser runtime. Page entries also contain their title and
 page kind. Every semantic, authored, and renderer-package path is merged and
 collision-checked before the generator opens. `render(path)` is the only
-byte-producing renderer operation and each path is independent.
+byte-producing renderer operation: it writes directly to the supplied
+ContentStore and returns the verified `ContentRef`. Each path is independent.
+The build id remains on the authenticated closed manifest and never leaks as a
+mutable generator property.
 
 The second argument is a private renderer-implementation input, not guide data
 or an editor asset API. Its strict `cycle-renderer-package/v1` manifest contains
@@ -97,28 +101,38 @@ This guide generates its longitudinal example under `input/resources` before
 
 `site-gen/build.tsx` requires `SITE_BUILD_DIR`. Before opening the generator it
 builds and authenticates the renderer package in memory. It then renders every
-member of the one closed catalog into private sibling staging, checks internal
-links, asks Rust `fig finalize` to authenticate the tree and write
-`site-output.json`, independently verifies it, and only then renames the complete tree. No
-design/client output is appended outside the catalog. It rejects
+member of the one closed catalog directly into CAS, checks links from the
+addressed page bytes, and asks Rust through a hidden renderer IPC to verify the
+same references and write canonical `site-output.json`. Only after independent
+receipt validation does it materialize the exact receipt once and atomically
+rename the complete tree. No design/client output is appended outside the
+catalog. It rejects
 source-overlapping or symlinked destinations. Replacing an existing destination
 requires `SITE_GEN_REPLACE_OUTPUT=1`.
 
-The external-finalization plan names the exact `inputBuildId` already opened by
-the Cycle generator. Fig restores the bundle independently and rejects the
-operation before inspecting the staged output unless that identity still
-matches; Cycle also verifies the build id returned by Fig. The repository-wide
+Native orchestration presents both a verified cache hit and a live generator
+through one private immutable Build facade: `outputs()`, `render(path) ->
+ContentRef`, and `finalize() -> SiteOutput`. `resolveNativeCycleOutput` is only a
+convenience that drives those operations and returns the finalized output plus
+its writable ContentStore for outer CAS composition; it is not another build
+model or serialized handoff.
+
+The private IPC names the exact `inputBuildId` already authenticated by the
+Cycle host. Fig restores that bundle independently, binds the immutable output
+path set, admits each referenced file from ContentStore, and invokes the same
+no-argument SiteEngine `finalize` used by Publisher. A mismatched build aborts
+before content admission. This transport is absent from Fig help and is not an
+external-finalization plan or fifth build operation. The repository-wide
 wrapper carries forward the inherited receipt's `inputBuildId` when it seals
 the composed outer publication.
 
-The native host first asks the pinned Fig engine for the exact pre-render
-`SiteOutput` cache key using that closed build and authenticated renderer
-recipe. A verified hit fills the already-private `AtomicOutputPublication`
-staging directory, whose JavaScript validator rechecks the
-receipt and all files before the normal atomic rename; Liquid rendering is not
-opened. A miss follows the render/link-check/Rust-finalize path above; Fig
-publishes the authenticated tree into `FileSiteOutputCache` + `FileContentStore` before
-publication. `FIG_OUTPUT_CACHE` selects the cache root and defaults to
+The native host privately derives an exact pre-render lookup pointer from the
+closed build and authenticated renderer recipe. A hit returns only a canonical
+receipt plus its verified ContentStore; Liquid rendering is not opened. A miss
+follows the render/link-check/no-argument-finalize path above, then Fig advances
+the private manifest pointer after caching every addressed object. No cache
+key, cache type, or cache operation appears in the generator or SiteOutput API.
+`FIG_OUTPUT_CACHE` selects this private storage root and defaults to
 `temp/fig-output-cache`; `FIG_BIN` selects Fig.
 
 The renderer recipe inputs are re-hashed before and after fresh finalization,
@@ -134,11 +148,11 @@ FIG_BIN=/path/to/pinned/fig bun run build:sitegen
 ```
 
 The wrapper runs the Java IG Publisher independently for validation and QA,
-prepares the v2 Cycle SiteBuild with `FIG_BIN`, verifies the inner Cycle output,
-then adds viewers, SMART Health Link files, the agent package, deployment files,
-and the complete Publisher artifact under `publisher/`. Root `qa.html` redirects
-to `publisher/qa.html`. Rust seals the combined tree; the wrapper independently
-verifies and publishes it once.
+prepares the v2 Cycle SiteBuild with `FIG_BIN`, resolves the inner Cycle output
+in ContentStore, then adds viewers, SMART Health Link files, the agent package,
+deployment files, and the complete Publisher artifact under `publisher/`.
+Root `qa.html` redirects to `publisher/qa.html`. Rust finalizes the combined
+ContentRefs; only then does the wrapper materialize, verify, and publish once.
 The Publisher's `package.db` is not a Cycle input.
 
 ## Rendering and Liquid
@@ -162,9 +176,11 @@ The browser-neutral SiteOutput receipt binds:
 - output schema and runtime options; and
 - every declared path, media type, producer, owner, length, and SHA-256 digest.
 
-Its pre-render key is `sok1-sha256`; its material output identity is
-`so1-sha256`. `site-output.json` is excluded from its own file set to avoid
-self-reference. Native publication re-reads every staged byte before rename.
+Its public material identity is `so1-sha256`. A native host may use a private
+`sok1-sha256` pointer derived from functional inputs, but that value is not a
+receipt field or public contract. `site-output.json` is excluded from its own
+file set to avoid self-reference. Native publication materializes and rechecks
+only the paths named by the receipt before rename.
 
 ## Source layout
 

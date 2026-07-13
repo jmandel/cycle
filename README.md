@@ -31,9 +31,9 @@ authored IG + exact package cache
     -> ClosedBuildHandle + typed semantic SiteBuild
     + authenticated renderer package (design/client ContentRefs)
     -> shared CycleSiteRenderer + shared Cycle content policy
-    -> verified inner renderer output
+    -> ContentStore refs + verified inner renderer output
     -> project viewers/SHL/skill/QA + final link check
-    -> complete site-output.json (`sok1` derivation key + `so1` byte identity)
+    -> complete site-output.json (`so1` functional identity)
     -> one atomic site-gen/out publication
 ```
 
@@ -46,17 +46,18 @@ machine outputs, authored assets, design files, fonts, marks, project CSS, and
 the client runtime. Its direct-path renderer uses the same React and LiquidJS
 content policy in both hosts.
 
-Native publication submits the complete staged output tree and declarations to
-Rust `fig finalize`, which hashes it and constructs the receipt bound to the
-input SiteBuild id and Cycle renderer version. For a reusable
+Native publication renders directly into filesystem CAS, privately binds the
+complete catalog to the restored Rust runtime, and admits every verified file
+before no-argument finalization constructs the receipt. For a reusable
 `site-gen/build.tsx` invocation every one of those files is declared in the
 generator catalog before rendering; there is no later static-asset append. The
 repository's whole-publication wrapper runs that build in
-an inner disposable directory, verifies its receipt, copies only declared bytes
-into one outer staging tree, adds the viewers, SHL files, skill, CNAME, redirect,
+CAS, inherits its receipt without copying bytes, adds the viewers, SHL files,
+skill, CNAME, redirect,
 and the Publisher's complete independently checked output under `publisher/`
 (`qa.html` redirects to its QA entry point), then asks the same Rust finalizer
-to seal that complete tree and publishes it once. TypeScript independently
+to seal that complete namespace and materializes it once for atomic
+publication. TypeScript independently
 validates Rust's canonical identity and every byte before the atomic rename; it
 does not construct production receipts. The receipt file is excluded from its
 own file list to avoid self-reference.
@@ -123,13 +124,13 @@ SITE_BUILD_DIR=temp/cycle.fig-build SITE_GEN_REPLACE_OUTPUT=1 \
 
 Native builds reuse complete verified outputs by default from
 `temp/fig-output-cache`; set `FIG_OUTPUT_CACHE=/another/cache` to relocate it
-and `FIG_BIN=/path/to/pinned/fig` to select the engine binary. The cache lookup
-binds the exact closed build, renderer package/code recipe, output schema, and
-runtime options. A hit is materialized into the same private publication
-transaction and independently re-verified before atomic publication; a miss
-runs the ordinary renderer and asks Rust `finalize` to authenticate the
-declared tree, write `site-output.json`, and publish the cache entry. Browser
-rendering is unchanged.
+and `FIG_BIN=/path/to/pinned/fig` to select the engine binary. This is private
+host storage: its pointer binds the exact closed build, renderer package/code
+recipe, output schema, and runtime options, but no cache key or operation enters
+the Build/SiteOutput API. A hit supplies a verified receipt and ContentStore; a
+miss runs the ordinary renderer and no-argument Rust finalization. Both paths
+materialize the same receipt once inside the atomic publication transaction.
+Browser rendering is unchanged.
 
 The `gen-example.ts` step is specific to this guide: its authored narratives
 link to a deterministic example that must be compiled into the closed build.
@@ -147,12 +148,12 @@ SiteBuild with the pinned `FIG_BIN`, and composes both authenticated outputs:
 FIG_BIN=/path/to/pinned/fig bun run build:sitegen
 ```
 
-`build:sitegen` does not mutate a renderer publication in place. It treats the
-inner Rust receipt as inherited proof, verifies inherited bytes again after
-adding project outputs, performs the whole-tree link check, and asks Rust to
-write the sole shipped receipt immediately before the canonical rename. The intentional
-agent-package append to `llms.txt` is represented as a wrapper-produced file in
-that final receipt.
+`build:sitegen` does not mutate a renderer publication in place. It inherits the
+inner Rust receipt's ContentRefs without copying them, adds project outputs to
+the same content store, performs the whole-namespace link check, and asks Rust
+to finalize those exact refs. Only then does it materialize the sole shipped
+SiteOutput and atomically publish the tree. The intentional agent-package append
+to `llms.txt` is represented as a wrapper-produced file in that final output.
 
 The full site-gen harness is:
 

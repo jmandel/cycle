@@ -5,32 +5,33 @@
  * Runs the IG Publisher for validation/QA, closes a separate cycle-site/v2
  * SiteBuild with pinned Fig, then composes the Cycle renderer with IG-specific
  * extras (viewers, sample SHL, skill.zip, CNAME, Publisher QA), seals the
- * complete staged tree, and publishes site-gen/out once.
+ * complete CAS namespace, and materializes/publishes site-gen/out once.
  *
  * Pages deploys site-gen/out (the root static site, not the Publisher /en/ shell).
  */
-import { constants } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { copyFile, lstat, mkdir, rm, writeFile, readFile } from 'node:fs/promises';
-import { homedir } from 'node:os';
+import { lstat, mkdir, mkdtemp, rm, writeFile, readFile } from 'node:fs/promises';
+import { homedir, tmpdir } from 'node:os';
 import { dirname, join, posix, relative } from 'node:path';
 import { viewerBuildEnv, viewerOutput, viewerVariants } from './viewer-variants.ts';
 import {
-  assertInheritedFilesUnchanged,
-  copyVerifiedOutput,
   listRegularOutputFiles,
   mediaTypeForOutput,
-  receiptFileMatches,
 } from './final-publication.ts';
 import { AtomicOutputPublication } from '../site-gen/core/atomic-output.ts';
-import { finalizeNativeOutput } from '../site-gen/core/native-output-cache.ts';
-import { checkInternalLinks } from '../site-gen/core/link-check.ts';
+import { ContentOutputNamespace } from '../site-gen/core/content-output-namespace.ts';
 import {
-  assertCycleOutputPath,
+  completeNativeRenderer,
+  nativeBuildStorageRoot,
+} from '../site-gen/core/native-output-cache.ts';
+import { checkInternalLinkContent } from '../site-gen/core/link-check.ts';
+import {
+  serializeSiteOutput,
   type CycleOutputDeclaration,
-  type CycleProducerIdentity,
+  type OutputProducer,
 } from '../site-gen/core/output-receipt.ts';
 import { project } from '../site-gen/project/cycle.ts';
+import { resolveNativeCycleOutput } from '../site-gen/build.tsx';
 
 const root = `${import.meta.dir}/..`;
 const OUT = `${root}/site-gen/out`;
@@ -40,6 +41,8 @@ const exampleDir = `${root}/input/resources`;
 const exampleOut = `${root}/input/resources/Bundle-period-tracking-longitudinal-example.json`;
 const publisherJar = `${root}/input-cache/publisher.jar`;
 const figBin = Bun.env.FIG_BIN;
+const OUTPUT_CACHE = nativeBuildStorageRoot();
+const OUTPUT_OBJECTS = join(OUTPUT_CACHE, 'objects', 'sha256');
 const fhirCache = Bun.env.FHIR_CACHE || `${homedir()}/.fhir/packages`;
 const viewerBase = Bun.env.VIEWER_BASE || `https://${project.cname}/view`;
 const demoFiles = ['example.jwe', 'shlink.txt', '_shlink-local.txt', '_shlink-local-ig.txt'];
@@ -134,105 +137,33 @@ await step('prepare closed Cycle v2 SiteBuild', [
   SITE_BUILD_DIR,
 ], { SOURCE_DATE_EPOCH: Bun.env.SOURCE_DATE_EPOCH || '1783555200' });
 
-// The project wrapper owns the one canonical publication. The generic renderer
-// publishes and verifies its ordinary output only inside this private outer
-// staging tree; its inner receipt is consumed as proof, not shipped beside a
-// subsequently-mutated directory.
-const publication = await AtomicOutputPublication.create({
-  destination: OUT,
-  replaceExisting: true,
-  protectedPaths: [
-    project.contentDir,
-    project.imageDir,
-    ...project.liquidAssetDirs,
-    'input',
-    'output',
-    SITE_BUILD_DIR,
-    SAMPLE_SHL_DIR,
-    project.projectCss,
-    project.packageList,
-    'site-gen/build.tsx',
-    'site-gen/client',
-    'site-gen/chrome',
-    'site-gen/core',
-    'site-gen/designs',
-    'site-gen/ds',
-    'site-gen/fhir',
-    'site-gen/project',
-    'site-gen/publisher',
-    'scripts',
-    'skill',
-    'viewer-src',
-    '.git',
-    '.github',
-  ],
-});
-const WORK = publication.stagingDirectory;
-const BASE_OUT = join(WORK, '.cycle-renderer-publication');
-const outputDeclarations = new Map<string, CycleOutputDeclaration>();
+// The wrapper composes authenticated ContentRefs first. A destination tree is
+// created only after Rust finalizes that exact namespace.
+const scratch = await mkdtemp(join(tmpdir(), 'cycle-project-compose.'));
+let publication: AtomicOutputPublication | null = null;
 
-function declareOutput(declaration: CycleOutputDeclaration): void {
-  assertCycleOutputPath(declaration.path, 'Project publication output path');
-  if (outputDeclarations.has(declaration.path)) {
-    throw new Error(`Project publication output collision at '${declaration.path}'`);
-  }
-  outputDeclarations.set(declaration.path, declaration);
-}
-
-async function pathExists(path: string): Promise<boolean> {
-  try {
-    await lstat(path);
-    return true;
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false;
-    throw error;
-  }
-}
-
-async function requireFreshOutput(name: string): Promise<string> {
-  const destination = publication.outputPath(name);
-  if (outputDeclarations.has(name) || await pathExists(destination)) {
-    throw new Error(`Project publication output collision at '${name}'`);
-  }
-  return destination;
-}
-
-async function writeExtra(declaration: CycleOutputDeclaration, content: string | Uint8Array): Promise<void> {
-  const destination = await requireFreshOutput(declaration.path);
-  await mkdir(dirname(destination), { recursive: true });
-  await writeFile(destination, content, { flag: 'wx' });
-  declareOutput(declaration);
-}
-
-async function copyExtra(source: string, declaration: CycleOutputDeclaration): Promise<void> {
-  const destination = await requireFreshOutput(declaration.path);
-  const sourceMetadata = await lstat(source);
-  if (!sourceMetadata.isFile() || sourceMetadata.isSymbolicLink()) {
+async function addSource(
+  namespace: ContentOutputNamespace,
+  source: string,
+  declaration: CycleOutputDeclaration,
+): Promise<void> {
+  const metadata = await lstat(source);
+  if (!metadata.isFile() || metadata.isSymbolicLink()) {
     throw new Error(`Project publication source is not a regular file: ${source}`);
   }
-  await mkdir(dirname(destination), { recursive: true });
-  await copyFile(source, destination, constants.COPYFILE_EXCL);
-  declareOutput(declaration);
+  await namespace.add(declaration, new Uint8Array(await readFile(source)));
 }
 
-async function declareGeneratedFile(declaration: CycleOutputDeclaration): Promise<void> {
-  const path = publication.outputPath(declaration.path);
-  const metadata = await lstat(path);
-  if (!metadata.isFile() || metadata.isSymbolicLink()) {
-    throw new Error(`Generated project output is not a regular file: ${declaration.path}`);
-  }
-  declareOutput(declaration);
-}
-
-async function declareGeneratedTree(
+async function addGeneratedTree(
+  namespace: ContentOutputNamespace,
   rootPath: string,
   outputPrefix: string,
-  producer: CycleProducerIdentity,
+  producer: OutputProducer,
   sourceFor: (relativePath: string) => string,
 ): Promise<void> {
   for (const relativePath of await listRegularOutputFiles(rootPath)) {
     const path = posix.join(outputPrefix, relativePath);
-    await declareGeneratedFile({
+    await addSource(namespace, join(rootPath, relativePath), {
       path,
       mediaType: mediaTypeForOutput(path),
       producer,
@@ -242,30 +173,22 @@ async function declareGeneratedTree(
 }
 
 try {
-  await step('render verified inner site-gen site', ['bun', 'site-gen/build.tsx'], {
-    SITE_BUILD_DIR,
-    OUT_DIR: BASE_OUT,
-  });
-  const base = await copyVerifiedOutput(BASE_OUT, WORK);
-  for (const declaration of base.declarations) declareOutput(declaration);
-  await rm(BASE_OUT, { recursive: true, force: true });
-  await assertInheritedFilesUnchanged(WORK, base.receipt);
-  console.log(`✓ inherited verified renderer output ${base.receipt.outputId}`);
+  const base = await resolveNativeCycleOutput({ buildDirectory: SITE_BUILD_DIR });
+  const namespace = ContentOutputNamespace.inherit({ receipt: base.receipt, store: base.store });
+  console.log(`✓ inherited verified renderer output ${base.receipt.outputId} without copying its bytes`);
 
-  // 8–11. Add every IG-specific artifact inside the same private outer tree.
+  const viewerScratch = join(scratch, 'viewers');
   for (const variant of viewerVariants) {
-    const output = viewerOutput(variant, WORK);
-    if (await pathExists(output.page) || await pathExists(output.assets)) {
-      throw new Error(`Viewer output collides with inherited Cycle output: ${variant.id}`);
-    }
-    await step(`bundle ${variant.label}`, ['bun', 'scripts/build-viewer.ts'], viewerBuildEnv(variant, WORK));
-    await declareGeneratedFile({
+    const output = viewerOutput(variant, viewerScratch);
+    await step(`bundle ${variant.label}`, ['bun', 'scripts/build-viewer.ts'], viewerBuildEnv(variant, viewerScratch));
+    await addSource(namespace, output.page, {
       path: variant.pageName,
       mediaType: 'text/html',
       producer: { id: 'cycle-viewer-bundle', version: '1' },
       source: relative(root, variant.template).replaceAll('\\', '/'),
     });
-    await declareGeneratedTree(
+    await addGeneratedTree(
+      namespace,
       output.assets,
       variant.assetsDirName,
       { id: 'cycle-viewer-bundle', version: '1' },
@@ -278,7 +201,7 @@ try {
   for (const variant of viewerVariants) {
     for (const file of demoFiles) {
       const path = posix.join(variant.assetsDirName, file);
-      await copyExtra(join(SAMPLE_SHL_DIR, file), {
+      await addSource(namespace, join(SAMPLE_SHL_DIR, file), {
         path,
         mediaType: mediaTypeForOutput(path),
         producer: { id: 'cycle-smart-health-link', version: '1' },
@@ -288,135 +211,171 @@ try {
     }
   }
 
-  const inheritedLlms = base.receipt.files.find((file) => file.path === 'llms.txt');
-  if (!inheritedLlms) throw new Error('Verified Cycle renderer output has no llms.txt');
-  if (await pathExists(publication.outputPath('skill.zip'))) {
-    throw new Error("Project publication output collision at 'skill.zip'");
+  const agentSite = join(scratch, 'agent-site');
+  const agentOut = join(scratch, 'agent-out');
+  await mkdir(agentSite, { recursive: true });
+  await mkdir(agentOut, { recursive: true });
+  for (const name of [
+    'implementation.md',
+    'index.md',
+    'specification.md',
+    'examples.md',
+    'references.md',
+    'ig-details.md',
+  ]) {
+    await writeFile(join(agentSite, name), await namespace.read(name));
   }
+  await writeFile(join(agentOut, 'llms.txt'), await namespace.read('llms.txt'));
   await step('package agent assets (skill.zip)', ['bun', 'scripts/build-agent-assets.ts'], {
-    AGENT_OUTDIR: WORK,
-    AGENT_SITE_DIR: WORK,
+    AGENT_OUTDIR: agentOut,
+    AGENT_SITE_DIR: agentSite,
   });
-  await declareGeneratedFile({
+  await addSource(namespace, join(agentOut, 'skill.zip'), {
     path: 'skill.zip',
     mediaType: 'application/zip',
     producer: { id: 'cycle-agent-assets', version: '1' },
     source: 'rendered Cycle Markdown + skill package template',
   });
-  const transformedBasePaths = new Set<string>();
-  if (!await receiptFileMatches(WORK, inheritedLlms)) {
-    transformedBasePaths.add('llms.txt');
-    outputDeclarations.set('llms.txt', {
-      path: 'llms.txt',
-      mediaType: 'text/plain',
-      producer: { id: 'cycle-agent-assets', version: '1' },
-      source: 'Cycle renderer llms.txt + Agent package section',
-    });
-  }
+  await namespace.replace('llms.txt', {
+    path: 'llms.txt',
+    mediaType: 'text/plain',
+    producer: { id: 'cycle-agent-assets', version: '1' },
+    source: 'Cycle renderer llms.txt + Agent package section',
+  }, new Uint8Array(await readFile(join(agentOut, 'llms.txt'))));
 
-  await copyExtra(join(root, project.packageList), {
+  await addSource(namespace, join(root, project.packageList), {
     path: 'package-list.json',
     mediaType: 'application/json',
     producer: { id: 'cycle-project-publication', version: '1' },
     source: project.packageList,
   });
   const cname = Bun.env.PAGES_CNAME || project.cname;
-  await writeExtra({
+  await namespace.add({
     path: 'CNAME',
     mediaType: 'text/plain',
     producer: { id: 'cycle-project-publication', version: '1' },
     source: 'PAGES_CNAME or project.cname',
   }, `${cname}\n`);
-  await writeExtra({
+  await namespace.add({
     path: '404.html',
     mediaType: 'text/html',
     producer: { id: 'cycle-project-publication', version: '1' },
     source: 'legacy /en compatibility redirect',
   }, compatibility404());
-  console.log('Wrote 404.html compatibility redirect for old /en/ URLs');
 
-  // QA pages link throughout the Publisher's /en and comparison trees. Keep
-  // that artifact complete under its own namespace instead of copying a few QA
-  // files with dangling links into the Cycle renderer's root namespace.
   const publisherOutput = join(root, 'output');
   const publisherArtifacts = await listRegularOutputFiles(publisherOutput);
   for (const name of publisherArtifacts) {
     const path = posix.join('publisher', name);
-    await copyExtra(join(publisherOutput, name), {
+    await addSource(namespace, join(publisherOutput, name), {
       path,
       mediaType: mediaTypeForOutput(path),
       producer: { id: 'hl7-fhir-publisher', version: 'current-input' },
       source: `output/${name}`,
     });
   }
-  await writeExtra({
+  await namespace.add({
     path: 'qa.html',
     mediaType: 'text/html',
     producer: { id: 'cycle-project-publication', version: '1' },
     source: 'redirect to complete namespaced Publisher QA artifact',
   }, publisherQaRedirect());
-  console.log(`Copied complete Publisher artifact (${publisherArtifacts.length} files) under publisher/`);
+  console.log(`Added complete Publisher artifact (${publisherArtifacts.length} files) under publisher/`);
 
-  // All ordinary renderer bytes must still match the inherited receipt. llms.txt
-  // is the sole intentional transformation and now has wrapper provenance.
-  await assertInheritedFilesUnchanged(WORK, base.receipt, transformedBasePaths);
-
-  // 12. Check every wrapper/Cycle page. The complete publisher/ subtree is an
-  // independently generated artifact: IG Publisher has already validated its
-  // 1,494 HTML files and reported its own broken-link count. Reinterpreting its
-  // raw support pages with Cycle's checker produces false positives for
-  // Publisher-only placeholders, so preserve and seal it without a second,
-  // semantically different HTML pass.
-  const allFiles = await listRegularOutputFiles(WORK);
+  const allFiles = namespace.paths();
   const files = allFiles.filter((file) => file.endsWith('.html') && !file.startsWith('publisher/'));
-  const emitted = new Set(allFiles);
-  const broken = checkInternalLinks({ outDir: WORK, emitted, files, isExternalLink: () => false });
+  const html = new Map<string, string>();
+  for (const file of files) html.set(file, await namespace.readText(file));
+  const broken = checkInternalLinkContent({
+    emitted: new Set(allFiles),
+    files,
+    isExternalLink: () => false,
+    read: (file) => {
+      const body = html.get(file);
+      if (body === undefined) throw new Error(`Link checker is missing '${file}'`);
+      return body;
+    },
+  });
   if (broken.length) {
     console.error(`\n✗ ${broken.length} broken links in final output:`);
     for (const item of [...new Set(broken)].slice(0, 40)) console.error(`  ${item}`);
     throw new Error('Final whole-site link check failed; canonical output was not published');
   }
 
-  const finalized = finalizeNativeOutput({
+  const receiptFile = join(scratch, 'site-output.json');
+  const finalizedReceipt = await completeNativeRenderer({
     buildDirectory: SITE_BUILD_DIR,
-    inputBuildId: base.receipt.inputBuildId,
-    siteDirectory: WORK,
+    inputBuildId: namespace.inputBuildId,
+    cacheDirectory: OUTPUT_CACHE,
+    contentStoreDirectory: OUTPUT_OBJECTS,
+    receiptFile,
     derivation: {
       renderer: {
         id: 'cycle-project-publication',
         version: '1',
-        // This project wrapper has external QA/viewer inputs beyond SiteBuild.
-        // Conservatively bind its exact completed composition into the recipe so
-        // it can never collide with a stale reusable base-renderer entry.
         recipeSha256: createHash('sha256').update(JSON.stringify({
           schema: 'cycle-project-publication-recipe/v1',
-          // SiteOutput binds every final byte. The derivation recipe instead
-          // binds the upstream authenticated output, wrapper implementation, and
-          // explicit composition options; rereading the completed tree here only
-          // duplicated finalization and caused a whole-site memory spike.
           baseOutputId: base.receipt.outputId,
           baseRecipe: base.receipt.renderer.recipeSha256,
           wrapper: createHash('sha256').update(await readFile(import.meta.path)).digest('hex'),
           options: {
             sourceDateEpoch: Bun.env.SOURCE_DATE_EPOCH || '1783555200',
             viewerBase,
-            cname: Bun.env.PAGES_CNAME || project.cname,
+            cname,
           },
         })).digest('hex'),
       },
       outputSchema: 'cycle-project-publication/v1',
       options: { baseOutputId: base.receipt.outputId },
     },
-    declarations: [...outputDeclarations.values()],
+    files: namespace.completedFiles(),
   });
+
+  publication = await AtomicOutputPublication.create({
+    destination: OUT,
+    replaceExisting: true,
+    protectedPaths: [
+      project.contentDir,
+      project.imageDir,
+      ...project.liquidAssetDirs,
+      'input',
+      'output',
+      SITE_BUILD_DIR,
+      SAMPLE_SHL_DIR,
+      OUTPUT_CACHE,
+      scratch,
+      project.projectCss,
+      project.packageList,
+      'site-gen',
+      'scripts',
+      'skill',
+      'viewer-src',
+      '.git',
+      '.github',
+    ],
+  });
+  await writeFile(
+    join(publication.stagingDirectory, 'site-output.json'),
+    serializeSiteOutput(finalizedReceipt),
+    { flag: 'wx' },
+  );
+  for (const file of finalizedReceipt.files) {
+    const bytes = await namespace.store.get(file.content);
+    if (!bytes) throw new Error(`ContentStore lost finalized project output '${file.path}'`);
+    const destination = publication.outputPath(file.path);
+    await mkdir(dirname(destination), { recursive: true });
+    await writeFile(destination, bytes, { flag: 'wx' });
+  }
   const receipt = await publication.adoptFinalizedOutputReceipt();
-  if (finalized.outputId !== receipt.outputId || finalized.cacheKey !== receipt.cacheKey) {
-    throw new Error('Fig finalized a different project SiteOutput than Cycle independently verified');
+  if (receipt.outputId !== finalizedReceipt.outputId) {
+    throw new Error('Materialized project output differs from its finalized receipt');
   }
   await publication.publish();
   console.log(`\n✓ site build complete: ${relative(root, OUT)}/ (${files.length} pages, links OK; Publisher QA at qa.html)`);
   console.log(`✓ complete output ${receipt.outputId} (${receipt.files.length} files) verified`);
 } catch (error) {
-  await publication.abort();
+  if (publication) await publication.abort();
   throw error;
+} finally {
+  await rm(scratch, { recursive: true, force: true });
 }

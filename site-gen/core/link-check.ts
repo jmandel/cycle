@@ -27,9 +27,27 @@ export function checkInternalLinks(args: {
   files: Iterable<string>;
   isExternalLink: (href: string) => boolean;
 }): string[] {
+  return checkInternalLinkContent({
+    emitted: args.emitted,
+    files: args.files,
+    isExternalLink: args.isExternalLink,
+    read: (file) => readFileSync(`${args.outDir}/${file}`, 'utf8'),
+    exists: (file) => existsSync(`${args.outDir}/${file}`),
+  });
+}
+
+/** Filesystem-neutral checker used by renderers before a receipt is projected
+ * into a publication tree. */
+export function checkInternalLinkContent(args: {
+  emitted: ReadonlySet<string>;
+  files: Iterable<string>;
+  isExternalLink: (href: string) => boolean;
+  read: (file: string) => string;
+  exists?: (file: string) => boolean;
+}): string[] {
   const broken: string[] = [];
   for (const file of args.files) {
-    const html = readFileSync(`${args.outDir}/${file}`, 'utf8');
+    const html = args.read(file);
     for (const h of collectLocalRefs(html)) {
       if (/^\s*javascript:/i.test(h)) { broken.push(`${file} → ${h} (forbidden javascript: link)`); continue; }
       if (/^(?:[a-z][a-z0-9+.-]*:|#|\/)/i.test(h)) continue;
@@ -38,7 +56,7 @@ export function checkInternalLinks(args: {
       const resolved = path.normalize(path.join(path.dirname(file), target));
       if (args.isExternalLink(h) || args.isExternalLink(resolved)) continue; // injected by a later build step (config-declared)
       if (resolved.startsWith('../')) { broken.push(`${file} → ${h} (escapes output directory)`); continue; }
-      if (!args.emitted.has(resolved) && !existsSync(`${args.outDir}/${resolved}`)) broken.push(`${file} → ${h}`);
+      if (!args.emitted.has(resolved) && !args.exists?.(resolved)) broken.push(`${file} → ${h}`);
     }
   }
   return broken;

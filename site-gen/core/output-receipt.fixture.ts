@@ -1,9 +1,9 @@
-import type { CycleOutputReceipt } from './output-receipt';
+import type { SiteOutput } from './output-receipt';
 
 /** Canonical SiteOutput and bytes emitted by the independent Rust fixture. */
 export const RUST_SITE_OUTPUT_BYTES = new TextEncoder().encode('hello');
 
-export const RUST_SITE_OUTPUT_RECEIPT: CycleOutputReceipt = {
+export const RUST_SITE_OUTPUT_RECEIPT: SiteOutput = {
   schemaVersion: 'site-output/v1',
   inputBuildId: 'sb1-sha256:5eb1101c55a13f90a6af2ef851eb32705b663caf669dc8b596baad690f15495d',
   renderer: {
@@ -13,7 +13,6 @@ export const RUST_SITE_OUTPUT_RECEIPT: CycleOutputReceipt = {
   },
   outputSchema: 'static-site/v1',
   options: { locale: 'en' },
-  cacheKey: 'sok1-sha256:52a6568c5df7d5db15d43a1c5c1ce4eb0a64cffad5f4c2dc53ba09335180af2b',
   files: [{
     path: 'index.html',
     content: {
@@ -24,5 +23,5 @@ export const RUST_SITE_OUTPUT_RECEIPT: CycleOutputReceipt = {
     producer: { id: 'cycle-page', version: '1' },
     source: 'page recipe',
   }],
-  outputId: 'so1-sha256:5c395c8bde04a11939c040de1bb920dc720db9e859453dea647560b46b18f0c1',
+  outputId: 'so1-sha256:35e7078d4768dd1565de1097e61ec4e09d809a127275a934626eeae09e36eee5',
 };

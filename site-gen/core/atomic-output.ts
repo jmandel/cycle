@@ -2,11 +2,11 @@
 import { randomUUID } from 'node:crypto';
 import { lstat, mkdtemp, open, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, normalize, parse, relative, resolve } from 'node:path';
-import { verifyCycleOutputTree } from './output-receipt-node';
+import { verifySiteOutputTree } from './output-receipt-node';
 import {
-  validateCycleOutputReceipt,
+  validateSiteOutput,
   type CycleOutputDeclaration,
-  type CycleOutputReceipt,
+  type SiteOutput,
 } from './output-receipt';
 import { renameDirectoryNoReplace } from './no-replace-rename';
 
@@ -86,7 +86,7 @@ export class AtomicOutputPublication {
   private readonly replaceExisting: boolean;
   private published = false;
   private closed = false;
-  private sealedReceipt: CycleOutputReceipt | null = null;
+  private sealedReceipt: SiteOutput | null = null;
   private sealedDeclarations: readonly CycleOutputDeclaration[] | null = null;
 
   private constructor(args: {
@@ -197,7 +197,7 @@ export class AtomicOutputPublication {
    * Re-read and verify every byte now, then retain those declarations so `publish()` does
    * the ordinary final verification immediately before its atomic rename.
    */
-  async adoptFinalizedOutputReceipt(): Promise<CycleOutputReceipt> {
+  async adoptFinalizedOutputReceipt(): Promise<SiteOutput> {
     if (this.closed) throw new Error('Atomic output publication is already closed');
     if (this.sealedReceipt) throw new Error('Atomic output publication already has an output receipt');
     const serialized = await readFile(join(this.stagingDirectory, 'site-output.json'), 'utf8');
@@ -207,7 +207,7 @@ export class AtomicOutputPublication {
     } catch (error) {
       throw new Error(`Invalid finalized SiteOutput JSON: ${error instanceof Error ? error.message : String(error)}`);
     }
-    const receipt = await validateCycleOutputReceipt(parsed);
+    const receipt = await validateSiteOutput(parsed);
     const declarations = receipt.files.map((file): CycleOutputDeclaration => ({
       path: file.path,
       mediaType: file.content.mediaType,
@@ -215,7 +215,7 @@ export class AtomicOutputPublication {
       ...(file.source === undefined ? {} : { source: file.source }),
       ...(file.owner === undefined ? {} : { owner: file.owner }),
     }));
-    await verifyCycleOutputTree({
+    await verifySiteOutputTree({
       root: this.stagingDirectory,
       declarations,
       expected: receipt,
@@ -249,7 +249,7 @@ export class AtomicOutputPublication {
     if (!this.sealedReceipt || !this.sealedDeclarations) {
       throw new Error('Atomic output publication requires an adopted Rust SiteOutput receipt');
     }
-    await verifyCycleOutputTree({
+    await verifySiteOutputTree({
       root: this.stagingDirectory,
       declarations: this.sealedDeclarations,
       expected: this.sealedReceipt,

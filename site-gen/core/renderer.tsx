@@ -86,7 +86,7 @@ interface PageDescriptor {
   subjectPage?: 'primary' | 'companion';
 }
 
-export interface RenderedOutput {
+interface RenderedOutput {
   file: string;
   content: string | Uint8Array;
   mime: string;

@@ -1,8 +1,8 @@
 /** The single public Cycle generator seam over one verified, closed v2 build. */
-import type { ClosedBuildHandle } from './closed-build';
+import type { ClosedBuildHandle, ContentRef, WritableContentStore } from './closed-build';
 import { createCycleContentRenderer } from './content';
 import { CycleSiteRenderer } from './renderer';
-import type { CycleOutputDescriptor, RenderedOutput } from './renderer';
+import type { CycleOutputDescriptor } from './renderer';
 import { CycleSiteBuild } from './semantic-site-build';
 import { CycleRendererPackage } from './renderer-package';
 import { compareText } from './order';
@@ -17,9 +17,8 @@ export type CycleGeneratorOutput = CycleOutputDescriptor;
  * output catalog from one build with bytes rendered from another.
  */
 export interface CycleGenerator {
-  readonly buildId: string;
   outputs(): CycleGeneratorOutput[];
-  render(path: string): RenderedOutput;
+  render(path: string): Promise<ContentRef>;
 }
 
 /**
@@ -30,6 +29,7 @@ export interface CycleGenerator {
 export async function openCycleGenerator(
   build: ClosedBuildHandle,
   rendererPackage: CycleRendererPackage,
+  outputStore: WritableContentStore,
 ): Promise<CycleGenerator> {
   const site = await CycleSiteBuild.fromClosedBuild(build);
   const renderer = new CycleSiteRenderer(site, {
@@ -57,20 +57,31 @@ export async function openCycleGenerator(
     ...output,
     ...(output.subject ? { subject: Object.freeze({ ...output.subject }) } : {}),
   })));
+  const rendered = new Map<string, ContentRef>();
 
   return Object.freeze({
-    buildId: build.manifest.buildId,
     outputs: () => frozenCatalog.map((output) => ({
       ...output,
       ...(output.subject ? { subject: { ...output.subject } } : {}),
     })),
-    render: (path: string) => {
+    render: async (path: string) => {
+      const prior = rendered.get(path);
+      if (prior) return prior;
       const descriptor = frozenCatalog.find((output) => output.file === path);
       if (!descriptor) throw new Error(`Cycle generator: no output '${path}'`);
       const packaged = rendererPackage.render(path);
-      return packaged
+      const output = packaged
         ? { file: path, mime: descriptor.mime, content: packaged }
         : renderer.render(path);
+      const bytes = typeof output.content === 'string'
+        ? new TextEncoder().encode(output.content)
+        : output.content;
+      const content = await outputStore.put(bytes, output.mime);
+      if (content.mediaType !== output.mime) {
+        throw new Error(`Cycle generator ContentStore changed media type for '${path}'`);
+      }
+      rendered.set(path, content);
+      return content;
     },
   });
 }

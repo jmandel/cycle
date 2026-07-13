@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path';
 import { expect, test } from 'bun:test';
 import { AtomicOutputPublication } from './atomic-output';
 import { renameDirectoryNoReplace } from './no-replace-rename';
-import { serializeCycleOutputReceipt } from './output-receipt';
+import { serializeSiteOutput } from './output-receipt';
 import {
   RUST_SITE_OUTPUT_BYTES,
   RUST_SITE_OUTPUT_RECEIPT,
@@ -156,7 +156,7 @@ async function writeRustReceipt(publication: AtomicOutputPublication, includeOut
   }
   await writeFile(
     publication.outputPath('site-output.json'),
-    serializeCycleOutputReceipt(RUST_SITE_OUTPUT_RECEIPT),
+    serializeSiteOutput(RUST_SITE_OUTPUT_RECEIPT),
   );
 }
 
@@ -184,7 +184,7 @@ test('atomic publication adopts and publishes the independently produced Rust re
     await publication.publish();
     expect(await readFile(join(destination, 'index.html'), 'utf8')).toBe('hello');
     expect(await readFile(join(destination, 'site-output.json'), 'utf8'))
-      .toBe(serializeCycleOutputReceipt(RUST_SITE_OUTPUT_RECEIPT));
+      .toBe(serializeSiteOutput(RUST_SITE_OUTPUT_RECEIPT));
   } finally {
     await rm(root, { recursive: true, force: true });
   }
