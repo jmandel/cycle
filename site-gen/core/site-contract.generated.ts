@@ -22,56 +22,56 @@ export type PreparedProjectResult = { compiled: CompilationOutcome, site: Prepar
 export type PackageRequest = { package_id: string, version: string, };
 export type RequestedSet = "compile" | "context";
 export type MissingReason = { "kind": "not_mounted" } | { "kind": "unresolved_version", requested: string, };
-export type MissingPackage = { package_id: string, 
+export type MissingPackage = { package_id: string,
 /**
  * The concrete version the resolver selected (if it could resolve one), or the
  * raw requested coordinate when it could not (`latest`/`current` with no index).
  */
-version: string, 
+version: string,
 /**
  * Why this package is in `missing`: the exact, host-renderable reason.
  */
-reason: MissingReason, 
+reason: MissingReason,
 /**
  * The set that referenced it (`compile` or `context`), for the host's UI.
  */
 set: RequestedSet, };
 export type MutableVersionRequest = { package_id: string, requested: string, resolved_version: string | null, set: RequestedSet, };
-export type ResolutionStep = { 
+export type ResolutionStep = {
 /**
  * Schema for the resolver semantics represented by this result. Hosts may
  * persist an exact closure as an optimization, but must discard it when
  * this value changes and must still re-run this resolver before use.
  */
-resolver_schema: number, 
+resolver_schema: number,
 /**
  * Stock-SUSHI COMPILE load set (non-transitive), in stock load order. Every
  * entry is a concrete `pkg#ver` the compile needs mounted.
  */
-compile_set: Array<PackageRequest>, 
+compile_set: Array<PackageRequest>,
 /**
  * Transitive snapshot/render context closure rooted at the exact compile
  * set and walked over the MOUNTED packages (R4-compat filtered,
  * core-canonicalized), with core first then discovery order.
  */
-context_closure: Array<PackageRequest>, 
+context_closure: Array<PackageRequest>,
 /**
  * Mounted package manifests read while proving `context_closure`, including
  * packages later excluded by compatibility rules. Replaying a cached
  * resolution must mount these witnesses too; the final closure alone is
  * not sufficient to prove that an excluded dependency remains excluded.
  */
-resolution_support: Array<PackageRequest>, 
+resolution_support: Array<PackageRequest>,
 /**
  * Packages referenced by either set that are not yet mounted (or whose version
  * could not be resolved). Fetch these, mount, and resolve again.
  */
-missing: Array<MissingPackage>, 
+missing: Array<MissingPackage>,
 /**
  * True iff nothing is missing — the mounted set fully satisfies both closures
  * and the host loop has reached its fixpoint.
  */
-satisfied: boolean, 
+satisfied: boolean,
 /**
  * Every non-concrete version request which influenced this step. A cached
  * closure is not fresh merely because its concrete packages still exist:
@@ -79,7 +79,7 @@ satisfied: boolean,
  * asking Rust to verify the closure again.
  */
 mutable_requests: Array<MutableVersionRequest>, };
-export type VersionIndex = { 
+export type VersionIndex = {
 /**
  * package id -> the list of available version strings (order irrelevant; the
  * resolver sorts).
@@ -96,7 +96,7 @@ export type ApiSuccess<T> = { apiVersion: 1, ok: true, op: string, result: T, };
 export type ApiFailure<E> = { apiVersion: 1, ok: false, op: string, error: E, };
 export type ApiEnvelope<T, E> = ApiSuccess<T> | ApiFailure<E>;
 export type Sha256Digest = string;
-export type ContentRef = { 
+export type ContentRef = {
 /**
  * The algorithm is fixed to SHA-256 and encoded in the field name.
  */
@@ -107,14 +107,14 @@ export type SourcePath = string;
 export type SourceKind = { "kind": "fsh" } | { "kind": "config" } | { "kind": "predefined_resource" } | { "kind": "page" } | { "kind": "template" } | { "kind": "asset" } | { "kind": "other", name: string, };
 export type SourceEntry = { kind: SourceKind, content: ContentRef, };
 export type SourceManifest = { [key in string]: SourceEntry };
-export type ProjectIdentity = { projectId: string, 
+export type ProjectIdentity = { projectId: string,
 /**
  * An SCM revision when available; otherwise a caller-defined immutable
  * revision label. Exact source hashes remain authoritative.
  */
 revision: string, sources: SourceManifest, };
 export type PackageCoordinate = string;
-export type LockedPackage = { coordinate: PackageCoordinate, 
+export type LockedPackage = { coordinate: PackageCoordinate,
 /**
  * Exact deterministic prepared-package carrier. This content-addressed
  * value binds the complete package representation consumed by execution,
@@ -133,16 +133,16 @@ export type ArtifactKey = { "kind": "semantic_model", name: string, } | { "kind"
 export type ReadDependency = { "kind": "source", path: SourcePath, } | { "kind": "package", coordinate: PackageCoordinate, } | { "kind": "artifact", key: ArtifactKey, } | { "kind": "content", sha256: Sha256Digest, };
 export type ArtifactProvenance = { producer: ProducerRef, recipe: string, attributes?: { [key in string]: string }, };
 export type DiagnosticSeverity = "information" | "warning" | "error";
-export type SourceLocation = { path: SourcePath, 
+export type SourceLocation = { path: SourcePath,
 /**
  * One-based, matching SUSHI's source line reporting.
  */
-line: number, 
+line: number,
 /**
  * Zero-based, matching the parser/ANTLR column convention.
  */
 column: number, };
-export type BuildDiagnostic = { 
+export type BuildDiagnostic = {
 /**
  * Stable producer-assigned emission order. Keeping it in the value preserves
  * meaningful diagnostic order while making collection insertion irrelevant.
@@ -154,7 +154,7 @@ export type ArtifactCatalog = Array<ArtifactRecord>;
 export type RenderPlan = { requiredArtifacts: Array<ArtifactKey>, };
 export type SiteBuild = { schemaVersion: SchemaVersion, buildId: BuildId, project: ProjectIdentity, packageLock: PackageLock, renderTarget: RenderTarget, renderPlan: RenderPlan, artifacts: ArtifactCatalog, diagnostics: Array<BuildDiagnostic>, };
 export type ClosedSiteBuild = SiteBuild;
-export type RendererImplementation = { id: string, version: string, 
+export type RendererImplementation = { id: string, version: string,
 /**
  * Digest of the exact renderer code/assets/toolchain recipe used for this
  * invocation. Human version labels alone are not cache-safe.
@@ -171,12 +171,12 @@ export type OutputPageKind = "narrative" | "artifacts" | "profile" | "profile-co
 export type OutputDescriptor = { path: string, kind: OutputKind, mediaType: string, content?: ContentRef, title?: string, subject?: OutputResourceSubject, subjectPage?: OutputSubjectPage, pageKind?: OutputPageKind, };
 export type OutputCatalog = { buildId: string, outputs: Array<OutputDescriptor>, };
 export type BuildStage = "wasm" | "manifest" | "project-cache-hit" | "project-verify" | "project-unpack" | "project-store" | "compile" | "snapshot" | "site-build" | "preview-publish" | "resolve" | "bundle-fetch" | "bundle-cache-hit" | "bundle-unpack" | "bundle-mount" | "registry-fetch" | "package-blocked" | "ready" | "lazy-fetch";
-export type BuildEvent = { 
+export type BuildEvent = {
 /**
  * Functional operation when this observation belongs to an immutable
  * Build. Lifecycle/package/project-source events omit it.
  */
-operation?: BuildOperation, 
+operation?: BuildOperation,
 /**
  * Immutable build identity when one exists. Acquisition events that occur
  * before prepare establishes an identity omit it.
